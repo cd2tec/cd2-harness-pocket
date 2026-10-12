@@ -133,6 +133,15 @@ input[type=radio]{accent-color:var(--brand);width:18px;height:18px;margin:0}
 .radio label{margin:0;font-weight:500;font-size:15px;display:flex;gap:var(--space-2);align-items:center;cursor:pointer}
 .row{display:flex;flex-wrap:wrap;gap:var(--space-3);justify-content:flex-end;margin-top:var(--space-8);align-items:center}
 .hint{font:400 13px/20px var(--font-sans);color:var(--ink-muted);margin-top:var(--space-2)}
+.kv{display:grid;grid-template-columns:max-content 1fr;gap:var(--space-1) var(--space-4);margin:var(--space-4) 0 0;font:400 13px/20px var(--font-sans)}
+.kv dt{color:var(--ink-muted);font-weight:600}
+.kv dd{margin:0;color:var(--ink);overflow-wrap:anywhere}
+.kv:empty{display:none}
+.tools{list-style:none;margin:var(--space-3) 0 var(--space-4);padding:0}
+.tools li{display:grid;grid-template-columns:6px 1fr;gap:var(--space-3);padding:var(--space-3) 0;border-bottom:1px solid var(--border)}
+.tools li::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--status-concluido);margin-top:7px}
+.tools b{font:700 14px/20px var(--font-mono);color:var(--ink)}
+.tools span{display:block;font:400 13px/20px var(--font-sans);color:var(--ink-muted)}
 .status{margin-right:auto}
 .status:empty{display:none}
 
@@ -179,9 +188,19 @@ input[type=radio]{accent-color:var(--brand);width:18px;height:18px;margin:0}
   <span class="eyebrow">Configuração</span>
   <h2>Ferramentas (MCP)</h2>
   <div class="radio">
+    <label><input type="radio" name="mode" value="toolbox"> Banco de dados (Toolbox)</label>
     <label><input type="radio" name="mode" value="demo"> Demonstração (offline)</label>
     <label><input type="radio" name="mode" value="mcp"> Archeo MCP</label>
   </div>
+  <div id="tbBox">
+    <dl class="kv" id="tbStatus"></dl>
+    <div class="hint" id="tbHint"></div>
+    <span class="eyebrow" style="margin-top:var(--space-6)">Exploração</span>
+    <div class="hint">Publicadas automaticamente pelo sistema. Já disponíveis e não editáveis.</div>
+    <ul class="tools" id="tbTools"></ul>
+    <div class="hint">Para trocar de banco, feche o harness e abra com INICIAR --banco.</div>
+  </div>
+  <div id="archeoBox">
   <label for="mcpUrl">URL do servidor MCP (HTTP)</label>
   <input type="text" id="mcpUrl" placeholder="https://archeo.cd2.com.br/api/mcp" autocomplete="off">
   <div class="hint" id="authState"></div>
@@ -192,6 +211,7 @@ input[type=radio]{accent-color:var(--brand);width:18px;height:18px;margin:0}
   <label for="mcpTok">Token estático (plano B, opcional)</label>
   <input type="password" id="mcpTok" placeholder="Bearer token" autocomplete="off">
   <div class="hint">O Archeo não mostra mais esse token na interface; use só se a operação gerar um para você. Fica só na memória desta aba e tem prioridade sobre o login.</div>
+  </div>
   <div class="row">
     <span class="status" id="cfgStatus"></span>
     <button id="cfgClose">Fechar</button>
@@ -201,11 +221,12 @@ input[type=radio]{accent-color:var(--brand);width:18px;height:18px;margin:0}
 
 <script src="mcp.js"></script>
 <script src="oauth.js"></script>
+<script src="toolbox.js"></script>
 <script>
 "use strict";
 const $ = s => document.querySelector(s);
 const MAX_TOOL_CHARS = 4000, MAX_STEPS = 6;
-const st = { cfg:{}, messages:[], provider:null, tools:[], busy:false, ctl:null };
+const st = { cfg:{}, messages:[], provider:null, tools:[], busy:false, ctl:null, dbStatus:null };
 
 /* ---------- storage (best effort) ---------- */
 const store = {
@@ -277,7 +298,14 @@ async function connectTools(){
   const tok = store.get('cd2.tok', true) || '';
   setPill('#pMcp', '', 'ferramentas…');
   try{
-    if(mode === 'mcp'){
+    if(mode === 'toolbox'){
+      const turl = CD2Toolbox.urlFor(location);
+      const c = new McpClient(turl, { token: async () => null, origin: location.origin });
+      st.tools = await c.init(); st.provider = c;
+      st.dbStatus = CD2Toolbox.parseStatus(await c.call('db_connection_status', {}));
+      const eng = st.dbStatus ? CD2Toolbox.engineLabel(st.dbStatus.engine) : 'Banco de dados';
+      setPill('#pMcp', 'ok', eng + ': ' + st.tools.length + ' ferramentas');
+    }else if(mode === 'mcp'){
       if(!url) throw new Error('Informe a URL do servidor MCP');
       const oauth = oauthFor(url);
       if(!tok && !oauth.isLoggedIn()) throw new Error('Entre com a conta do Archeo (ou informe um token estático).');
@@ -293,8 +321,12 @@ async function connectTools(){
   }catch(e){
     st.tools = []; st.provider = null;
     setPill('#pMcp', 'err', 'ferramentas offline');
-    const cors = (e instanceof TypeError) ? ' (falha de rede ou CORS: o servidor MCP precisa liberar a origem ' + location.origin + ')' : '';
-    return { ok:false, error:(e.message || String(e)) + cors };
+    st.dbStatus = null;
+    let hint = '';
+    if(e instanceof TypeError) hint = (mode === 'toolbox')
+      ? ' O toolbox não respondeu em ' + CD2Toolbox.urlFor(location) + '. O launcher deve ter avisado no terminal; feche o harness e abra com INICIAR --banco para configurar, ou use a Demonstração.'
+      : ' (falha de rede ou CORS: o servidor MCP precisa liberar a origem ' + location.origin + ')';
+    return { ok:false, error:(e.message || String(e)) + hint };
   }
 }
 const toOpenAITools = () => st.tools.map(t => ({ type:'function', function:{ name:t.name, description:t.description || '', parameters:t.inputSchema || { type:'object', properties:{} } } }));
@@ -386,6 +418,11 @@ async function runTurn(){
         if(!failed){
           try{
             if(!st.provider) throw new Error('nenhuma ferramenta conectada');
+            if(c.function.name === 'db_read_only_query' && st.provider !== demo){
+              const g = CD2Toolbox.guardSql(args.sql);
+              if(!g.ok) throw new Error(g.error);
+              args.sql = g.sql;
+            }
             out = await st.provider.call(c.function.name, args);
           }catch(e){ out = String(e.message || e); failed = true; }
         }
@@ -422,7 +459,9 @@ function renderHero(){
   const h = document.createElement('div'); h.className = 'hero'; h.id = 'hero';
   h.innerHTML = '<span class="eyebrow">IA local · CD2 Harness</span><h1>Olá. Eu sou a IA da <em>CD2</em>.</h1><p></p><span class="eyebrow sub">Experimente perguntar</span><div class="chips"></div>';
   h.querySelector('p').textContent = st.cfg.tagline + '. Nada do que você digitar sai deste computador, a não ser consultas às ferramentas que você conectar.';
-  for(const s of (st.cfg.suggestions || [])){
+  const mode = store.get('cd2.mode') || (st.cfg.mcp && st.cfg.mcp.mode) || 'demo';
+  const sug = Array.isArray(st.cfg.suggestions) ? st.cfg.suggestions : ((st.cfg.suggestions || {})[mode] || []);
+  for(const s of sug){
     const b = document.createElement('button'); b.className = 'chip'; b.textContent = s; b.onclick = () => send(s); h.querySelector('.chips').appendChild(b);
   }
   c.appendChild(h);
@@ -430,6 +469,29 @@ function renderHero(){
 function newChat(){ if(st.ctl) st.ctl.abort(); st.messages = []; renderHero(); }
 
 /* ---------- configurações ---------- */
+function syncCfgBoxes(){
+  const mode = document.querySelector('input[name=mode]:checked').value;
+  $('#tbBox').style.display = (mode === 'toolbox') ? '' : 'none';
+  $('#archeoBox').style.display = (mode === 'mcp') ? '' : 'none';
+}
+function renderToolbox(){
+  const dl = $('#tbStatus'); dl.innerHTML = '';
+  if(st.dbStatus){
+    for(const [k, v] of CD2Toolbox.statusLines(st.dbStatus)){
+      const dt = document.createElement('dt'); dt.textContent = k; const dd = document.createElement('dd'); dd.textContent = v; dl.appendChild(dt); dl.appendChild(dd);
+    }
+    $('#tbHint').textContent = '';
+  }else{
+    $('#tbHint').innerHTML = '<span class="tag tag--atencao">Atenção</span> ';
+    $('#tbHint').appendChild(document.createTextNode('Nenhum banco conectado. Clique em Salvar e conectar para tentar de novo.'));
+  }
+  const ul = $('#tbTools'); ul.innerHTML = '';
+  for(const name of Object.keys(CD2Toolbox.TOOL_DESCRIPTIONS)){
+    const li = document.createElement('li'); const b = document.createElement('b'); b.textContent = name;
+    const sp = document.createElement('span'); sp.textContent = CD2Toolbox.TOOL_DESCRIPTIONS[name];
+    li.appendChild(b); li.appendChild(sp); ul.appendChild(li);
+  }
+}
 function openCfg(){
   const mode = store.get('cd2.mode') || (st.cfg.mcp && st.cfg.mcp.mode) || 'demo';
   document.querySelectorAll('input[name=mode]').forEach(r => r.checked = (r.value === mode));
@@ -437,6 +499,7 @@ function openCfg(){
   $('#mcpTok').value = store.get('cd2.tok', true) || '';
   $('#cfgStatus').textContent = ''; $('#cfgStatus').className = 'status';
   refreshAuthBox();
+  renderToolbox(); syncCfgBoxes();
   $('#dlg').showModal();
 }
 function refreshAuthBox(){
@@ -453,6 +516,7 @@ async function saveCfg(){
   const s = $('#cfgStatus'); s.className = 'status tag tag--backlog'; s.textContent = 'Conectando…';
   const r = await connectTools();
   refreshAuthBox();
+  renderToolbox();
   if(r.ok){ s.className = 'status tag tag--concluido'; s.textContent = st.tools.length + ' ferramentas disponíveis'; }
   else showCfgError(r.error);
 }
@@ -503,6 +567,7 @@ $('#bNew').onclick = newChat;
 $('#bCfg').onclick = openCfg;
 $('#cfgClose').onclick = () => $('#dlg').close();
 $('#cfgSave').onclick = saveCfg;
+document.querySelectorAll('input[name=mode]').forEach(r => r.onchange = syncCfgBoxes);
 $('#bLogin').onclick = loginArcheo;
 $('#bLogout').onclick = logoutArcheo;
 $('#input').addEventListener('keydown', e => { if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); send(); } });
