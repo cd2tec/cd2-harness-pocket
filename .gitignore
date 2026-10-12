@@ -1,0 +1,9 @@
+# Baixados pelo preparo do pen drive (core/prepare-*): grandes e nao versionados
+bin/
+models/
+CHECKSUMS.sha256
+
+# Sistema
+.DS_Store
+Thumbs.db
+*.log

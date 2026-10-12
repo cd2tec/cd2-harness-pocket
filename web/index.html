@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CD2 Harness</title>
+<style>
+:root{
+  --bg:#0a1020; --panel:#0f1830; --panel2:#142040; --line:#22304f;
+  --text:#e9edf5; --muted:#8c99b4; --gold:#c9a55c; --gold-soft:rgba(201,165,92,.14);
+  --ok:#52b788; --err:#e5636b; --radius:12px;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--text);font:15px/1.55 -apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;display:flex;flex-direction:column}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:12px 22px;border-bottom:1px solid var(--line);background:var(--panel)}
+.mark{width:38px;height:38px;border:1.5px solid var(--gold);border-radius:8px;display:grid;place-items:center;color:var(--gold);font-weight:700;letter-spacing:.5px;font-size:14px}
+.brand{display:flex;flex-direction:column;line-height:1.15}
+.brand b{font-size:15px;letter-spacing:.3px}
+.brand span{font-size:12px;color:var(--muted)}
+.spacer{flex:1}
+.pill{font-size:12px;padding:4px 10px;border:1px solid var(--line);border-radius:999px;color:var(--muted);display:flex;align-items:center;gap:6px;white-space:nowrap}
+.pill i{width:7px;height:7px;border-radius:50%;background:var(--muted);display:inline-block}
+.pill.ok i{background:var(--ok)} .pill.err i{background:var(--err)} .pill.gold{color:var(--gold);border-color:rgba(201,165,92,.4)}
+button{font:inherit;color:var(--text);background:transparent;border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer}
+button:hover{border-color:var(--gold);color:var(--gold)}
+button.primary{background:var(--gold);color:#1a1405;border-color:var(--gold);font-weight:600}
+button.primary:hover{filter:brightness(1.08);color:#1a1405}
+button:disabled{opacity:.5;cursor:not-allowed}
+main{flex:1;overflow-y:auto;padding:26px 0}
+.wrap{max-width:860px;margin:0 auto;padding:0 22px}
+.hero{text-align:center;margin:8vh 0 24px}
+.hero h1{font-size:28px;font-weight:600;margin:0 0 8px;letter-spacing:.2px}
+.hero h1 em{font-style:normal;color:var(--gold)}
+.hero p{color:var(--muted);margin:0 auto;max-width:520px}
+.chips{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:26px}
+.chip{padding:9px 14px;border-radius:999px;background:var(--panel);border:1px solid var(--line);color:var(--text);font-size:14px}
+.msg{margin:0 0 18px;display:flex;flex-direction:column;gap:6px}
+.msg .who{font-size:12px;color:var(--muted);letter-spacing:.4px;text-transform:uppercase}
+.msg.user .body{align-self:flex-end;background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius);padding:10px 14px;max-width:85%;white-space:pre-wrap}
+.msg.assistant .body{white-space:pre-wrap;word-wrap:break-word}
+.body code{background:var(--panel);padding:1px 6px;border-radius:5px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px}
+.body pre{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px;overflow:auto;white-space:pre}
+.body pre code{background:none;padding:0}
+details.think,details.tool{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:8px 12px;font-size:13px;color:var(--muted)}
+details summary{cursor:pointer;list-style:none}
+details summary::-webkit-details-marker{display:none}
+details .inner{margin-top:8px;white-space:pre-wrap;max-height:260px;overflow:auto;color:var(--muted);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+details.tool summary b{color:var(--gold);font-weight:600}
+.spin{display:inline-block;width:10px;height:10px;border:2px solid var(--line);border-top-color:var(--gold);border-radius:50%;animation:r .8s linear infinite;vertical-align:-1px;margin-right:6px}
+@keyframes r{to{transform:rotate(360deg)}}
+footer{border-top:1px solid var(--line);background:var(--panel);padding:14px 22px}
+.composer{max-width:860px;margin:0 auto;display:flex;gap:10px;align-items:flex-end}
+textarea{flex:1;resize:none;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:var(--radius);padding:11px 14px;font:inherit;max-height:160px;min-height:46px}
+textarea:focus,input:focus{outline:none;border-color:var(--gold)}
+.note{max-width:860px;margin:8px auto 0;font-size:12px;color:var(--muted);text-align:center}
+dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:14px;padding:22px;width:min(520px,92vw)}
+dialog::backdrop{background:rgba(3,6,14,.7)}
+dialog h2{margin:0 0 14px;font-size:17px}
+label{display:block;font-size:13px;color:var(--muted);margin:14px 0 6px}
+input[type=text],input[type=password]{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 12px;font:inherit}
+.radio{display:flex;gap:18px;color:var(--text);font-size:14px;margin-top:4px}
+.radio label{margin:0;color:var(--text);display:flex;gap:6px;align-items:center}
+.row{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;align-items:center}
+.hint{font-size:12px;color:var(--muted);margin-top:6px}
+.status{font-size:13px;margin-right:auto}
+.status.ok{color:var(--ok)} .status.err{color:var(--err)}
+</style>
+</head>
+<body>
+<header>
+  <div class="mark">CD2</div>
+  <div class="brand"><b id="brand">CD2 Harness</b><span id="tagline"></span></div>
+  <div class="spacer"></div>
+  <span class="pill gold" title="O modelo roda neste computador">100% local</span>
+  <span class="pill" id="pModel"><i></i><span>modelo…</span></span>
+  <span class="pill" id="pMcp"><i></i><span>ferramentas…</span></span>
+  <button id="bNew" title="Nova conversa">Nova</button>
+  <button id="bCfg" title="Configurar ferramentas (MCP)">Ferramentas</button>
+</header>
+
+<main id="main"><div class="wrap" id="chat"></div></main>
+
+<footer>
+  <div class="composer">
+    <textarea id="input" rows="1" placeholder="Pergunte alguma coisa… (Enter envia, Shift+Enter quebra linha)"></textarea>
+    <button class="primary" id="bSend">Enviar</button>
+    <button id="bStop" style="display:none">Parar</button>
+  </div>
+  <div class="note" id="note">Modelo pequeno rodando localmente: pode errar. Confira números importantes.</div>
+</footer>
+
+<dialog id="dlg">
+  <h2>Ferramentas (MCP)</h2>
+  <div class="radio">
+    <label><input type="radio" name="mode" value="demo"> Demonstração (offline)</label>
+    <label><input type="radio" name="mode" value="mcp"> Archeo MCP</label>
+  </div>
+  <label for="mcpUrl">URL do servidor MCP (HTTP)</label>
+  <input type="text" id="mcpUrl" placeholder="https://…/mcp" autocomplete="off">
+  <label for="mcpTok">Token de acesso (opcional)</label>
+  <input type="password" id="mcpTok" placeholder="Bearer token" autocomplete="off">
+  <div class="hint">O token fica só na memória desta aba e é descartado ao fechar. Use um token somente leitura.</div>
+  <div class="row">
+    <span class="status" id="cfgStatus"></span>
+    <button id="cfgClose">Fechar</button>
+    <button class="primary" id="cfgSave">Salvar e conectar</button>
+  </div>
+</dialog>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const MAX_TOOL_CHARS = 4000, MAX_STEPS = 6;
+const st = { cfg:{}, messages:[], provider:null, tools:[], busy:false, ctl:null };
+
+/* ---------- storage (best effort) ---------- */
+const store = {
+  get(k, s){ try{ return (s?sessionStorage:localStorage).getItem(k) }catch(e){ return null } },
+  set(k, v, s){ try{ (s?sessionStorage:localStorage).setItem(k, v) }catch(e){} }
+};
+
+/* ---------- helpers ---------- */
+function esc(t){ return t.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function md(t){
+  let s = esc(t);
+  s = s.replace(/```([\s\S]*?)```/g, (_, c) => '<pre><code>' + c.replace(/^\w*\n/, '') + '</code></pre>');
+  s = s.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+  s = s.replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>');
+  return s;
+}
+function splitThink(raw, reasoning){
+  let content = raw || '', think = reasoning || '';
+  const i = content.lastIndexOf('</think>');
+  if(i >= 0){ think += content.slice(0, i).replace('<think>', ''); content = content.slice(i + 8); }
+  return { content: content.replace(/^\s+/, ''), think: think.trim() };
+}
+function scrollDown(){ const m = $('#main'); m.scrollTop = m.scrollHeight; }
+function setPill(id, cls, text){ const p = $(id); p.className = 'pill ' + (cls||''); p.lastElementChild.textContent = text; }
+
+/* ---------- MCP client (Streamable HTTP, JSON-RPC) ---------- */
+function parseSse(text, id){
+  for(const block of text.split(/\r?\n\r?\n/)){
+    const data = block.split(/\r?\n/).filter(l => l.startsWith('data:')).map(l => l.slice(5).trim()).join('\n');
+    if(!data) continue;
+    try{ const m = JSON.parse(data); if(m.id === id) return m; }catch(e){}
+  }
+  throw new Error('Resposta MCP sem resultado');
+}
+class McpClient{
+  constructor(url, token){ this.url = url; this.token = token; this.sid = null; this.n = 0; }
+  async rpc(method, params, notif){
+    const body = { jsonrpc:'2.0', method }; if(params) body.params = params; if(!notif) body.id = ++this.n;
+    const h = { 'Content-Type':'application/json', 'Accept':'application/json, text/event-stream' };
+    if(this.token) h.Authorization = 'Bearer ' + this.token;
+    if(this.sid) h['Mcp-Session-Id'] = this.sid;
+    const r = await fetch(this.url, { method:'POST', headers:h, body:JSON.stringify(body) });
+    const sid = r.headers.get('Mcp-Session-Id'); if(sid) this.sid = sid;
+    if(!r.ok) throw new Error('MCP respondeu HTTP ' + r.status);
+    if(notif) return null;
+    const ct = r.headers.get('Content-Type') || '';
+    const msg = ct.includes('text/event-stream') ? parseSse(await r.text(), body.id) : await r.json();
+    if(msg.error) throw new Error(msg.error.message || 'erro MCP');
+    return msg.result;
+  }
+  async init(){
+    await this.rpc('initialize', { protocolVersion:'2025-03-26', capabilities:{}, clientInfo:{ name:'cd2-harness', version:'0.1.0' } });
+    await this.rpc('notifications/initialized', null, true);
+    const r = await this.rpc('tools/list', {});
+    return r.tools || [];
+  }
+  async call(name, args){
+    const r = await this.rpc('tools/call', { name, arguments: args });
+    const text = (r.content || []).map(c => c.type === 'text' ? c.text : '[' + c.type + ']').join('\n');
+    return (r.isError ? 'ERRO: ' : '') + text;
+  }
+}
+
+/* ---------- demo provider (dados fictícios, funciona offline) ---------- */
+const DEMO_TAG = '[DADOS FICTÍCIOS DE DEMONSTRAÇÃO]\n';
+const demo = {
+  async init(){ return [
+    { name:'vendas_por_departamento', description:'Vendas do mês por departamento do supermercado (demonstração).', inputSchema:{ type:'object', properties:{}, required:[] } },
+    { name:'perdas_do_mes', description:'Maiores perdas (quebras) do mês por motivo (demonstração).', inputSchema:{ type:'object', properties:{}, required:[] } },
+    { name:'rupturas_criticas', description:'Produtos de curva A em ruptura nas lojas (demonstração).', inputSchema:{ type:'object', properties:{ limite:{ type:'integer', description:'Quantidade máxima de itens' } }, required:[] } }
+  ]; },
+  async call(name, a){
+    if(name === 'vendas_por_departamento') return DEMO_TAG + 'Departamento | Venda (R$) | Margem\nMercearia | 1.842.300 | 24,1%\nBebidas | 1.215.870 | 27,8%\nHortifruti | 934.110 | 31,5%\nAçougue | 1.402.560 | 22,9%\nPadaria | 611.420 | 38,2%\nLimpeza | 702.980 | 29,4%';
+    if(name === 'perdas_do_mes') return DEMO_TAG + 'Motivo | Perda (R$) | % da venda\nVencimento | 118.400 | 1,12%\nAvaria | 64.250 | 0,61%\nQuebra operacional | 41.900 | 0,40%\nAjuste de inventário (não identificada) | 96.700 | 0,92%';
+    if(name === 'rupturas_criticas'){
+      const all = ['Arroz 5kg tipo 1 (loja 03)','Óleo de soja 900ml (loja 01)','Leite integral 1L (loja 07)','Café torrado 500g (loja 03)','Detergente 500ml (loja 05)'];
+      const n = Math.max(1, Math.min(all.length, parseInt(a && a.limite) || 3));
+      return DEMO_TAG + all.slice(0, n).map((x, i) => (i + 1) + '. ' + x).join('\n');
+    }
+    throw new Error('Ferramenta desconhecida: ' + name);
+  }
+};
+
+/* ---------- conexão com as ferramentas ---------- */
+async function connectTools(){
+  const mode = store.get('cd2.mode') || (st.cfg.mcp && st.cfg.mcp.mode) || 'demo';
+  const url = store.get('cd2.url') || (st.cfg.mcp && st.cfg.mcp.url) || '';
+  const tok = store.get('cd2.tok', true) || '';
+  setPill('#pMcp', '', 'ferramentas…');
+  try{
+    if(mode === 'mcp'){
+      if(!url) throw new Error('Informe a URL do servidor MCP');
+      const c = new McpClient(url, tok);
+      st.tools = await c.init(); st.provider = c;
+      setPill('#pMcp', 'ok', (st.cfg.mcp.name || 'MCP') + ': ' + st.tools.length + ' ferramentas');
+    }else{
+      st.tools = await demo.init(); st.provider = demo;
+      setPill('#pMcp', 'gold', 'Demonstração: ' + st.tools.length + ' ferramentas');
+    }
+    return { ok:true };
+  }catch(e){
+    st.tools = []; st.provider = null;
+    setPill('#pMcp', 'err', 'ferramentas offline');
+    const cors = (e instanceof TypeError) ? ' (falha de rede ou CORS: o servidor MCP precisa liberar a origem ' + location.origin + ')' : '';
+    return { ok:false, error:(e.message || String(e)) + cors };
+  }
+}
+const toOpenAITools = () => st.tools.map(t => ({ type:'function', function:{ name:t.name, description:t.description || '', parameters:t.inputSchema || { type:'object', properties:{} } } }));
+
+/* ---------- streaming do modelo ---------- */
+async function streamCompletion(messages, onUpdate, signal){
+  const body = { model:'cd2', messages, stream:true, temperature:0.6, top_p:0.95 };
+  const tools = toOpenAITools(); if(tools.length){ body.tools = tools; body.tool_choice = 'auto'; }
+  const r = await fetch('/v1/chat/completions', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(body), signal });
+  if(!r.ok) throw new Error('Modelo respondeu HTTP ' + r.status + ': ' + (await r.text()).slice(0, 300));
+  const reader = r.body.getReader(), dec = new TextDecoder();
+  let buf = '', content = '', reasoning = '', finish = null; const calls = [];
+  for(;;){
+    const { done, value } = await reader.read(); if(done) break;
+    buf += dec.decode(value, { stream:true });
+    let i;
+    while((i = buf.indexOf('\n')) >= 0){
+      const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+      if(!line.startsWith('data:')) continue;
+      const d = line.slice(5).trim(); if(d === '[DONE]') continue;
+      let j; try{ j = JSON.parse(d); }catch(e){ continue; }
+      const ch = j.choices && j.choices[0]; if(!ch) continue;
+      const dl = ch.delta || {};
+      if(dl.reasoning_content) reasoning += dl.reasoning_content;
+      if(dl.content) content += dl.content;
+      for(const tc of (dl.tool_calls || [])){
+        const k = tc.index != null ? tc.index : 0;
+        calls[k] = calls[k] || { id:'', type:'function', function:{ name:'', arguments:'' } };
+        if(tc.id) calls[k].id = tc.id;
+        if(tc.function){ if(tc.function.name) calls[k].function.name += tc.function.name; if(tc.function.arguments) calls[k].function.arguments += tc.function.arguments; }
+      }
+      if(ch.finish_reason) finish = ch.finish_reason;
+      onUpdate(splitThink(content, reasoning));
+    }
+  }
+  const final = splitThink(content, reasoning);
+  const cl = calls.filter(Boolean).map((c, n) => { if(!c.id) c.id = 'call_' + Date.now() + '_' + n; return c; });
+  return { content:final.content, think:final.think, calls:cl, finish };
+}
+
+/* ---------- UI de mensagens ---------- */
+function addMsg(role){
+  const el = document.createElement('div'); el.className = 'msg ' + role;
+  el.innerHTML = '<div class="who">' + (role === 'user' ? 'Você' : 'CD2') + '</div>';
+  $('#chat').appendChild(el); scrollDown(); return el;
+}
+function addUser(text){ const el = addMsg('user'); const b = document.createElement('div'); b.className = 'body'; b.textContent = text; el.appendChild(b); }
+function newAssistant(){
+  const el = addMsg('assistant');
+  const think = document.createElement('details'); think.className = 'think'; think.style.display = 'none';
+  think.innerHTML = '<summary><span class="spin"></span>Raciocínio</summary><div class="inner"></div>';
+  const body = document.createElement('div'); body.className = 'body';
+  el.appendChild(think); el.appendChild(body);
+  return { el, think, body,
+    update(p){
+      if(p.think){ think.style.display = ''; think.querySelector('.inner').textContent = p.think; }
+      body.innerHTML = md(p.content); scrollDown();
+    },
+    done(){ const s = think.querySelector('summary'); s.textContent = 'Raciocínio'; }
+  };
+}
+function addToolCard(name, args){
+  const el = document.createElement('details'); el.className = 'tool';
+  const s = document.createElement('summary'); s.innerHTML = '<span class="spin"></span>Ferramenta <b></b>'; s.querySelector('b').textContent = name;
+  const inner = document.createElement('div'); inner.className = 'inner'; inner.textContent = 'args: ' + JSON.stringify(args);
+  el.appendChild(s); el.appendChild(inner); $('#chat').appendChild(el); scrollDown();
+  return { finish(result, failed){
+    s.innerHTML = (failed ? 'Falhou: ' : 'Ferramenta ') + '<b></b>'; s.querySelector('b').textContent = name;
+    inner.textContent += '\n\n' + result; } };
+}
+
+/* ---------- laço principal: modelo <-> ferramentas ---------- */
+async function runTurn(){
+  st.busy = true; st.ctl = new AbortController(); toggleBusy();
+  try{
+    for(let step = 0; step < MAX_STEPS; step++){
+      const ui = newAssistant();
+      const res = await streamCompletion([{ role:'system', content:st.cfg.systemPrompt }].concat(st.messages), p => ui.update(p), st.ctl.signal);
+      ui.done();
+      if(!res.content && !res.calls.length) ui.body.textContent = '(sem resposta do modelo)';
+      const msg = { role:'assistant', content:res.content || '' };
+      if(res.calls.length) msg.tool_calls = res.calls;
+      st.messages.push(msg);
+      if(!res.calls.length) break;
+      for(const c of res.calls){
+        let args = {}, out, failed = false;
+        try{ args = JSON.parse(c.function.arguments || '{}'); }catch(e){ out = 'Argumentos inválidos (JSON): ' + e.message; failed = true; }
+        const card = addToolCard(c.function.name, args);
+        if(!failed){
+          try{
+            if(!st.provider) throw new Error('nenhuma ferramenta conectada');
+            out = await st.provider.call(c.function.name, args);
+          }catch(e){ out = String(e.message || e); failed = true; }
+        }
+        if(out.length > MAX_TOOL_CHARS) out = out.slice(0, MAX_TOOL_CHARS) + '\n[…resultado truncado]';
+        card.finish(out, failed);
+        st.messages.push({ role:'tool', tool_call_id:c.id, content:out });
+      }
+      if(step === MAX_STEPS - 1) addNote('Limite de passos de ferramentas atingido.');
+    }
+  }catch(e){
+    if(e.name !== 'AbortError') addNote('Erro: ' + (e.message || e), true); else addNote('Interrompido.');
+  }finally{
+    st.busy = false; st.ctl = null; toggleBusy();
+  }
+}
+function addNote(t, err){
+  const d = document.createElement('div'); d.className = 'hint'; d.style.color = err ? 'var(--err)' : 'var(--muted)'; d.textContent = t;
+  $('#chat').appendChild(d); scrollDown();
+}
+function toggleBusy(){
+  $('#bSend').style.display = st.busy ? 'none' : ''; $('#bStop').style.display = st.busy ? '' : 'none'; $('#input').disabled = st.busy;
+  if(!st.busy) $('#input').focus();
+}
+function send(text){
+  text = (text || $('#input').value).trim(); if(!text || st.busy) return;
+  $('#input').value = ''; $('#input').style.height = 'auto';
+  const hero = $('#hero'); if(hero) hero.remove();
+  addUser(text); st.messages.push({ role:'user', content:text }); runTurn();
+}
+function renderHero(){
+  const c = $('#chat'); c.innerHTML = '';
+  const h = document.createElement('div'); h.className = 'hero'; h.id = 'hero';
+  h.innerHTML = '<h1>Olá. Eu sou a IA da <em>CD2</em>.</h1><p></p><div class="chips"></div>';
+  h.querySelector('p').textContent = st.cfg.tagline + '. Nada do que você digitar sai deste computador, a não ser consultas às ferramentas que você conectar.';
+  for(const s of (st.cfg.suggestions || [])){
+    const b = document.createElement('button'); b.className = 'chip'; b.textContent = s; b.onclick = () => send(s); h.querySelector('.chips').appendChild(b);
+  }
+  c.appendChild(h);
+}
+function newChat(){ if(st.ctl) st.ctl.abort(); st.messages = []; renderHero(); }
+
+/* ---------- configurações ---------- */
+function openCfg(){
+  const mode = store.get('cd2.mode') || (st.cfg.mcp && st.cfg.mcp.mode) || 'demo';
+  document.querySelectorAll('input[name=mode]').forEach(r => r.checked = (r.value === mode));
+  $('#mcpUrl').value = store.get('cd2.url') || (st.cfg.mcp && st.cfg.mcp.url) || '';
+  $('#mcpTok').value = store.get('cd2.tok', true) || '';
+  $('#cfgStatus').textContent = ''; $('#cfgStatus').className = 'status';
+  $('#dlg').showModal();
+}
+async function saveCfg(){
+  const mode = document.querySelector('input[name=mode]:checked').value;
+  store.set('cd2.mode', mode); store.set('cd2.url', $('#mcpUrl').value.trim()); store.set('cd2.tok', $('#mcpTok').value, true);
+  const s = $('#cfgStatus'); s.className = 'status'; s.textContent = 'Conectando…';
+  const r = await connectTools();
+  if(r.ok){ s.className = 'status ok'; s.textContent = st.tools.length + ' ferramentas disponíveis'; }
+  else { s.className = 'status err'; s.textContent = r.error; }
+}
+
+/* ---------- inicialização ---------- */
+async function pingModel(){
+  for(let i = 0; i < 40; i++){
+    try{
+      const r = await fetch('/health'); if(r.ok){
+        let name = 'modelo local';
+        try{ const m = await (await fetch('/v1/models')).json(); const id = m.data && m.data[0] && (m.data[0].id || ''); if(id) name = id.split(/[\\/]/).pop().replace(/\.gguf$/i, ''); }catch(e){}
+        setPill('#pModel', 'ok', name.length > 28 ? name.slice(0, 28) + '…' : name); return true;
+      }
+    }catch(e){}
+    await new Promise(r => setTimeout(r, 1500));
+  }
+  setPill('#pModel', 'err', 'modelo offline'); return false;
+}
+async function boot(){
+  try{ st.cfg = await (await fetch('config.json', { cache:'no-store' })).json(); }catch(e){ st.cfg = {}; }
+  st.cfg.mcp = st.cfg.mcp || { mode:'demo', name:'MCP', url:'' };
+  st.cfg.systemPrompt = st.cfg.systemPrompt || 'Você é um assistente útil. Responda em português do Brasil.';
+  $('#brand').textContent = (st.cfg.brand || 'CD2') + ' ' + (st.cfg.product || 'Harness');
+  $('#tagline').textContent = st.cfg.tagline || '';
+  renderHero(); connectTools(); pingModel();
+}
+$('#bSend').onclick = () => send();
+$('#bStop').onclick = () => st.ctl && st.ctl.abort();
+$('#bNew').onclick = newChat;
+$('#bCfg').onclick = openCfg;
+$('#cfgClose').onclick = () => $('#dlg').close();
+$('#cfgSave').onclick = saveCfg;
+$('#input').addEventListener('keydown', e => { if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); send(); } });
+$('#input').addEventListener('input', e => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 160) + 'px'; });
+boot();
+</script>
+</body>
+</html>
