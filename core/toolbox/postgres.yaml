@@ -1,0 +1,148 @@
+# CD2 Harness - receita do MCP Toolbox para PostgreSQL.
+# Conexao vem do ambiente (db.env no cache do computador; nunca no pen drive).
+# Somente leitura em tres camadas: conta de leitura no banco, excludedValues em
+# db_read_only_query e guarda de SELECT no front. O toolbox nao valida SQL.
+kind: source
+name: cd2-db
+type: postgres
+host: ${CD2_DB_HOST}
+port: ${CD2_DB_PORT}
+database: ${CD2_DB_NAME}
+user: ${CD2_DB_USER}
+password: ${CD2_DB_PASSWORD}
+connectTimeout: 10
+
+---
+kind: tool
+name: db_connection_status
+type: postgres-sql
+source: cd2-db
+description: Verifica se o banco está acessível e se a conexão está pronta para uso. Devolve motor, versão, host, base, usuário, schema e quantas tabelas a conta enxerga. Use como primeiro passo.
+annotations: { readOnlyHint: true }
+statement: |
+  SELECT 'postgres' AS engine,
+         version() AS db_version,
+         '${CD2_DB_HOST}' AS host,
+         current_database() AS "database",
+         current_user AS "user",
+         '${CD2_DB_SCHEMA}' AS "schema",
+         (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+           WHERE n.nspname = '${CD2_DB_SCHEMA}' AND c.relkind IN ('r','p')) AS visible_tables
+
+---
+kind: tool
+name: db_list_tables
+type: postgres-sql
+source: cd2-db
+description: Lista as tabelas e views disponíveis no banco de dados (schema ${CD2_DB_SCHEMA}). Use pattern para filtrar pelo nome. num_rows é estimativa do planejador.
+annotations: { readOnlyHint: true }
+statement: |
+  SELECT c.relname AS name,
+         CASE WHEN c.relkind IN ('v','m') THEN 'VIEW' ELSE 'TABLE' END AS type,
+         c.reltuples::bigint AS num_rows,
+         obj_description(c.oid, 'pg_class') AS comments
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+   WHERE n.nspname = '${CD2_DB_SCHEMA}'
+     AND c.relkind IN ('r','p','v','m')
+     AND ($2 OR c.relkind IN ('r','p'))
+     AND ($1 = '' OR c.relname ILIKE CASE WHEN position('%' in $1) > 0 THEN $1 ELSE '%' || $1 || '%' END)
+   ORDER BY c.relname
+   LIMIT $3 OFFSET $4
+parameters:
+  - { name: pattern, type: string, description: "Filtro por nome (insensível a caixa). Sem % vira %pattern%. Vazio = sem filtro.", required: false, default: "" }
+  - { name: include_views, type: boolean, description: "Incluir views.", required: false, default: true }
+  - { name: limit, type: integer, description: "Máximo de resultados (1-500).", required: false, default: 50 }
+  - { name: offset, type: integer, description: "Deslocamento para paginação.", required: false, default: 0 }
+
+---
+kind: tool
+name: db_describe_table
+type: postgres-sql
+source: cd2-db
+description: Apresenta as colunas, os tipos e a estrutura de uma tabela. Mostra chave primária e, em foreign_key_references, para onde cada coluna aponta (use para montar JOIN). Nome insensível a caixa. Devolve vazio se a tabela não existir.
+annotations: { readOnlyHint: true }
+statement: |
+  SELECT a.attname AS column_name,
+         format_type(a.atttypid, a.atttypmod) AS data_type,
+         NOT a.attnotnull AS nullable,
+         col_description(a.attrelid, a.attnum) AS comments,
+         COALESCE(pk.eh_pk, false) AS is_primary_key,
+         fk.ref AS foreign_key_references,
+         n.nspname || '.' || c.relname AS "table"
+    FROM pg_attribute a
+    JOIN pg_class c ON c.oid = a.attrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    LEFT JOIN LATERAL (SELECT true AS eh_pk FROM pg_constraint k
+                        WHERE k.conrelid = c.oid AND k.contype = 'p' AND a.attnum = ANY (k.conkey) LIMIT 1) pk ON true
+    LEFT JOIN LATERAL (SELECT rn.nspname || '.' || rc.relname || '(' || ra.attname || ')' AS ref
+                         FROM pg_constraint k
+                         JOIN pg_class rc ON rc.oid = k.confrelid
+                         JOIN pg_namespace rn ON rn.oid = rc.relnamespace
+                         JOIN pg_attribute ra ON ra.attrelid = k.confrelid
+                                             AND ra.attnum = k.confkey[array_position(k.conkey, a.attnum)]
+                        WHERE k.conrelid = c.oid AND k.contype = 'f' AND a.attnum = ANY (k.conkey) LIMIT 1) fk ON true
+   WHERE n.nspname = '${CD2_DB_SCHEMA}'
+     AND lower(c.relname) = lower($1)
+     AND c.relkind IN ('r','p','v','m')
+     AND a.attnum > 0 AND NOT a.attisdropped
+   ORDER BY a.attnum
+parameters:
+  - { name: table_name, type: string, description: "Nome da tabela ou view, como devolvido por db_list_tables." }
+
+---
+kind: tool
+name: db_search_columns
+type: postgres-sql
+source: cd2-db
+description: Encontra colunas pelo nome em todas as tabelas e schemas. Atalho para descobrir onde mora um dado (CNPJ, preço, código de loja) sem abrir tabela por tabela.
+annotations: { readOnlyHint: true }
+statement: |
+  SELECT c.relname AS "table",
+         a.attname AS "column",
+         format_type(a.atttypid, a.atttypmod) AS data_type,
+         col_description(a.attrelid, a.attnum) AS comments
+    FROM pg_attribute a
+    JOIN pg_class c ON c.oid = a.attrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+   WHERE n.nspname = '${CD2_DB_SCHEMA}'
+     AND c.relkind IN ('r','p','v','m')
+     AND a.attnum > 0 AND NOT a.attisdropped
+     AND a.attname ILIKE CASE WHEN position('%' in $1) > 0 THEN $1 ELSE '%' || $1 || '%' END
+   ORDER BY c.relname, a.attname
+   LIMIT $2 OFFSET $3
+parameters:
+  - { name: pattern, type: string, description: "Trecho do nome da coluna (insensível a caixa). Ex.: cnpj, preco, %data%." }
+  - { name: limit, type: integer, description: "Máximo de resultados (1-500).", required: false, default: 50 }
+  - { name: offset, type: integer, description: "Deslocamento para paginação.", required: false, default: 0 }
+
+---
+kind: tool
+name: db_sample_table
+type: postgres-sql
+source: cd2-db
+description: Mostra uma amostra de até 20 linhas para entender o conteúdo de uma tabela. Informe só um nome devolvido por db_list_tables (letras, números e _).
+annotations: { readOnlyHint: true }
+statement: |
+  SELECT * FROM "${CD2_DB_SCHEMA}".{{.table_name}} LIMIT 20
+templateParameters:
+  - name: table_name
+    type: string
+    description: "Nome exato da tabela ou view, como devolvido por db_list_tables."
+    allowedValues: ["^[A-Za-z_][A-Za-z0-9_$#]*$"]
+
+---
+kind: tool
+name: db_read_only_query
+type: postgres-sql
+source: cd2-db
+description: Executa uma consulta SELECT avulsa em modo somente leitura. Dialeto PostgreSQL. Um único SELECT (ou WITH), sem ponto e vírgula, sem DML. Devolve no máximo 200 linhas, então prefira filtros e agregações.
+annotations: { readOnlyHint: true }
+statement: |
+  SELECT * FROM ({{.sql}}) AS q LIMIT 200
+templateParameters:
+  - name: sql
+    type: string
+    description: "A consulta SELECT, no dialeto PostgreSQL, sem ponto e vírgula."
+    allowedValues: ["(?is)^\\s*(select|with)\\b.*$"]
+    excludedValues: [";", "(?i)\\b(insert|update|delete|drop|alter|truncate|create|grant|revoke|merge|exec|execute|call|into)\\b"]

@@ -1,0 +1,23 @@
+# Bancos descartáveis para validar core/toolbox/*.yaml. Subir só o que precisar:
+#   docker compose -f tests/toolbox/docker-compose.yml up -d postgres
+services:
+  postgres:
+    image: postgres:16
+    environment: { POSTGRES_USER: cd2, POSTGRES_PASSWORD: "cd2 s3nh@'x", POSTGRES_DB: cd2 }
+    ports: ["55432:5432"]
+    volumes: ["./seed/postgres.sql:/docker-entrypoint-initdb.d/seed.sql:ro"]
+  mariadb:
+    image: mariadb:11
+    environment: { MARIADB_ROOT_PASSWORD: root, MARIADB_DATABASE: cd2, MARIADB_USER: cd2, MARIADB_PASSWORD: "cd2 s3nh@'x" }
+    ports: ["53306:3306"]
+    volumes: ["./seed/mariadb.sql:/docker-entrypoint-initdb.d/seed.sql:ro"]
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest   # amd64; no Apple Silicon ligue Rosetta no Docker Desktop
+    platform: linux/amd64
+    environment: { ACCEPT_EULA: "Y", MSSQL_SA_PASSWORD: "Cd2S3nh@Forte!" }
+    ports: ["51433:1433"]
+  oracle:
+    image: gvenzl/oracle-free:23-slim-faststart
+    environment: { ORACLE_PASSWORD: oracle, APP_USER: cd2, APP_USER_PASSWORD: "cd2s3nhax" }
+    ports: ["51521:1521"]
+    volumes: ["./seed/oracle.sql:/container-entrypoint-initdb.d/seed.sql:ro"]
