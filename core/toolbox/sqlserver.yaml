@@ -155,4 +155,4 @@ templateParameters:
     type: string
     description: "A consulta SELECT, no dialeto SQL Server, sem ponto e vírgula."
     allowedValues: ["(?is)^\\s*(select|with)\\b.*$"]
-    excludedValues: [";", "(?i)\\b(insert|update|delete|drop|alter|truncate|create|grant|revoke|merge|exec|execute|call|into)\\b"]
+    excludedValues: [";", "(?i)\\b(insert|update|delete|drop|alter|truncate|create|grant|revoke|merge|exec|execute|call|into|backup|restore|kill|shutdown|dbcc|deny|reconfigure|waitfor|declare|set|use|openrowset|openquery|opendatasource)\\b"]

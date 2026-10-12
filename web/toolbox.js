@@ -18,7 +18,14 @@ const TOOL_DESCRIPTIONS = {
   db_read_only_query:   'Executa uma consulta SELECT avulsa em modo somente leitura.',
   db_sample_table:      'Mostra uma amostra de até 20 linhas para entender o conteúdo de uma tabela.'
 };
-const FORBIDDEN = /\b(insert|update|delete|drop|alter|truncate|create|grant|revoke|merge|exec|execute|call|into)\b/i;
+// Uniao das listas dos YAML (base + SQL Server + PostgreSQL). \b protege nomes
+// como offset, settings e use_count. T-SQL aceita varios comandos sem ";".
+const FORBIDDEN = new RegExp('\\b(' + [
+  'insert','update','delete','drop','alter','truncate','create','grant','revoke','merge','exec','execute','call','into',
+  'backup','restore','kill','shutdown','dbcc','deny','reconfigure','waitfor','declare','set','use','openrowset','openquery','opendatasource',
+  'copy','pg_terminate_backend','pg_cancel_backend','set_config','nextval','setval','dblink\\w*','lo_import','lo_export',
+  'pg_read_file','pg_read_binary_file','pg_write\\w*','pg_sleep\\w*'
+].join('|') + ')\\b', 'i');
 
 function engineLabel(e){ return (ENGINES[e] && ENGINES[e].label) || 'Banco de dados'; }
 function urlFor(loc){ const p = parseInt(loc.port, 10) || 80; return 'http://127.0.0.1:' + (p + 1000) + '/mcp'; }

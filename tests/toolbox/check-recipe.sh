@@ -59,4 +59,12 @@ invoke_err db_read_only_query "{\"sql\":\"delete from $TBL\"}" | grep -q "not an
 invoke_err db_read_only_query "{\"sql\":\"select 1) q; delete from $TBL; select (1\"}" | grep -q "excluded value" || fail "query: statement multiplo passou"
 invoke_err db_read_only_query "{\"sql\":\"select count(*) from $TBL;\"}" | grep -q "excluded value" || fail "query: ; final deveria ser recusado no servidor (o front tira antes)"
 [ "$(invoke db_read_only_query "{\"sql\":\"select count(*) as n from $TBL\"}" | jq -r '.[0].n // .[0].N')" = 25 ] || fail "query: linhas sumiram apos tentativa de DELETE"
+if [ "$ENGINE" = sqlserver ]; then
+  invoke_err db_read_only_query '{"sql":"select 1 a) q shutdown with nowait select * from (select 1 b"}' | grep -q "excluded value" || fail "query: lote T-SQL com SHUTDOWN passou"
+  [ "$(invoke db_read_only_query '{"sql":"select id, use_count = 1 from produto order by id offset 10 rows fetch next 5 rows only"}' | jq 'length')" = 5 ] || fail "query: OFFSET/FETCH legitimo foi barrado"
+fi
+if [ "$ENGINE" = postgres ]; then
+  invoke_err db_read_only_query '{"sql":"select pg_terminate_backend(1)"}' | grep -q "excluded value" || fail "query: pg_terminate_backend passou"
+  [ "$(invoke db_read_only_query '{"sql":"select current_setting($$default_transaction_read_only$$) as ro"}' | jq -r '.[0].ro')" = on ] || fail "query: sessao nao esta em default_transaction_read_only=on"
+fi
 echo "OK: $ENGINE"

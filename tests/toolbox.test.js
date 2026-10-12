@@ -39,6 +39,38 @@ test('guardSql recusa DML, DDL e vazio com mensagem para o modelo', () => {
   assert.equal(T.guardSql(undefined).ok, false);
 });
 
+test('guardSql recusa lote T-SQL sem ponto e vírgula e funções com efeito colateral', () => {
+  const casos = [
+    ['select 1 a) q shutdown with nowait select * from (select 1 b', 'SHUTDOWN'],
+    ['SELECT 1 SHUTDOWN', 'SHUTDOWN'],
+    ['select 1 a) q waitfor delay \'00:00:10\' select * from (select 1 b', 'WAITFOR'],
+    ['select 1 a) q declare @x int set @x = 1 select * from (select 1 b', 'DECLARE'],
+    ['select * from openrowset(\'SQLNCLI\', \'x\', \'select 1\')', 'OPENROWSET'],
+    ['select pg_terminate_backend(123)', 'PG_TERMINATE_BACKEND'],
+    ['SELECT set_config(\'default_transaction_read_only\', \'off\', false)', 'SET_CONFIG'],
+    ['select pg_sleep(10)', 'PG_SLEEP'],
+    ['select pg_sleep_for(\'10 seconds\')', 'PG_SLEEP_FOR'],
+    ['select * from dblink_exec(\'x\', \'delete\')', 'DBLINK_EXEC'],
+    ['select nextval(\'s\')', 'NEXTVAL']
+  ];
+  for(const [s, palavra] of casos){
+    const r = T.guardSql(s); assert.equal(r.ok, false, s); assert.match(r.error, new RegExp('palavra ' + palavra), s);
+  }
+});
+
+test('guardSql não barra nomes que só contêm as palavras proibidas', () => {
+  for(const s of [
+    'select offset_x from t',
+    'select use_count from t',
+    'select * from t order by id offset 10 rows fetch next 5 rows only',
+    'select settings from t',
+    'select copy_count, kill_ratio, backup_date from t',
+    'SELECT asset, reset_at FROM t'
+  ]){
+    assert.equal(T.guardSql(s).ok, true, s);
+  }
+});
+
 test('parseStatus lê o JSON do toolbox (array com uma linha) e tolera lixo', () => {
   const txt = '[{"engine":"postgres","db_version":"PostgreSQL 16.3 on x86_64\\nmore","host":"db.local","database":"cd2","user":"leitor","schema":"public","visible_tables":42}]';
   const s = T.parseStatus(txt);

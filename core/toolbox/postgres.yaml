@@ -1,6 +1,7 @@
 # CD2 Harness - receita do MCP Toolbox para PostgreSQL.
 # Conexao vem do ambiente (db.env no cache do computador; nunca no pen drive).
-# Somente leitura em tres camadas: conta de leitura no banco, excludedValues em
+# Somente leitura em quatro camadas: conta de leitura no banco, sessao com
+# default_transaction_read_only=on (queryParams), excludedValues em
 # db_read_only_query e guarda de SELECT no front. O toolbox nao valida SQL.
 kind: source
 name: cd2-db
@@ -11,6 +12,8 @@ database: ${CD2_DB_NAME}
 user: ${CD2_DB_USER}
 password: ${CD2_DB_PASSWORD}
 connectTimeout: 10
+queryParams:
+  default_transaction_read_only: "on"
 
 ---
 kind: tool
@@ -145,4 +148,4 @@ templateParameters:
     type: string
     description: "A consulta SELECT, no dialeto PostgreSQL, sem ponto e vírgula."
     allowedValues: ["(?is)^\\s*(select|with)\\b.*$"]
-    excludedValues: [";", "(?i)\\b(insert|update|delete|drop|alter|truncate|create|grant|revoke|merge|exec|execute|call|into)\\b"]
+    excludedValues: [";", "(?i)\\b(insert|update|delete|drop|alter|truncate|create|grant|revoke|merge|exec|execute|call|into|copy|pg_terminate_backend|pg_cancel_backend|set_config|nextval|setval|dblink\\w*|lo_import|lo_export|pg_read_file|pg_read_binary_file|pg_write\\w*|pg_sleep\\w*)\\b"]
