@@ -76,8 +76,8 @@ O pen drive leva o [MCP Toolbox for Databases](https://github.com/googleapis/mcp
 
 A IA ganha seis ferramentas somente leitura: `db_connection_status`, `db_list_tables`, `db_describe_table`, `db_search_columns`, `db_sample_table` (até 20 linhas) e `db_read_only_query` (SELECT avulso, até 200 linhas). O botão **Ferramentas** mostra a conexão ativa e a lista.
 
-- **A conexão fica no computador, não no pen drive.** Arquivo `db.env` em `~/Library/Caches/cd2-harness` (Mac), `~/.cache/cd2-harness` (Linux) ou `%LOCALAPPDATA%\cd2-harness` (Windows), legível só pelo usuário. A senha não passa pelo navegador.
-- **Use uma conta de leitura.** O toolbox não valida SQL. O harness recusa qualquer coisa que não seja um único SELECT (no front e no próprio toolbox), mas a garantia de verdade é a permissão da conta.
+- **A conexão fica no computador, não no pen drive.** Arquivo `db.env` em `~/Library/Caches/cd2-harness` (Mac), `${XDG_CACHE_HOME:-~/.cache}/cd2-harness` (Linux) ou `%LOCALAPPDATA%\cd2-harness` (Windows), legível só pelo usuário. A senha não passa pelo navegador: o launcher entrega a conexão só ao processo do toolbox e não a guarda no próprio ambiente.
+- **Use uma conta de leitura.** O toolbox não valida SQL. O harness recusa qualquer coisa que não seja um único SELECT (no front e no próprio toolbox, com lista de palavras e funções proibidas por motor), e no PostgreSQL a sessão do toolbox já abre com `default_transaction_read_only=on`. Mesmo assim, a garantia de verdade é a permissão da conta.
 - O toolbox escuta só em `127.0.0.1`, na porta do harness mais 1000 (8080 e 9080 por padrão). Se uma das duas estiver ocupada, o launcher avança as duas juntas.
 - Se o banco não responder em 15 segundos (senha errada, firewall), o launcher mostra o fim do log e segue em Demonstração.
 - O launcher precisa da variante certa em `bin/toolbox/` (`windows-amd64`, `darwin-arm64`, `darwin-amd64`, `linux-amd64`). O preparo baixa as quatro; `CD2_TOOLBOX_PLATFORMS` limita.
