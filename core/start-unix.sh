@@ -47,8 +47,15 @@ TB_PORT=$((PORT + 1000))
 
 LOG="$CACHE/server.log"
 PID=""
-cleanup() { [ -n "$PID" ] && kill "$PID" 2>/dev/null; [ -n "${TB_PID:-}" ] && kill "$TB_PID" 2>/dev/null; }
-trap cleanup EXIT INT TERM
+# idempotente: Ctrl+C roda cleanup e sai; o EXIT roda de novo sem efeito
+cleanup() {
+  [ -n "$PID" ] && kill "$PID" 2>/dev/null; PID=""
+  [ -n "${TB_PID:-}" ] && kill "$TB_PID" 2>/dev/null; TB_PID=""
+  [ -t 0 ] && stty echo 2>/dev/null
+  return 0
+}
+trap cleanup EXIT
+trap 'cleanup; exit 130' INT TERM
 
 start_server() {  # $@ = flags extras (GPU)
   : > "$LOG"
@@ -99,11 +106,13 @@ start_toolbox() {
     cp "$TB_SRC" "$TB_RUN.tmp" && chmod +x "$TB_RUN.tmp" && mv "$TB_RUN.tmp" "$TB_RUN" || { say "Falha ao copiar o toolbox para $CACHE"; return 1; }
     [ "$OS" = "Darwin" ] && xattr -dr com.apple.quarantine "$TB_RUN" 2>/dev/null
   fi
-  set -a; . "$DB_ENV"; set +a
+  # o db.env so e lido dentro do subshell que vira o toolbox (exec): a senha nao
+  # fica no ambiente deste script nem chega ao navegador aberto depois.
   TB_LOG="$CACHE/toolbox.log"; : > "$TB_LOG"
-  "$TB_RUN" --config "$ROOT/core/toolbox/$CD2_DB_ENGINE.yaml" --address 127.0.0.1 --port "$TB_PORT" \
-    --allowed-hosts "127.0.0.1:$TB_PORT,localhost:$TB_PORT" \
-    --allowed-origins "http://127.0.0.1:$PORT,http://localhost:$PORT" --disable-reload >> "$TB_LOG" 2>&1 &
+  ( set -a; . "$DB_ENV"; set +a
+    exec "$TB_RUN" --config "$ROOT/core/toolbox/$CD2_DB_ENGINE.yaml" --address 127.0.0.1 --port "$TB_PORT" \
+      --allowed-hosts "127.0.0.1:$TB_PORT,localhost:$TB_PORT" \
+      --allowed-origins "http://127.0.0.1:$PORT,http://localhost:$PORT" --disable-reload ) >> "$TB_LOG" 2>&1 &
   TB_PID=$!
   i=0
   while [ "$i" -lt 15 ]; do
@@ -115,12 +124,13 @@ start_toolbox() {
   say ""; say "[AVISO] O banco nao respondeu. Ultimas linhas do log ($TB_LOG):"
   tail -n 15 "$TB_LOG" | sed 's/^/   /'
   say "Seguindo em Demonstracao. Para corrigir a conexao: INICIAR --banco"
-  unset CD2_DB_PASSWORD
   return 1
 }
 if [ -f "$DB_ENV" ] && [ -f "$TB_SRC" ]; then
   say "Conectando ao banco (MCP Toolbox em 127.0.0.1:$TB_PORT)..."
-  start_toolbox && say "Banco conectado: $CD2_DB_ENGINE em $CD2_DB_HOST ($CD2_DB_NAME)"
+  # so os campos nao secretos, sem exportar nada
+  DB_INFO="$(. "$DB_ENV"; printf '%s em %s (%s)' "$CD2_DB_ENGINE" "$CD2_DB_HOST" "$CD2_DB_NAME")"
+  start_toolbox && say "Banco conectado: $DB_INFO"
 fi
 
 # --- abrir como janela de aplicativo quando houver Chrome/Edge ---------------

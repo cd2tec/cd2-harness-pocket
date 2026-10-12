@@ -82,18 +82,26 @@ function Ask-DbEnv {
     Write-Host "Conexao guardada em $DbEnv (so neste computador)." -ForegroundColor Gray
     return $true
 }
+# remove CD2_DB_* do ambiente deste processo: o navegador aberto depois herda o ambiente
+function Clear-DbEnvVars { Get-ChildItem Env: | Where-Object { $_.Name -like 'CD2_DB_*' } | ForEach-Object { Remove-Item -Path "Env:$($_.Name)" -ErrorAction SilentlyContinue } }
 function Stop-Toolbox { if ($script:TbProc -and -not $script:TbProc.HasExited) { & taskkill.exe /PID $script:TbProc.Id /T /F 2>&1 | Out-Null } }
 function Start-Toolbox {
     $src = Join-Path $Root 'bin\toolbox\windows-amd64\toolbox.exe'
     if (-not (Test-Path $src)) { Write-Host 'bin\toolbox\windows-amd64 nao encontrado: sem modo Banco de dados neste pen drive.' -ForegroundColor DarkYellow; return $false }
     $env_ = Read-DbEnv
+    $script:DbInfo = "$($env_['CD2_DB_ENGINE']) em $($env_['CD2_DB_HOST']) ($($env_['CD2_DB_NAME']))"
     foreach ($k in $env_.Keys) { Set-Item -Path "Env:$k" -Value $env_[$k] }
     $yaml = Join-Path $Root "core\toolbox\$($env_['CD2_DB_ENGINE']).yaml"
     $tbLog = Join-Path $LogDir 'toolbox.log'; $tbErr = Join-Path $LogDir 'toolbox.err.log'
     $args = @('--config', "`"$yaml`"", '--address', '127.0.0.1', '--port', "$TbPort",
               '--allowed-hosts', "127.0.0.1:$TbPort,localhost:$TbPort",
               '--allowed-origins', "http://127.0.0.1:$Port,http://localhost:$Port", '--disable-reload')
-    $script:TbProc = Start-Process -FilePath $src -ArgumentList $args -WindowStyle Hidden -PassThru -RedirectStandardOutput $tbLog -RedirectStandardError $tbErr
+    try {
+        $script:TbProc = Start-Process -FilePath $src -ArgumentList $args -WindowStyle Hidden -PassThru -RedirectStandardOutput $tbLog -RedirectStandardError $tbErr
+    } finally {
+        # o toolbox ja copiou o ambiente; a senha nao fica aqui para o navegador
+        $env_ = $null; Clear-DbEnvVars
+    }
     for ($i = 0; $i -lt 15; $i++) {
         if ($script:TbProc.HasExited) { break }
         try { $r = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$TbPort/" -TimeoutSec 2; if ($r.StatusCode -eq 200) { return $true } } catch { }
@@ -103,7 +111,6 @@ function Start-Toolbox {
     Write-Host ''; Write-Host "[AVISO] O banco nao respondeu. Ultimas linhas do log ($tbErr):" -ForegroundColor DarkYellow
     Get-Content $tbErr -Tail 15 -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "   $_" }
     Write-Host 'Seguindo em Demonstracao. Para corrigir a conexao: INICIAR-CD2-Windows.bat --banco' -ForegroundColor DarkYellow
-    Remove-Item Env:CD2_DB_PASSWORD -ErrorAction SilentlyContinue
     return $false
 }
 
@@ -150,7 +157,7 @@ try {
     if (($Banco -or -not (Test-Path $DbEnv)) -and (Test-Path $tbSrc)) { if (-not (Ask-DbEnv)) { Remove-Item $DbEnv -ErrorAction SilentlyContinue } }
     if (Test-Path $DbEnv) {
         Write-Host "Conectando ao banco (MCP Toolbox em 127.0.0.1:$TbPort)..." -ForegroundColor Gray
-        if (Start-Toolbox) { Write-Host "Banco conectado: $env:CD2_DB_ENGINE em $env:CD2_DB_HOST ($env:CD2_DB_NAME)" -ForegroundColor Green }
+        if (Start-Toolbox) { Write-Host "Banco conectado: $script:DbInfo" -ForegroundColor Green }
     }
 
     # abre como janela de aplicativo (Edge vem com o Windows; Chrome como alternativa)
