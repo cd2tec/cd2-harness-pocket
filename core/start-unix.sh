@@ -38,15 +38,16 @@ if [ ! -x "$RUN_BIN" ] || ! cmp -s "$SRC_BIN" "$RUN_BIN"; then
   [ "$OS" = "Darwin" ] && xattr -dr com.apple.quarantine "$RUN_BIN" 2>/dev/null
 fi
 
-# --- porta livre ------------------------------------------------------------
+# --- par de portas livre: P (harness) e P+1000 (toolbox) -----------------------
 busy() { curl -s --max-time 1 -o /dev/null "http://127.0.0.1:$1/" 2>/dev/null; }
 PORT="$PORT_START"; tries=0
-while busy "$PORT" && [ "$tries" -lt 20 ]; do PORT=$((PORT + 1)); tries=$((tries + 1)); done
+while { busy "$PORT" || busy "$((PORT + 1000))"; } && [ "$tries" -lt 20 ]; do PORT=$((PORT + 1)); tries=$((tries + 1)); done
 URL="http://127.0.0.1:$PORT"
+TB_PORT=$((PORT + 1000))
 
 LOG="$CACHE/server.log"
 PID=""
-cleanup() { [ -n "$PID" ] && kill "$PID" 2>/dev/null; }
+cleanup() { [ -n "$PID" ] && kill "$PID" 2>/dev/null; [ -n "${TB_PID:-}" ] && kill "$TB_PID" 2>/dev/null; }
 trap cleanup EXIT INT TERM
 
 start_server() {  # $@ = flags extras (GPU)
@@ -81,6 +82,46 @@ fi
 
 say ""
 say "Pronto: $URL"
+
+# --- banco de dados (MCP Toolbox) --------------------------------------------
+. "$ROOT/core/db-env.sh"
+DB_ENV="$CACHE/db.env"
+TB_PID=""
+case "$(uname -m)" in arm64|aarch64) TB_ARCH=arm64 ;; *) TB_ARCH=amd64 ;; esac
+if [ "$OS" = "Darwin" ]; then TB_PLAT="darwin-$TB_ARCH"; else TB_PLAT="linux-$TB_ARCH"; fi
+TB_SRC="$ROOT/bin/toolbox/$TB_PLAT/toolbox"
+if [ "${1:-}" = "--banco" ] || [ ! -f "$DB_ENV" ]; then
+  if [ -f "$TB_SRC" ]; then db_env_ask "$DB_ENV" || rm -f "$DB_ENV"; else say "bin/toolbox/$TB_PLAT nao encontrado: sem modo Banco de dados neste pen drive."; fi
+fi
+start_toolbox() {
+  TB_RUN="$CACHE/toolbox"
+  if [ ! -x "$TB_RUN" ] || ! cmp -s "$TB_SRC" "$TB_RUN"; then
+    cp "$TB_SRC" "$TB_RUN.tmp" && chmod +x "$TB_RUN.tmp" && mv "$TB_RUN.tmp" "$TB_RUN" || { say "Falha ao copiar o toolbox para $CACHE"; return 1; }
+    [ "$OS" = "Darwin" ] && xattr -dr com.apple.quarantine "$TB_RUN" 2>/dev/null
+  fi
+  set -a; . "$DB_ENV"; set +a
+  TB_LOG="$CACHE/toolbox.log"; : > "$TB_LOG"
+  "$TB_RUN" --config "$ROOT/core/toolbox/$CD2_DB_ENGINE.yaml" --address 127.0.0.1 --port "$TB_PORT" \
+    --allowed-hosts "127.0.0.1:$TB_PORT,localhost:$TB_PORT" \
+    --allowed-origins "http://127.0.0.1:$PORT,http://localhost:$PORT" --disable-reload >> "$TB_LOG" 2>&1 &
+  TB_PID=$!
+  i=0
+  while [ "$i" -lt 15 ]; do
+    kill -0 "$TB_PID" 2>/dev/null || break
+    curl -sf --max-time 2 "http://127.0.0.1:$TB_PORT/" >/dev/null 2>&1 && return 0
+    i=$((i + 1)); sleep 1
+  done
+  kill "$TB_PID" 2>/dev/null; TB_PID=""
+  say ""; say "[AVISO] O banco nao respondeu. Ultimas linhas do log ($TB_LOG):"
+  tail -n 15 "$TB_LOG" | sed 's/^/   /'
+  say "Seguindo em Demonstracao. Para corrigir a conexao: INICIAR --banco"
+  unset CD2_DB_PASSWORD
+  return 1
+}
+if [ -f "$DB_ENV" ] && [ -f "$TB_SRC" ]; then
+  say "Conectando ao banco (MCP Toolbox em 127.0.0.1:$TB_PORT)..."
+  start_toolbox && say "Banco conectado: $CD2_DB_ENGINE em $CD2_DB_HOST ($CD2_DB_NAME)"
+fi
 
 # --- abrir como janela de aplicativo quando houver Chrome/Edge ---------------
 open_app() {
