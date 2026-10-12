@@ -139,7 +139,8 @@ input[type=radio]{accent-color:var(--brand);width:18px;height:18px;margin:0}
 .kv:empty{display:none}
 .tools{list-style:none;margin:var(--space-3) 0 var(--space-4);padding:0}
 .tools li{display:grid;grid-template-columns:6px 1fr;gap:var(--space-3);padding:var(--space-3) 0;border-bottom:1px solid var(--border)}
-.tools li::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--status-concluido);margin-top:7px}
+.tools li::before{content:"";grid-column:1;grid-row:1 / span 2;width:6px;height:6px;border-radius:50%;background:var(--status-concluido);margin-top:7px}
+.tools li b,.tools li span{grid-column:2}
 .tools b{font:700 14px/20px var(--font-mono);color:var(--ink)}
 .tools span{display:block;font:400 13px/20px var(--font-sans);color:var(--ink-muted)}
 .status{margin-right:auto}
@@ -393,7 +394,8 @@ function addToolCard(name, args){
   const s = document.createElement('summary'); s.innerHTML = '<span class="spin"></span>Ferramenta <b></b>'; s.querySelector('b').textContent = name;
   const inner = document.createElement('div'); inner.className = 'inner'; inner.textContent = 'args: ' + JSON.stringify(args);
   el.appendChild(s); el.appendChild(inner); $('#chat').appendChild(el); scrollDown();
-  return { finish(result, failed){
+  return { setArgs(a){ inner.textContent = 'args: ' + JSON.stringify(a); },
+    finish(result, failed){
     s.innerHTML = (failed ? '<span class="tag tag--atencao">Falhou</span> ' : '') + 'Ferramenta <b></b>'; s.querySelector('b').textContent = name;
     inner.textContent += '\n\n' + result; } };
 }
@@ -421,7 +423,7 @@ async function runTurn(){
             if(c.function.name === 'db_read_only_query' && st.provider !== demo){
               const g = CD2Toolbox.guardSql(args.sql);
               if(!g.ok) throw new Error(g.error);
-              args.sql = g.sql;
+              args.sql = g.sql; card.setArgs(args);
             }
             out = await st.provider.call(c.function.name, args);
           }catch(e){ out = String(e.message || e); failed = true; }
