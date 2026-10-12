@@ -51,7 +51,7 @@ function Unquote([string]$v) { if ($v -match "^'(.*)'$") { return $Matches[1] -r
 function Quote([string]$v) { return "'" + ($v -replace "'", "'\''") + "'" }
 function Read-DbEnv {
     $h = @{}
-    foreach ($line in Get-Content $DbEnv) { if ($line -match '^([A-Z_]+)=(.*)$') { $h[$Matches[1]] = Unquote $Matches[2] } }
+    foreach ($line in Get-Content -Encoding UTF8 $DbEnv) { if ($line -match '^([A-Z_]+)=(.*)$') { $h[$Matches[1]] = Unquote $Matches[2] } }
     return $h
 }
 function Ask-DbEnv {
@@ -173,5 +173,6 @@ try {
     }
 }
 finally {
-    Stop-Toolbox; Stop-Server
+    try { Stop-Toolbox } catch { }
+    try { Stop-Server } catch { }
 }
