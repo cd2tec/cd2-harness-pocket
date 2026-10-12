@@ -1,0 +1,108 @@
+# Como criar o pen drive do CD2 Harness
+
+A ideia é simples: plugar um pen drive, dar um duplo clique e, alguns minutos depois, ter um pen drive que abre a IA da CD2 em qualquer computador, sem instalar nada e sem internet.
+
+O caminho até aqui foi feito na mão uma vez, no Mac, e deu certo. Esta página guarda o que aprendemos e transforma tudo em um clique só.
+
+## O que você precisa
+
+- Um pen drive de **16 GB ou mais, USB 3.x**. O modelo tem 2,5 GB e é lido do pen drive toda vez que o harness abre, então USB 2 deixa a partida bem mais lenta.
+- Internet na primeira gravação, por uns **2,9 GB de download**. Os pen drives seguintes não baixam nada: o motor e o modelo ficam guardados no seu computador.
+- Esta pasta, clonada do repositório ou baixada como ZIP.
+
+Tudo que estiver no pen drive será apagado. Guarde o que importa antes.
+
+## O jeito de um clique
+
+| Sistema | O que fazer |
+|---|---|
+| Windows | duplo clique em `GRAVAR-PENDRIVE-Windows.bat` (ele pede permissão de administrador, que é obrigatória para formatar) |
+| Mac | duplo clique em `GRAVAR-PENDRIVE-Mac.command` |
+| Linux | no terminal, dentro da pasta: `sh gravar-pendrive-linux.sh` |
+
+O script mostra os pen drives encontrados, pede para você escolher um e só segue depois que você digita **APAGAR**. Discos internos nunca aparecem na lista.
+
+Daí ele faz, nesta ordem:
+
+1. **Monta uma cópia local** do harness e baixa o llamafile e o modelo para uma pasta de cache do seu computador. Se a conexão cair, rode de novo: o download retoma de onde parou, e o que já estiver completo é pulado.
+2. **Formata** o pen drive em exFAT com tabela MBR e nome `CD2`. É o formato que Windows, Mac e Linux leem e que aceita arquivo acima de 4 GB (FAT32 não aceita).
+3. **Copia** a pasta `CD2-HARNESS` inteira para o pen drive, com `bin/` e `models/` já preenchidos.
+4. **Confere** os checksums lendo direto do pen drive, guarda uma cópia do `CHECKSUMS.sha256` fora dele e ejeta.
+
+No fim, a mensagem "Pronto. Pode tirar o pen drive." Para gravar o próximo, plugue e rode de novo. Leva só o tempo da cópia.
+
+Onde fica o cache:
+
+| Sistema | Pasta |
+|---|---|
+| Windows | `%LOCALAPPDATA%\cd2-harness\usb` |
+| Mac | `~/Library/Caches/cd2-harness/usb` |
+| Linux | `~/.cache/cd2-harness/usb` |
+
+As cópias do checksum ficam na mesma pasta, uma por gravação, com data e hora no nome.
+
+## O que deve aparecer no pen drive
+
+```
+CD2-HARNESS/
+  INICIAR-CD2-Windows.bat
+  INICIAR-CD2-Mac.command
+  iniciar-cd2-linux.sh
+  README.md  LICENSE  VERSION
+  CHECKSUMS.sha256
+  bin/llamafile          ~350 MB
+  bin/llamafile.exe      ~350 MB  (mesmo arquivo, com a extensão que o Windows exige)
+  models/qwen3-4b-thinking-2507.Q4_K_M.gguf   ~2,4 GB
+  core/   web/
+```
+
+Os scripts de gravação (`GRAVAR-*`, `gravar-*` e `core/make-usb-*`) e a pasta `docs/` ficam de fora de propósito. Quem recebe o pen drive só precisa ver o `INICIAR`.
+
+## Teste de fumaça (faça no primeiro pen drive, antes de duplicar)
+
+1. Tire e plugue de novo o pen drive.
+2. Abra pelo launcher do seu sistema (`INICIAR-CD2-...`).
+3. Espere a janela abrir e mande uma pergunta qualquer. Na primeira vez, o modelo leva de 20 a 90 segundos para carregar.
+4. Feche e ejete com segurança.
+
+Se passou, está aprovado. Grave os outros com o mesmo script ou copie a pasta `CD2-HARNESS` inteira de um pen drive para outro já formatado em exFAT, e compare o `CHECKSUMS.sha256` no final.
+
+## Se der problema
+
+- **`llamafile.exe` sumiu logo depois do download (Windows).** Foi o antivírus. Libere uma exceção para a pasta de cache e rode de novo.
+- **SmartScreen reclamou do `.bat`.** "Mais informações" e depois "Executar assim mesmo".
+- **Mac disse "desenvolvedor não verificado" ao abrir o `.command`.** Botão direito, Abrir. Ou libere em Ajustes do Sistema, Privacidade e Segurança.
+- **Linux não achou `mkfs.exfat`.** Instale o `exfatprogs` (`sudo apt install exfatprogs` ou `sudo dnf install exfatprogs`). O script aceita também o `exfat-utils` mais antigo.
+- **No Windows aparecem arquivos `._alguma-coisa`.** É resíduo de cópia feita no Mac pelo Finder. O script já limpa isso; se copiou na mão, apague-os, são inofensivos.
+- **O download parou no meio.** Rode o mesmo script de novo. Ele retoma.
+- **Checksum diferente no final.** Não use esse pen drive. Formate e grave de novo; se repetir, troque o pen drive.
+- **Pen drive lento.** O script já baixa no disco do computador e só copia o resultado, então o tempo que sobra é só o da cópia dos 3 GB.
+
+## O jeito manual (o que fizemos na primeira vez)
+
+Serve para entender o que o script faz, ou para quando ele não puder rodar.
+
+1. Formatar em exFAT. No Mac: Utilitário de Disco, Apagar, formato ExFAT, esquema Registro de Inicialização Master (MBR). No Windows: botão direito no pen drive, Formatar, exFAT, nome `CD2`. Pelo terminal do Mac é uma linha só:
+
+   ```bash
+   diskutil eraseDisk ExFAT CD2 MBR /dev/diskN
+   ```
+
+   Confira o `N` com `diskutil list external physical` antes. Esse comando apaga o disco inteiro.
+
+2. Copiar a pasta do repositório para o pen drive como `CD2-HARNESS`, sem a pasta `.git`.
+3. Rodar o preparo uma vez, com internet: `sh core/prepare-unix.sh` no Mac/Linux ou duplo clique em `core\prepare-windows.bat` no Windows. Se o pen drive for lento, prepare numa pasta do disco e copie depois.
+4. Conferir: `bin/llamafile` e `bin/llamafile.exe` com uns 350 MB cada, modelo com uns 2,4 GB, e `CHECKSUMS.sha256` gerado. Guardar uma cópia do checksum fora do pen drive.
+5. No Mac, apagar os arquivos `._*` que o Finder deixa em exFAT:
+
+   ```bash
+   find /Volumes/CD2 -name '._*' -delete
+   ```
+
+6. Teste de fumaça, ejetar, duplicar.
+
+## Antes de sair gravando dez
+
+- Em `web/config.json`, ajuste o texto de abertura e as sugestões. Se for deixar o Archeo como padrão, coloque só a URL (`mcp.mode` igual a `"mcp"`). **Token nunca**, porque o pen drive vai circular.
+- O modelo padrão vem de um repositório pessoal no Hugging Face. Antes de distribuir sob a marca CD2, confirme licença e origem ou troque pelo GGUF oficial da Qwen (variável `CD2_MODEL_URL` no preparo).
+- Grave um, teste em um notebook que não seja o seu, e só então duplique.

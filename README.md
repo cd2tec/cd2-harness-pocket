@@ -10,19 +10,30 @@ CD2-HARNESS/
   INICIAR-CD2-Mac.command     <- duplo clique no Mac
   iniciar-cd2-linux.sh        <- no Linux: sh iniciar-cd2-linux.sh
   web/                        <- a interface (index.html + config.json)
-  core/                       <- scripts de preparo e de inicialização
+  core/                       <- scripts de preparo, de gravação e de inicialização
   bin/    (criado no preparo) <- llamafile
   models/ (criado no preparo) <- modelo .gguf
+
+Só no repositório (não vão para o pen drive):
+  GRAVAR-PENDRIVE-Windows.bat <- grava um pen drive pronto, no Windows
+  GRAVAR-PENDRIVE-Mac.command <- idem, no Mac
+  gravar-pendrive-linux.sh    <- idem, no Linux
+  docs/criar-pendrive.md      <- o passo a passo completo
 ```
 
-## 1. Preparar o pen drive (uma vez, com internet)
+## 1. Criar o pen drive (uma vez, com internet)
 
-1. Formate o pen drive em **exFAT** (FAT32 não aceita arquivos acima de 4 GB). Precisa de uns 4 GB livres; use um USB 3.0 ou melhor, porque o modelo (2,5 GB) é lido do pen drive a cada abertura.
-2. Copie esta pasta inteira para o pen drive.
-3. Rode o preparo, que baixa o llamafile e o modelo para dentro da pasta (retoma se cair):
-   - Windows: duplo clique em `core\prepare-windows.bat`
-   - Mac/Linux: `sh core/prepare-unix.sh`
-4. O preparo grava `CHECKSUMS.sha256`. Guarde: serve para conferir que o pen drive não foi alterado.
+Plugue um pen drive de 16 GB (USB 3) e rode o gravador do seu sistema:
+
+| Sistema | Como gravar |
+|---|---|
+| Windows | duplo clique em `GRAVAR-PENDRIVE-Windows.bat` (pede administrador) |
+| Mac | duplo clique em `GRAVAR-PENDRIVE-Mac.command` |
+| Linux | `sh gravar-pendrive-linux.sh` |
+
+Ele lista os pen drives, pede confirmação (digite `APAGAR`), formata em exFAT, baixa o llamafile e o modelo para um cache no seu computador, copia tudo, confere os checksums e ejeta. O segundo pen drive não baixa nada de novo. O passo a passo, o jeito manual e a lista de problemas conhecidos estão em [docs/criar-pendrive.md](docs/criar-pendrive.md).
+
+Se preferir fazer na mão: formate em exFAT, copie esta pasta para o pen drive e rode o preparo (`core\prepare-windows.bat` no Windows, `sh core/prepare-unix.sh` no Mac/Linux). O preparo retoma downloads interrompidos e pula o que já estiver completo. Ele grava `CHECKSUMS.sha256`; guarde uma cópia fora do pen drive.
 
 No evento **não precisa de internet**. Só o modo Archeo MCP precisa.
 
@@ -87,7 +98,7 @@ Fluxo de uma atualização:
 
 1. Ajuste o código e/ou `web/config.json` e suba a mudança aqui (suba o número em `VERSION`).
 2. Num pen drive já preparado, copie por cima só o que mudou. Normalmente basta a pasta `web/` e a pasta `core/`; `bin/` e `models/` ficam.
-3. Para um pen drive novo: formate em exFAT, copie a pasta do repositório (`git clone` ou "Download ZIP") e rode o preparo uma vez.
+3. Para um pen drive novo: rode o gravador (`GRAVAR-PENDRIVE-*`), que formata, baixa do cache e confere. Ver [docs/criar-pendrive.md](docs/criar-pendrive.md).
 4. Duplicar em série: com um pen drive aprovado, copie a pasta inteira (incluindo `bin/` e `models/`) para os demais, sem rodar o preparo de novo, e compare o `CHECKSUMS.sha256`.
 
 Fim de linha: `.bat` e `.ps1` usam CRLF e `.sh`/`.command` usam LF (definido em `.gitattributes`). Se editar no Windows, não troque isso, ou o launcher do Mac/Linux quebra.

@@ -1,5 +1,6 @@
 # CD2 Harness - prepara o pen drive (rode UMA vez, com internet, no Windows)
-# Baixa o llamafile e o modelo para dentro desta pasta. Retoma downloads interrompidos.
+# Baixa o llamafile e o modelo para dentro desta pasta. Retoma downloads interrompidos
+# e pula o que ja estiver completo, entao pode rodar de novo sem medo.
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $Root = Split-Path -Parent $PSScriptRoot
@@ -11,6 +12,30 @@ New-Item -ItemType Directory -Force -Path (Join-Path $Root 'bin'), (Join-Path $R
 $curl = Join-Path $env:SystemRoot 'System32\curl.exe'
 if (-not (Test-Path $curl)) { throw 'curl.exe nao encontrado (Windows 10 1803+ ou 11 necessario).' }
 
+# Tamanho do arquivo no servidor (segue redirecionamentos). $null se nao der para saber.
+function Get-RemoteSize($url) {
+    try {
+        $r = Invoke-WebRequest -Uri $url -Method Head -MaximumRedirection 10 -UseBasicParsing -Headers @{ 'User-Agent' = 'cd2-harness' }
+        $len = $r.Headers['Content-Length']
+        if ($len) { return [int64]($len | Select-Object -Last 1) }
+    } catch { }
+    return $null
+}
+
+# Fetch URL DESTINO: pula se ja estiver completo, retoma se estiver pela metade.
+function Fetch($url, $dest) {
+    if ((Test-Path $dest) -and (Get-Item $dest).Length -gt 0) {
+        $have = (Get-Item $dest).Length
+        $want = Get-RemoteSize $url
+        if ($want -and $want -eq $have) { Write-Host "Ja baixado, pulando: $([IO.Path]::GetFileName($dest)) ($have bytes)"; return }
+        & $curl -L --fail -C - -o $dest $url
+        if ($LASTEXITCODE -ne 0) { & $curl -L --fail -o $dest $url }
+    } else {
+        & $curl -L --fail -C - -o $dest $url
+    }
+    if ($LASTEXITCODE -ne 0) { throw "Falha ao baixar $url" }
+}
+
 Write-Host '== Motor (llamafile)'
 $binUrl = $null
 try {
@@ -21,22 +46,26 @@ try {
 if (-not $binUrl) { Write-Host 'Nao consegui resolver a ultima release; usando a URL de reserva.'; $binUrl = $FallbackBin }
 Write-Host "Origem: $binUrl"
 $exe = Join-Path $Root 'bin\llamafile.exe'
-& $curl -L --fail -C - -o $exe $binUrl
-if ($LASTEXITCODE -ne 0) { throw 'Falha ao baixar o llamafile.' }
+$bin = Join-Path $Root 'bin\llamafile'
+Fetch $binUrl $exe
 # mesma binaria (APE) serve para Mac/Linux
-Copy-Item -Force $exe (Join-Path $Root 'bin\llamafile')
+if (-not (Test-Path $bin) -or (Get-Item $bin).Length -ne (Get-Item $exe).Length) { Copy-Item -Force $exe $bin }
 
 Write-Host '== Modelo'
 Write-Host "Origem: $ModelUrl"
 $model = Join-Path $Root "models\$ModelFile"
-& $curl -L --fail -C - -o $model $ModelUrl
-if ($LASTEXITCODE -ne 0) { throw 'Falha ao baixar o modelo.' }
+Fetch $ModelUrl $model
 if ((Get-Item $model).Length -lt 1GB) { throw "Modelo com tamanho suspeito. Apague $model e rode de novo." }
 
 Write-Host ''
 Write-Host '== Checksums (anote para conferir depois)'
-$lines = foreach ($f in @($exe, $model)) { $h = (Get-FileHash -Algorithm SHA256 $f).Hash.ToLower(); "$h  $([IO.Path]::GetFileName($f))" }
-$lines | Tee-Object -FilePath (Join-Path $Root 'CHECKSUMS.sha256')
+# Mesmo formato do Mac/Linux (caminhos relativos com /), para o mesmo arquivo valer nos tres sistemas.
+$lines = @(
+    "$((Get-FileHash -Algorithm SHA256 $bin).Hash.ToLower())  bin/llamafile",
+    "$((Get-FileHash -Algorithm SHA256 $model).Hash.ToLower())  models/$ModelFile"
+)
+$lines | ForEach-Object { Write-Host $_ }
+[IO.File]::WriteAllText((Join-Path $Root 'CHECKSUMS.sha256'), (($lines -join "`n") + "`n"))
 Write-Host ''
 Write-Host "Pronto. Pen drive preparado em: $Root"
 Write-Host 'Dica: formate o pen drive em exFAT (FAT32 nao aceita arquivos acima de 4 GB).'
