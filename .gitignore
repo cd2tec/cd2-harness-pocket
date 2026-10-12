@@ -3,6 +3,9 @@ bin/
 models/
 CHECKSUMS.sha256
 
+# Pergunta e grava-se no cache do computador, nunca aqui
+db.env
+
 # Sistema
 .DS_Store
 Thumbs.db
