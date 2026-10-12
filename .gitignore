@@ -7,3 +7,6 @@ CHECKSUMS.sha256
 .DS_Store
 Thumbs.db
 *.log
+
+# Ferramentas locais do Claude Code
+.claude/
