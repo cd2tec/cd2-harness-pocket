@@ -12,19 +12,19 @@ fail() { printf '[FALHOU] %s\n' "$*" >&2; exit 1; }
 invoke() { toolbox invoke "$1" "$2" --config "$YAML" 2>&1 | sed -n '/^\[/,$p'; }
 # invoke_err TOOL JSON -> imprime a ultima linha (mensagem de erro)
 invoke_err() { toolbox invoke "$1" "$2" --config "$YAML" 2>&1 | tail -n 1; }
-keys() { jq -r '.[0] | keys_unsorted | join(",")'; }
+keys() { jq -r '.[0] | keys | join(",")'; }  # ordenado: a ordem das colunas varia por driver
 TBL=produto; VW=v_venda; [ "$ENGINE" = oracle ] && TBL=PRODUTO && VW=V_VENDA
 
 echo "== $ENGINE: db_connection_status"
 S="$(invoke db_connection_status '{}')"
-[ "$(printf '%s' "$S" | keys)" = "engine,db_version,host,database,user,schema,visible_tables" ] || fail "status: colunas $(printf '%s' "$S" | keys)"
+[ "$(printf '%s' "$S" | keys)" = "database,db_version,engine,host,schema,user,visible_tables" ] || fail "status: colunas $(printf '%s' "$S" | keys)"
 [ "$(printf '%s' "$S" | jq -r '.[0].engine')" = "$ENGINE" ] || fail "status: engine"
 [ "$(printf '%s' "$S" | jq -r '.[0].host')" = "$CD2_DB_HOST" ] || fail "status: host nao veio do ambiente"
 [ "$(printf '%s' "$S" | jq -r '.[0].visible_tables')" -ge 2 ] || fail "status: visible_tables < 2"
 
 echo "== $ENGINE: db_list_tables"
 L="$(invoke db_list_tables '{}')"
-[ "$(printf '%s' "$L" | keys)" = "name,type,num_rows,comments" ] || fail "list: colunas"
+[ "$(printf '%s' "$L" | keys)" = "comments,name,num_rows,type" ] || fail "list: colunas"
 printf '%s' "$L" | jq -e --arg t "$TBL" '.[] | select(.name == $t and .type == "TABLE")' >/dev/null || fail "list: $TBL como TABLE"
 printf '%s' "$L" | jq -e --arg v "$VW" '.[] | select(.name == $v and .type == "VIEW")' >/dev/null || fail "list: $VW como VIEW"
 L2="$(invoke db_list_tables '{"pattern":"VEND","include_views":false}')"
@@ -34,7 +34,7 @@ L3="$(invoke db_list_tables '{"limit":1,"offset":1}')"
 
 echo "== $ENGINE: db_describe_table"
 D="$(invoke db_describe_table "{\"table_name\":\"$(printf '%s' "$TBL" | tr 'A-Z' 'a-z')\"}")"
-[ "$(printf '%s' "$D" | keys)" = "column_name,data_type,nullable,comments,is_primary_key,foreign_key_references,table" ] || fail "describe: colunas"
+[ "$(printf '%s' "$D" | keys)" = "column_name,comments,data_type,foreign_key_references,is_primary_key,nullable,table" ] || fail "describe: colunas"
 printf '%s' "$D" | jq -e '.[] | select((.column_name|ascii_downcase) == "id" and (.is_primary_key|tostring|test("1|true")))' >/dev/null || fail "describe: id como PK"
 printf '%s' "$D" | jq -e '.[] | select((.column_name|ascii_downcase) == "nome" and .comments == "Descricao do produto")' >/dev/null || fail "describe: comentario de nome"
 DV="$(invoke db_describe_table '{"table_name":"venda"}')"
@@ -43,7 +43,7 @@ printf '%s' "$DV" | jq -e '.[] | select((.column_name|ascii_downcase) == "produt
 
 echo "== $ENGINE: db_search_columns"
 C="$(invoke db_search_columns '{"pattern":"produto_id"}')"
-[ "$(printf '%s' "$C" | keys)" = "table,column,data_type,comments" ] || fail "search: colunas"
+[ "$(printf '%s' "$C" | keys)" = "column,comments,data_type,table" ] || fail "search: colunas"
 [ "$(printf '%s' "$C" | jq 'length')" -ge 1 ] || fail "search: produto_id nao achado"
 
 echo "== $ENGINE: db_sample_table"
@@ -53,10 +53,10 @@ invoke_err db_sample_table '{"table_name":"produto; DROP TABLE produto"}' | grep
 
 echo "== $ENGINE: db_read_only_query"
 Q="$(invoke db_read_only_query "{\"sql\":\"select count(*) as n from $TBL\"}")"
-[ "$(printf '%s' "$Q" | jq -r '.[0].n')" = 25 ] || fail "query: count"
+[ "$(printf '%s' "$Q" | jq -r '.[0].n // .[0].N')" = 25 ] || fail "query: count"
 [ "$(invoke db_read_only_query "{\"sql\":\"select id from $TBL\"}" | jq 'length')" = 25 ] || fail "query: 25 linhas esperadas"
 invoke_err db_read_only_query "{\"sql\":\"delete from $TBL\"}" | grep -q "not an allowed value" || fail "query: DELETE passou"
 invoke_err db_read_only_query "{\"sql\":\"select 1) q; delete from $TBL; select (1\"}" | grep -q "excluded value" || fail "query: statement multiplo passou"
 invoke_err db_read_only_query "{\"sql\":\"select count(*) from $TBL;\"}" | grep -q "excluded value" || fail "query: ; final deveria ser recusado no servidor (o front tira antes)"
-[ "$(invoke db_read_only_query "{\"sql\":\"select count(*) as n from $TBL\"}" | jq -r '.[0].n')" = 25 ] || fail "query: linhas sumiram apos tentativa de DELETE"
+[ "$(invoke db_read_only_query "{\"sql\":\"select count(*) as n from $TBL\"}" | jq -r '.[0].n // .[0].N')" = 25 ] || fail "query: linhas sumiram apos tentativa de DELETE"
 echo "OK: $ENGINE"
