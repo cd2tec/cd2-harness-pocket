@@ -1,6 +1,17 @@
-# CD2 Harness (pen drive)
+<p>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logos/cd2-logo-horizontal-negativo.svg">
+    <img src="docs/assets/logos/cd2-logo-horizontal.svg" alt="CD2 Tech" width="200">
+  </picture>
+</p>
 
-IA local da CD2 que roda direto do pen drive: plugou, clicou, abriu uma janela com a cara da CD2 e já conversa com um modelo Qwen3 4B rodando no próprio computador. Opcionalmente conecta a um MCP do Archeo para consultar dados reais.
+# CD2 Harness
+
+**A IA da CD2 rodando 100% no seu computador, direto do pen drive.**
+
+Plugou, clicou, conversou. O harness abre uma janela com a identidade da CD2 e conversa com um modelo Qwen3 4B rodando no próprio computador, sem instalar nada e sem mandar dados para a nuvem. Quando houver rede, conecta a um MCP do Archeo para consultar dados reais.
+
+[Site do projeto](https://cd2tec.github.io/cd2-harness-pocket/) · [Passo a passo do pen drive](docs/criar-pendrive.md) · [Baixar ZIP](https://github.com/cd2tec/cd2-harness-pocket/archive/refs/heads/main.zip)
 
 ## O que tem aqui
 
@@ -9,7 +20,7 @@ CD2-HARNESS/
   INICIAR-CD2-Windows.bat     <- duplo clique no Windows
   INICIAR-CD2-Mac.command     <- duplo clique no Mac
   iniciar-cd2-linux.sh        <- no Linux: sh iniciar-cd2-linux.sh
-  web/                        <- a interface (index.html + config.json)
+  web/                        <- a interface (index.html, config.json e fontes Manrope)
   core/                       <- scripts de preparo, de gravação e de inicialização
   bin/    (criado no preparo) <- llamafile
   models/ (criado no preparo) <- modelo .gguf
@@ -19,6 +30,7 @@ Só no repositório (não vão para o pen drive):
   GRAVAR-PENDRIVE-Mac.command <- idem, no Mac
   gravar-pendrive-linux.sh    <- idem, no Linux
   docs/criar-pendrive.md      <- o passo a passo completo
+  docs/index.html             <- o site do projeto (GitHub Pages)
 ```
 
 ## 1. Criar o pen drive (uma vez, com internet)
@@ -67,11 +79,26 @@ Sem internet ou sem MCP, o modo **Demonstração** funciona offline com dados fi
 ## 4. Personalizar
 
 - `web/config.json`: nome, frase de efeito, prompt de sistema, sugestões da tela inicial.
-- `web/index.html`: cores no bloco `:root` (azul escuro, cinza e dourado discreto). A marca "CD2" no topo é um placeholder tipográfico; troque pelo logo real.
+- `web/index.html`: a interface segue o Design System da CD2 (ver seção 5). As cores e medidas são os tokens do sistema, declarados no bloco `:root`; ajuste ali, nunca com valor solto no meio do CSS.
 - Outro modelo: coloque outro `.gguf` em `models/` e deixe só um arquivo lá. O launcher usa o primeiro que encontrar.
 - Contexto maior: variável `CD2_CTX` (padrão 8192; mais contexto consome mais RAM).
 
-## 5. Limitações e cuidados
+## 5. Identidade visual
+
+Interface, site e README seguem o **Design System CD2 Tech** (Manual de Marca CD2 2026).
+
+| Elemento | Como aparece aqui |
+|---|---|
+| Cores | `blue-retail` #0000ff na barra superior, botões e destaques; `white-human` #f2f2f2 de fundo; texto em `ink` #0d1233. `yellow-like` #dbff2a só como energia pontual (modo Demonstração, terceiro passo do site). |
+| Tema | Claro (White_HUMAN) na interface do harness, como pede o sistema para sistemas e dashboards; azul (Blue_RETAIL) no hero e no rodapé do site. |
+| Tipografia | Manrope (400 a 800), embutida em `web/fonts/` e `docs/assets/fonts/` em WOFF2 com subconjunto latino. Funciona offline. Licença SIL OFL 1.1, gravada nos próprios arquivos. |
+| Logo | `cd2-logo-horizontal` negativa (branca) sobre a barra azul; símbolo como avatar da IA e favicon. Arquivos em `docs/assets/logos/`. |
+| Componentes | Botões em pílula (primário, secundário), StatusTag para o estado do modelo e das ferramentas (Concluído = pronto, Em melhoria = Demonstração, Atenção = offline ou erro), SectionHeader com eyebrow e régua de 240px, blocos de conexão no site. |
+| Movimento | Só transições de 150 ms em cor. O indicador de carregamento é uma barra que desliza; nada gira, pulsa ou salta, e ele para com "reduzir movimento". |
+
+Regras de texto que valem para qualquer mudança: português do Brasil, frases curtas, sem emoji e sem travessão. A tagline de mercado "Para operações que não podem parar." é a única que vai para fora.
+
+## 6. Limitações e cuidados
 
 - **Velocidade.** O Qwen3 4B Thinking "pensa" antes de responder. Em notebook só com CPU, espere poucos tokens por segundo e respostas que levam dezenas de segundos. O raciocínio aparece num bloco recolhível. Para demonstração ao vivo, considere um modelo Instruct (sem fase de raciocínio) e deixe o Thinking para quem quiser ver "a IA pensando".
 - **Procedência do modelo.** O arquivo vem de um repositório pessoal (`pramodlohra`) que se apresenta como fine-tune do Qwen3-4B-Thinking-2507, com README mínimo. Antes de distribuir sob a marca da CD2, confirme licença e origem, ou use o GGUF oficial da Qwen.
@@ -81,7 +108,7 @@ Sem internet ou sem MCP, o modo **Demonstração** funciona offline com dados fi
 - **Pen drive.** exFAT não guarda permissão de execução, então Mac/Linux rodam o motor a partir de uma cópia em `~/.cache/cd2-harness` (ou `~/Library/Caches/cd2-harness`). Nada é instalado e nada fica no sistema além desse cache.
 - **Modelo pequeno erra.** O aviso na tela é proposital. Em números do Archeo, o dado vem da ferramenta; o texto em volta é do modelo.
 
-## 6. Checklist antes do evento
+## 7. Checklist antes do evento
 
 - [ ] Preparo rodado e `CHECKSUMS.sha256` guardado
 - [ ] Testado em Windows (Intel/AMD), Mac (Apple Silicon) e, se aplicável, Linux, em máquina "limpa"
@@ -90,7 +117,7 @@ Sem internet ou sem MCP, o modo **Demonstração** funciona offline com dados fi
 - [ ] Pen drive com cópia reserva (e um segundo pen drive igual)
 - [ ] Um notebook seu com tudo já funcionando no stand
 
-## 7. Atualizar e distribuir
+## 8. Atualizar e distribuir
 
 O repositório guarda só o código (launchers, interface, scripts). O **llamafile** e o **modelo** não ficam no Git: são baixados pelo preparo e listados no `.gitignore`.
 
@@ -101,11 +128,14 @@ Fluxo de uma atualização:
 3. Para um pen drive novo: rode o gravador (`GRAVAR-PENDRIVE-*`), que formata, baixa do cache e confere. Ver [docs/criar-pendrive.md](docs/criar-pendrive.md).
 4. Duplicar em série: com um pen drive aprovado, copie a pasta inteira (incluindo `bin/` e `models/`) para os demais, sem rodar o preparo de novo, e compare o `CHECKSUMS.sha256`.
 
+O site do projeto é o `docs/index.html`, publicado pelo GitHub Pages a partir da pasta `/docs` do branch `main` (Settings > Pages > Deploy from a branch). O `docs/.nojekyll` faz o Pages servir os arquivos como estão.
+
 Fim de linha: `.bat` e `.ps1` usam CRLF e `.sh`/`.command` usam LF (definido em `.gitattributes`). Se editar no Windows, não troque isso, ou o launcher do Mac/Linux quebra.
 
-## 8. Licenças e origem dos componentes
+## 9. Licenças e origem dos componentes
 
 Este código é Apache 2.0 (ver `LICENSE`). O harness baixa, mas não redistribui no repositório:
 
+- **Manrope** (The Manrope Project Authors, SIL Open Font License 1.1), embutida em subconjunto em `web/fonts/` e `docs/assets/fonts/`
 - **llamafile** (Mozilla.ai, Apache 2.0), de https://github.com/mozilla-ai/llamafile
 - **Modelo GGUF** (configurável em `CD2_MODEL_URL`): confira licença e origem antes de distribuir os pen drives sob a marca da CD2.
