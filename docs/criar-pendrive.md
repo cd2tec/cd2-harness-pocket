@@ -103,6 +103,6 @@ Serve para entender o que o script faz, ou para quando ele não puder rodar.
 
 ## Antes de sair gravando dez
 
-- Em `web/config.json`, ajuste o texto de abertura e as sugestões. Se for deixar o Archeo como padrão, coloque só a URL (`mcp.mode` igual a `"mcp"`). **Token nunca**, porque o pen drive vai circular.
+- Em `web/config.json`, ajuste o texto de abertura e as sugestões. Se for deixar o Archeo como padrão, coloque só a URL (`mcp.mode` igual a `"mcp"`). O login é feito pela conta de cada pessoa, no navegador, e não fica gravado. **Token nunca**, porque o pen drive vai circular.
 - O modelo padrão vem de um repositório pessoal no Hugging Face. Antes de distribuir sob a marca CD2, confirme licença e origem ou troque pelo GGUF oficial da Qwen (variável `CD2_MODEL_URL` no preparo).
 - Grave um, teste em um notebook que não seja o seu, e só então duplique.

@@ -183,10 +183,15 @@ input[type=radio]{accent-color:var(--brand);width:18px;height:18px;margin:0}
     <label><input type="radio" name="mode" value="mcp"> Archeo MCP</label>
   </div>
   <label for="mcpUrl">URL do servidor MCP (HTTP)</label>
-  <input type="text" id="mcpUrl" placeholder="https://…/mcp" autocomplete="off">
-  <label for="mcpTok">Token de acesso (opcional)</label>
+  <input type="text" id="mcpUrl" placeholder="https://archeo.cd2.com.br/api/mcp" autocomplete="off">
+  <div class="hint" id="authState"></div>
+  <div class="row" style="margin-top:var(--space-3);justify-content:flex-start">
+    <button class="sm primary" id="bLogin">Entrar com a conta do Archeo</button>
+    <button class="sm" id="bLogout" style="display:none">Sair da conta</button>
+  </div>
+  <label for="mcpTok">Token estático (plano B, opcional)</label>
   <input type="password" id="mcpTok" placeholder="Bearer token" autocomplete="off">
-  <div class="hint">O token fica só na memória desta aba e é descartado ao fechar. Use um token somente leitura.</div>
+  <div class="hint">O Archeo não mostra mais esse token na interface; use só se a operação gerar um para você. Fica só na memória desta aba e tem prioridade sobre o login.</div>
   <div class="row">
     <span class="status" id="cfgStatus"></span>
     <button id="cfgClose">Fechar</button>
@@ -194,6 +199,8 @@ input[type=radio]{accent-color:var(--brand);width:18px;height:18px;margin:0}
   </div>
 </dialog>
 
+<script src="mcp.js"></script>
+<script src="oauth.js"></script>
 <script>
 "use strict";
 const $ = s => document.querySelector(s);
@@ -226,42 +233,21 @@ const TAG = { ok:'concluido', err:'atencao', gold:'melhoria', '':'backlog' };
 function setPill(id, cls, text){ const p = $(id); p.className = 'tag tag--' + (TAG[cls || ''] || 'backlog'); p.lastElementChild.textContent = text; p.title = text; }
 const SYMBOL = '<svg viewBox="129 91 329 312" aria-hidden="true" class="logo"><path class="li" d="M256.2 397.7C188.1 397.6 132.7 341.8 133.3 273.5C133.9 205.8 190.2 151.7 257.9 151.7L330 151.7C330 151.7 330.1 151.7 330.1 151.8C330.1 182.7 305 207.8 274.1 207.8L257.5 207.8C220.8 207.8 190 236.8 189.4 273.4C188.7 310.9 218.9 341.6 256.2 341.6C256.3 341.6 256.3 341.6 256.3 341.7L256.3 397.6C256.3 397.6 256.3 397.7 256.2 397.7"/><path class="lt" d="M328.4 341.6L256.3 341.6C256.3 341.6 256.3 341.6 256.3 341.6C256.3 310.6 281.3 285.6 312.3 285.6L328.9 285.6C365.5 285.6 396.3 256.5 397 219.9C397.6 182.4 367.4 151.7 330.1 151.7C330.1 151.7 330 151.7 330 151.6L330 95.7C330 95.7 330.1 95.6 330.1 95.6C398.3 95.7 453.7 151.5 453 219.8C452.4 287.5 396.2 341.6 328.4 341.6"/></svg>';
 
-/* ---------- MCP client (Streamable HTTP, JSON-RPC) ---------- */
-function parseSse(text, id){
-  for(const block of text.split(/\r?\n\r?\n/)){
-    const data = block.split(/\r?\n/).filter(l => l.startsWith('data:')).map(l => l.slice(5).trim()).join('\n');
-    if(!data) continue;
-    try{ const m = JSON.parse(data); if(m.id === id) return m; }catch(e){}
-  }
-  throw new Error('Resposta MCP sem resultado');
+/* ---------- MCP (web/mcp.js) e OAuth do Archeo (web/oauth.js) ---------- */
+function cfgUrl(){ return store.get('cd2.url') || (st.cfg.mcp && st.cfg.mcp.url) || ''; }
+function oauthFor(url){
+  return CD2OAuth.create({ mcpUrl:url, origin:location.origin, fetch:(...a) => fetch(...a), session:sessionStorage, local:localStorage, crypto:window.crypto });
 }
-class McpClient{
-  constructor(url, token){ this.url = url; this.token = token; this.sid = null; this.n = 0; }
-  async rpc(method, params, notif){
-    const body = { jsonrpc:'2.0', method }; if(params) body.params = params; if(!notif) body.id = ++this.n;
-    const h = { 'Content-Type':'application/json', 'Accept':'application/json, text/event-stream' };
-    if(this.token) h.Authorization = 'Bearer ' + this.token;
-    if(this.sid) h['Mcp-Session-Id'] = this.sid;
-    const r = await fetch(this.url, { method:'POST', headers:h, body:JSON.stringify(body) });
-    const sid = r.headers.get('Mcp-Session-Id'); if(sid) this.sid = sid;
-    if(!r.ok) throw new Error('MCP respondeu HTTP ' + r.status);
-    if(notif) return null;
-    const ct = r.headers.get('Content-Type') || '';
-    const msg = ct.includes('text/event-stream') ? parseSse(await r.text(), body.id) : await r.json();
-    if(msg.error) throw new Error(msg.error.message || 'erro MCP');
-    return msg.result;
-  }
-  async init(){
-    await this.rpc('initialize', { protocolVersion:'2025-03-26', capabilities:{}, clientInfo:{ name:'cd2-harness', version:'0.3.0' } });
-    await this.rpc('notifications/initialized', null, true);
-    const r = await this.rpc('tools/list', {});
-    return r.tools || [];
-  }
-  async call(name, args){
-    const r = await this.rpc('tools/call', { name, arguments: args });
-    const text = (r.content || []).map(c => c.type === 'text' ? c.text : '[' + c.type + ']').join('\n');
-    return (r.isError ? 'ERRO: ' : '') + text;
-  }
+function netHint(e){ return (e instanceof TypeError) ? ' (falha de rede ou CORS: o Archeo precisa liberar a origem ' + location.origin + ')' : ''; }
+// Volta do consentimento do Archeo: a própria janela foi e voltou com ?code=&state=
+async function handleOAuthReturn(){
+  if(!/[?&](code|error)=/.test(location.search)) return;
+  const clean = () => { try{ history.replaceState(null, '', location.pathname); }catch(e){} };
+  try{
+    const ok = await oauthFor(cfgUrl()).handleCallback(location.search);
+    clean();
+    if(ok){ store.set('cd2.mode', 'mcp'); addNote('Login no Archeo concluído. Conectando às ferramentas…'); }
+  }catch(e){ clean(); addNote('Login no Archeo falhou: ' + (e.message || e) + netHint(e), true); }
 }
 
 /* ---------- demo provider (dados fictícios, funciona offline) ---------- */
@@ -293,7 +279,10 @@ async function connectTools(){
   try{
     if(mode === 'mcp'){
       if(!url) throw new Error('Informe a URL do servidor MCP');
-      const c = new McpClient(url, tok);
+      const oauth = oauthFor(url);
+      if(!tok && !oauth.isLoggedIn()) throw new Error('Entre com a conta do Archeo (ou informe um token estático).');
+      // token estático tem prioridade; sem ele, o OAuth renova sozinho e um 401 força a renovação
+      const c = new McpClient(url, { token: async () => tok || oauth.getToken(), onUnauthorized: tok ? null : () => oauth.forceRefresh(), origin: location.origin });
       st.tools = await c.init(); st.provider = c;
       setPill('#pMcp', 'ok', (st.cfg.mcp.name || 'MCP') + ': ' + st.tools.length + ' ferramentas');
     }else{
@@ -447,15 +436,41 @@ function openCfg(){
   $('#mcpUrl').value = store.get('cd2.url') || (st.cfg.mcp && st.cfg.mcp.url) || '';
   $('#mcpTok').value = store.get('cd2.tok', true) || '';
   $('#cfgStatus').textContent = ''; $('#cfgStatus').className = 'status';
+  refreshAuthBox();
   $('#dlg').showModal();
+}
+function refreshAuthBox(){
+  const on = oauthFor(cfgUrl()).isLoggedIn();
+  $('#authState').textContent = on ? 'Conectado com a conta do Archeo nesta aba. Fechou a aba, acabou o acesso.' : 'O Archeo pede autorização no navegador. Nada fica gravado no pen drive.';
+  $('#bLogin').style.display = on ? 'none' : ''; $('#bLogout').style.display = on ? '' : 'none';
+}
+function showCfgError(text){
+  const s = $('#cfgStatus'); s.className = 'status hint'; s.innerHTML = '<span class="tag tag--atencao">Atenção</span> '; s.appendChild(document.createTextNode(text));
 }
 async function saveCfg(){
   const mode = document.querySelector('input[name=mode]:checked').value;
   store.set('cd2.mode', mode); store.set('cd2.url', $('#mcpUrl').value.trim()); store.set('cd2.tok', $('#mcpTok').value, true);
   const s = $('#cfgStatus'); s.className = 'status tag tag--backlog'; s.textContent = 'Conectando…';
   const r = await connectTools();
+  refreshAuthBox();
   if(r.ok){ s.className = 'status tag tag--concluido'; s.textContent = st.tools.length + ' ferramentas disponíveis'; }
-  else { s.className = 'status hint'; s.innerHTML = '<span class="tag tag--atencao">Atenção</span> '; s.appendChild(document.createTextNode(r.error)); }
+  else showCfgError(r.error);
+}
+async function loginArcheo(){
+  const url = $('#mcpUrl').value.trim();
+  document.querySelector('input[name=mode][value=mcp]').checked = true;
+  store.set('cd2.mode', 'mcp'); store.set('cd2.url', url);
+  const s = $('#cfgStatus'); s.className = 'status tag tag--backlog'; s.textContent = 'Indo para o Archeo…';
+  try{
+    if(!url) throw new Error('Informe a URL do servidor MCP');
+    location.href = await oauthFor(url).beginLogin();
+  }catch(e){ showCfgError((e.message || String(e)) + netHint(e)); }
+}
+function logoutArcheo(){
+  oauthFor(cfgUrl()).logout();
+  refreshAuthBox();
+  $('#cfgStatus').textContent = ''; $('#cfgStatus').className = 'status';
+  connectTools();
 }
 
 /* ---------- inicialização ---------- */
@@ -480,7 +495,7 @@ async function boot(){
   document.title = (st.cfg.brand || 'CD2 Tech') + ' · ' + (st.cfg.product || 'Harness');
   $('#tagline').textContent = st.cfg.tagline || '';
   if(window.matchMedia && matchMedia('(max-width:640px)').matches) $('#input').placeholder = 'Pergunte alguma coisa…';
-  renderHero(); connectTools(); pingModel();
+  renderHero(); await handleOAuthReturn(); connectTools(); pingModel();
 }
 $('#bSend').onclick = () => send();
 $('#bStop').onclick = () => st.ctl && st.ctl.abort();
@@ -488,6 +503,8 @@ $('#bNew').onclick = newChat;
 $('#bCfg').onclick = openCfg;
 $('#cfgClose').onclick = () => $('#dlg').close();
 $('#cfgSave').onclick = saveCfg;
+$('#bLogin').onclick = loginArcheo;
+$('#bLogout').onclick = logoutArcheo;
 $('#input').addEventListener('keydown', e => { if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); send(); } });
 $('#input').addEventListener('input', e => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 160) + 'px'; });
 boot();
