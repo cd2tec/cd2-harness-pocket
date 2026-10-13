@@ -248,12 +248,12 @@ input:disabled,select:disabled{background:var(--surface-100);color:var(--ink-mut
           <option value="mariadb">MariaDB / MySQL</option>
           <option value="sqlserver">SQL Server</option>
         </select></div>
-      <div><label for="dbHost">Host</label><input type="text" id="dbHost" spellcheck="false"></div>
-      <div><label for="dbPorta">Porta</label><input type="text" id="dbPorta" inputmode="numeric"></div>
-      <div><label for="dbBase" id="dbBaseLabel">Base de dados</label><input type="text" id="dbBase" spellcheck="false"></div>
-      <div><label for="dbUsuario">Usuário</label><input type="text" id="dbUsuario" spellcheck="false"></div>
-      <div><label for="dbSenha">Senha</label><input type="password" id="dbSenha" autocomplete="off"></div>
-      <div><label for="dbSchema">Schema</label><input type="text" id="dbSchema" spellcheck="false"></div>
+      <div><label for="dbHost">Host</label><input type="text" id="dbHost" spellcheck="false" autocomplete="off"></div>
+      <div><label for="dbPorta">Porta</label><input type="text" id="dbPorta" inputmode="numeric" autocomplete="off"></div>
+      <div><label for="dbBase" id="dbBaseLabel">Base de dados</label><input type="text" id="dbBase" spellcheck="false" autocomplete="off"></div>
+      <div><label for="dbUsuario">Usuário</label><input type="text" id="dbUsuario" spellcheck="false" autocomplete="off"></div>
+      <div><label for="dbSenha">Senha</label><input type="password" id="dbSenha" autocomplete="new-password"></div>
+      <div><label for="dbSchema">Schema</label><input type="text" id="dbSchema" spellcheck="false" autocomplete="off"></div>
     </form>
     <div class="hint">Use uma conta somente leitura. A senha fica só neste computador e nunca volta para a tela.</div>
     <dl class="kv" id="tbStatus"></dl>
@@ -320,7 +320,7 @@ const MAX_TOOL_CHARS = 4000, MAX_STEPS = 6;
 const USE_SCHEMA = true;
 const st = { cfg:{}, messages:[], provider:null, tools:[], busy:false, ctl:null, dbStatus:null,
   catalog:null, catalogPromise:null, catalogGen:0, suggestions:null,
-  ctlKey:null, ctlUp:false, ctlStale:false, ctlStatus:null, ctlBusy:false };
+  ctlKey:null, ctlUp:false, ctlStale:false, ctlStatus:null, ctlBusy:false, dbSenhaSalva:false };
 
 /* ---------- storage (best effort) ---------- */
 const store = {
@@ -687,19 +687,25 @@ async function refreshCtl(){
   }catch(e){}
 }
 function readDbForm(){ const f = {}; for(const k in DB_FIELDS) f[k] = $(DB_FIELDS[k]).value; return f; }
+// Exemplos por motor e porta padrão. A senha guarda o aviso de "senha salva" do fillDbForm.
 function syncDbForm(){
   const m = $('#dbMotor').value;
   const d = CD2Toolbox.defaultsFor(m, $('#dbUsuario').value.trim(), $('#dbBase').value.trim());
-  $('#dbPorta').placeholder = String(d.porta); $('#dbSchema').placeholder = d.schema;
+  const p = CD2Toolbox.placeholdersFor(m, $('#dbUsuario').value.trim(), $('#dbBase').value.trim());
+  $('#dbHost').placeholder = p.host; $('#dbBase').placeholder = p.base; $('#dbUsuario').placeholder = p.usuario;
+  $('#dbPorta').placeholder = String(d.porta); $('#dbSchema').placeholder = p.schema;
+  if(!st.dbSenhaSalva) $('#dbSenha').placeholder = p.senha;
   $('#dbBaseLabel').textContent = (m === 'oracle') ? 'Service name' : 'Base de dados';
 }
+function onDbMotorChange(){ $('#dbPorta').value = CD2Toolbox.portFor($('#dbMotor').value, $('#dbPorta').value); syncDbForm(); }
 // Preenche com o /status (ou limpa, com s nulo). A senha nunca vem: só o aviso de que há uma salva.
 function fillDbForm(s){
   s = s || {};
   $('#dbMotor').value = s.motor || 'postgres';
-  $('#dbHost').value = s.host || ''; $('#dbPorta').value = s.porta ? String(s.porta) : '';
+  $('#dbHost').value = s.host || ''; $('#dbPorta').value = s.porta ? String(s.porta) : CD2Toolbox.portFor($('#dbMotor').value, '');
   $('#dbBase').value = s.base || ''; $('#dbUsuario').value = s.usuario || ''; $('#dbSchema').value = s.schema || '';
   $('#dbSenha').value = '';
+  st.dbSenhaSalva = !!s.senha_salva;
   $('#dbSenha').placeholder = s.senha_salva ? 'Senha salva. Deixe em branco para manter.' : '';
   syncDbForm();
 }
@@ -856,7 +862,7 @@ $('#bAbout').onclick = openWelcome;
 document.querySelectorAll('input[name=mode]').forEach(r => r.onchange = syncCfgBoxes);
 $('#bLogin').onclick = loginArcheo;
 $('#bLogout').onclick = logoutArcheo;
-$('#dbMotor').onchange = syncDbForm;
+$('#dbMotor').onchange = onDbMotorChange;
 $('#dbUsuario').addEventListener('input', syncDbForm);
 $('#dbBase').addEventListener('input', syncDbForm);
 $('#bDbOff').onclick = disconnectDb;
