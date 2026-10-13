@@ -4,8 +4,10 @@
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $Root = Split-Path -Parent $PSScriptRoot
-$ModelUrl  = if ($env:CD2_MODEL_URL)  { $env:CD2_MODEL_URL }  else { 'https://huggingface.co/pramodlohra/Qween3_4B_thinking_finetune/resolve/main/qwen3-4b-thinking-2507.Q4_K_M.gguf' }
-$ModelFile = if ($env:CD2_MODEL_FILE) { $env:CD2_MODEL_FILE } else { 'qwen3-4b-thinking-2507.Q4_K_M.gguf' }
+$ModelUrl  = if ($env:CD2_MODEL_URL)  { $env:CD2_MODEL_URL }  else { 'https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf' }
+$ModelFile = if ($env:CD2_MODEL_FILE) { $env:CD2_MODEL_FILE } else { 'Qwen3-4B-Instruct-2507-Q4_K_M.gguf' }
+# SHA-256 do modelo padrao. Com CD2_MODEL_URL proprio, so confere se CD2_MODEL_SHA256 vier junto.
+$ModelSha  = if ($env:CD2_MODEL_SHA256) { $env:CD2_MODEL_SHA256.ToLower() } elseif ($env:CD2_MODEL_URL) { '' } else { '3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597' }
 $FallbackBin = 'https://huggingface.co/mozilla-ai/llamafile_0.10/resolve/main/llamafile_0.10.1'
 # MCP Toolbox for Databases: versao fixa (pen drive reprodutivel), um binario por sistema.
 $ToolboxVersion   = if ($env:CD2_TOOLBOX_VERSION)   { $env:CD2_TOOLBOX_VERSION }   else { '1.14.0' }
@@ -64,6 +66,15 @@ Write-Host "Origem: $ModelUrl"
 $model = Join-Path $Root "models\$ModelFile"
 Fetch $ModelUrl $model
 if ((Get-Item $model).Length -lt 1GB) { throw "Modelo com tamanho suspeito. Apague $model e rode de novo." }
+if ($ModelSha) {
+    $got = (Get-FileHash -Algorithm SHA256 $model).Hash.ToLower()
+    if ($got -ne $ModelSha) { throw "SHA-256 do modelo nao confere ($got). Apague $model e rode de novo." }
+    Write-Host 'SHA-256 do modelo conferido.'
+}
+# O launcher usa o primeiro .gguf que encontrar: fica so o modelo atual em models\.
+Get-ChildItem (Join-Path $Root 'models') -Filter *.gguf | Where-Object { $_.Name -ne $ModelFile } | ForEach-Object {
+    Write-Host "Removendo modelo antigo: $($_.Name)"; Remove-Item -Force $_.FullName
+}
 
 Write-Host ''
 Write-Host "== Toolbox (MCP Toolbox for Databases v$ToolboxVersion)"
