@@ -44,9 +44,33 @@ function guardSql(sql){
 }
 
 // O toolbox envolve a consulta numa subconsulta (TOP (200) no SQL Server), e o SQL Server
-// não aceita ORDER BY em subconsulta sem TOP ou OFFSET. Os outros motores passam intactos.
+// não aceita ORDER BY em subconsulta sem TOP ou OFFSET. Só o nível externo conta (OVER (ORDER BY) e
+// subconsultas não). Os outros motores passam intactos.
+// Devolve só o texto em profundidade 0 de parênteses, sem literais '...', "..." e [...].
+function topLevelSql(sql){
+  let out = '', depth = 0, i = 0;
+  while(i < sql.length){
+    const c = sql[i];
+    if(c === "'" || c === '"' || c === '['){
+      const close = c === '[' ? ']' : c;
+      i++;
+      while(i < sql.length){
+        if(sql[i] === close){ if(close !== ']' && sql[i+1] === close){ i += 2; continue; } break; }
+        i++;
+      }
+      i++; out += ' '; continue;
+    }
+    if(c === '(') depth++;
+    else if(c === ')') { if(depth > 0) depth--; }
+    else if(depth === 0) out += c;
+    i++;
+  }
+  return out;
+}
 function prepareSql(sql, motor){
-  if(motor === 'sqlserver' && /\border\s+by\b/i.test(sql) && !/\b(top|offset)\b/i.test(sql)) return sql + ' OFFSET 0 ROWS';
+  if(motor !== 'sqlserver') return sql;
+  const top = topLevelSql(sql);
+  if(/\border\s+by\b/i.test(top) && !/\b(top|offset)\b/i.test(top)) return sql + ' OFFSET 0 ROWS';
   return sql;
 }
 

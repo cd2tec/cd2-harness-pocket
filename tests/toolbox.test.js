@@ -153,3 +153,19 @@ test('prepareSql: outros motores passam intactos', () => {
   for(const m of ['postgres', 'mariadb', 'oracle', undefined])
     assert.equal(T.prepareSql('SELECT a FROM t ORDER BY a', m), 'SELECT a FROM t ORDER BY a');
 });
+
+test('prepareSql: so enxerga ORDER BY, TOP e OFFSET no nivel externo', () => {
+  const ss = s => T.prepareSql(s, 'sqlserver');
+  for(const s of [
+    'SELECT mes, ROW_NUMBER() OVER (ORDER BY total) AS rn FROM t',
+    "SELECT STRING_AGG(x, ',') WITHIN GROUP (ORDER BY x) AS l FROM t",
+    "SELECT 'order by' AS s FROM t",
+    'SELECT [order by] FROM t',
+    'SELECT "order by" FROM t'
+  ]) assert.equal(ss(s), s);
+  for(const s of [
+    'SELECT * FROM (SELECT TOP 5 a, b FROM t ORDER BY a) x ORDER BY b',
+    'SELECT a, ROW_NUMBER() OVER (ORDER BY a) rn FROM t ORDER BY a',
+    "SELECT 'it''s (' AS s FROM t ORDER BY s"
+  ]) assert.equal(ss(s), s + ' OFFSET 0 ROWS');
+});
