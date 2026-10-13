@@ -23,6 +23,8 @@ CD2-HARNESS/
   web/                        <- a interface (index.html, config.json e fontes Manrope)
   core/                       <- scripts de preparo, de gravação e de inicialização
   bin/    (criado no preparo) <- llamafile
+  bin/toolbox/ (criado no preparo) <- MCP Toolbox, um por sistema
+  core/toolbox/               <- receitas SQL por motor
   models/ (criado no preparo) <- modelo .gguf
 
 Só no repositório (não vão para o pen drive):
@@ -61,7 +63,26 @@ O launcher escolhe uma porta livre, sobe o servidor só em `127.0.0.1` (não fic
 
 Windows e Mac modernos **não executam nada automaticamente** ao plugar o pen drive. O "plugou e abriu" é, na prática, um duplo clique. Deixe o `.bat` com nome grande e visível; o resto fica nas subpastas.
 
-## 3. Conectar ao Archeo MCP
+## 3. Conectar a um banco de dados
+
+O pen drive leva o [MCP Toolbox for Databases](https://github.com/googleapis/mcp-toolbox) (v1.14.0, um binário por sistema em `bin/toolbox/`). Na primeira vez que o harness abre num computador, o launcher pergunta no terminal: motor, host, porta, base (ou service name no Oracle), usuário, senha e schema. Depois disso não pergunta mais. Para trocar de banco: `INICIAR-CD2-Windows.bat --banco`, `sh core/start-unix.sh --banco` ou `sh iniciar-cd2-linux.sh --banco`. A opção `0` segue sem banco, em Demonstração.
+
+| Motor | Porta padrão | Schema padrão | Conta de leitura recomendada |
+|---|---|---|---|
+| PostgreSQL | 5432 | `public` | membro de `pg_read_all_data`, sem GRANT de escrita |
+| Oracle | 1521 | usuário em maiúsculas | `CREATE SESSION` + `SELECT` nas tabelas (ou `SELECT ANY TABLE`) |
+| MariaDB / MySQL | 3306 | nome da base | `GRANT SELECT ON base.* TO ...` |
+| SQL Server | 1433 | `dbo` | membro só de `db_datareader` |
+
+A IA ganha seis ferramentas somente leitura: `db_connection_status`, `db_list_tables`, `db_describe_table`, `db_search_columns`, `db_sample_table` (até 20 linhas) e `db_read_only_query` (SELECT avulso, até 200 linhas). O botão **Ferramentas** mostra a conexão ativa e a lista.
+
+- **A conexão fica no computador, não no pen drive.** Arquivo `db.env` em `~/Library/Caches/cd2-harness` (Mac), `${XDG_CACHE_HOME:-~/.cache}/cd2-harness` (Linux) ou `%LOCALAPPDATA%\cd2-harness` (Windows), legível só pelo usuário. A senha não passa pelo navegador: o launcher entrega a conexão só ao processo do toolbox e não a guarda no próprio ambiente.
+- **Use uma conta de leitura.** O toolbox não valida SQL. O harness recusa qualquer coisa que não seja um único SELECT (no front e no próprio toolbox, com lista de palavras e funções proibidas por motor), e no PostgreSQL a sessão do toolbox já abre com `default_transaction_read_only=on`. Mesmo assim, a garantia de verdade é a permissão da conta.
+- O toolbox escuta só em `127.0.0.1`, na porta do harness mais 1000 (8080 e 9080 por padrão). Se uma das duas estiver ocupada, o launcher avança as duas juntas.
+- Se o banco não responder em 15 segundos (senha errada, firewall), o launcher mostra o fim do log e segue em Demonstração.
+- O launcher precisa da variante certa em `bin/toolbox/` (`windows-amd64`, `darwin-arm64`, `darwin-amd64`, `linux-amd64`). O preparo baixa as quatro; `CD2_TOOLBOX_PLATFORMS` limita.
+
+## 3b. Conectar ao Archeo MCP
 
 Botão **Ferramentas** no topo, escolher "Archeo MCP", informar a URL do MCP (`https://archeo.cd2.com.br/api/mcp`) e clicar em **Entrar com a conta do Archeo**. A janela vai para o consentimento do Archeo, a pessoa autoriza o workspace e volta para o harness já conectado.
 
@@ -84,6 +105,7 @@ Sem internet ou sem MCP, o modo **Demonstração** funciona offline com dados fi
 - `web/index.html`: a interface segue o Design System da CD2 (ver seção 5). As cores e medidas são os tokens do sistema, declarados no bloco `:root`; ajuste ali, nunca com valor solto no meio do CSS.
 - Outro modelo: coloque outro `.gguf` em `models/` e deixe só um arquivo lá. O launcher usa o primeiro que encontrar.
 - Contexto maior: variável `CD2_CTX` (padrão 8192; mais contexto consome mais RAM).
+- `web/config.json`: `mcp.mode` aceita `toolbox` (padrão), `demo` e `mcp`; `suggestions` pode ser uma lista única ou uma por modo.
 
 ## 5. Identidade visual
 
@@ -108,6 +130,7 @@ Regras de texto que valem para qualquer mudança: português do Brasil, frases c
 - **Mac.** Em Apple Silicon o llamafile precisa das Xcode Command Line Tools na primeira execução. Se o macOS reclamar de "desenvolvedor não verificado", libere em Ajustes do Sistema > Privacidade e Segurança.
 - **Linux.** Se der erro de `run-detectors`/WINE, é `binfmt_misc`; a doc do llamafile traz o registro do `ape`.
 - **Pen drive.** exFAT não guarda permissão de execução, então Mac/Linux rodam o motor a partir de uma cópia em `~/.cache/cd2-harness` (ou `~/Library/Caches/cd2-harness`). Nada é instalado e nada fica no sistema além desse cache.
+- **Oracle.** Driver Go puro: sem wallet, Kerberos ou TNS. **SQL Server** em Docker para teste é amd64; no Apple Silicon ligue Rosetta.
 - **Modelo pequeno erra.** O aviso na tela é proposital. Em números do Archeo, o dado vem da ferramenta; o texto em volta é do modelo.
 
 ## 7. Checklist antes do evento
@@ -116,6 +139,7 @@ Regras de texto que valem para qualquer mudança: português do Brasil, frases c
 - [ ] Testado em Windows (Intel/AMD), Mac (Apple Silicon) e, se aplicável, Linux, em máquina "limpa"
 - [ ] Testado com antivírus ligado
 - [ ] Origens do pen drive liberadas no Archeo (`API_CORS_ORIGINS` e `DATABASE_MCP_BROWSER_ORIGINS`) e login testado com a conta que vai ao evento
+- [ ] Conta de leitura do banco criada e testada com `INICIAR --banco` num notebook que não é o seu
 - [ ] `node --test` verde na raiz do repo
 - [ ] Pen drive com cópia reserva (e um segundo pen drive igual)
 - [ ] Um notebook seu com tudo já funcionando no stand
@@ -127,7 +151,7 @@ O repositório guarda só o código (launchers, interface, scripts). O **llamafi
 Fluxo de uma atualização:
 
 1. Ajuste o código e/ou `web/config.json` e suba a mudança aqui (suba o número em `VERSION`).
-2. Num pen drive já preparado, copie por cima só o que mudou. Normalmente basta a pasta `web/` e a pasta `core/`; `bin/` e `models/` ficam.
+2. Num pen drive já preparado, copie por cima só o que mudou. Normalmente basta a pasta `web/` e a pasta `core/`; `bin/` (incluindo `bin/toolbox/`) e `models/` ficam.
 3. Para um pen drive novo: rode o gravador (`GRAVAR-PENDRIVE-*`), que formata, baixa do cache e confere. Ver [docs/criar-pendrive.md](docs/criar-pendrive.md).
 4. Duplicar em série: com um pen drive aprovado, copie a pasta inteira (incluindo `bin/` e `models/`) para os demais, sem rodar o preparo de novo, e compare o `CHECKSUMS.sha256`.
 
@@ -141,4 +165,5 @@ Este código é Apache 2.0 (ver `LICENSE`). O harness baixa, mas não redistribu
 
 - **Manrope** (The Manrope Project Authors, SIL Open Font License 1.1), embutida em subconjunto em `web/fonts/` e `docs/assets/fonts/`
 - **llamafile** (Mozilla.ai, Apache 2.0), de https://github.com/mozilla-ai/llamafile
+- **MCP Toolbox for Databases** (Google, Apache 2.0), de https://github.com/googleapis/mcp-toolbox
 - **Modelo GGUF** (configurável em `CD2_MODEL_URL`): confira licença e origem antes de distribuir os pen drives sob a marca da CD2.

@@ -38,16 +38,24 @@ if [ ! -x "$RUN_BIN" ] || ! cmp -s "$SRC_BIN" "$RUN_BIN"; then
   [ "$OS" = "Darwin" ] && xattr -dr com.apple.quarantine "$RUN_BIN" 2>/dev/null
 fi
 
-# --- porta livre ------------------------------------------------------------
+# --- par de portas livre: P (harness) e P+1000 (toolbox) -----------------------
 busy() { curl -s --max-time 1 -o /dev/null "http://127.0.0.1:$1/" 2>/dev/null; }
 PORT="$PORT_START"; tries=0
-while busy "$PORT" && [ "$tries" -lt 20 ]; do PORT=$((PORT + 1)); tries=$((tries + 1)); done
+while { busy "$PORT" || busy "$((PORT + 1000))"; } && [ "$tries" -lt 20 ]; do PORT=$((PORT + 1)); tries=$((tries + 1)); done
 URL="http://127.0.0.1:$PORT"
+TB_PORT=$((PORT + 1000))
 
 LOG="$CACHE/server.log"
 PID=""
-cleanup() { [ -n "$PID" ] && kill "$PID" 2>/dev/null; }
-trap cleanup EXIT INT TERM
+# idempotente: Ctrl+C roda cleanup e sai; o EXIT roda de novo sem efeito
+cleanup() {
+  [ -n "$PID" ] && kill "$PID" 2>/dev/null; PID=""
+  [ -n "${TB_PID:-}" ] && kill "$TB_PID" 2>/dev/null; TB_PID=""
+  [ -t 0 ] && stty echo 2>/dev/null
+  return 0
+}
+trap cleanup EXIT
+trap 'cleanup; exit 130' INT TERM
 
 start_server() {  # $@ = flags extras (GPU)
   : > "$LOG"
@@ -81,6 +89,58 @@ fi
 
 say ""
 say "Pronto: $URL"
+
+# --- banco de dados (MCP Toolbox) --------------------------------------------
+. "$ROOT/core/db-env.sh"
+DB_ENV="$CACHE/db.env"
+TB_PID=""
+case "$(uname -m)" in arm64|aarch64) TB_ARCH=arm64 ;; *) TB_ARCH=amd64 ;; esac
+if [ "$OS" = "Darwin" ]; then TB_PLAT="darwin-$TB_ARCH"; else TB_PLAT="linux-$TB_ARCH"; fi
+TB_SRC="$ROOT/bin/toolbox/$TB_PLAT/toolbox"
+if [ "${1:-}" = "--banco" ] || [ ! -f "$DB_ENV" ]; then
+  if [ -f "$TB_SRC" ]; then db_env_ask "$DB_ENV" || rm -f "$DB_ENV"; else say "bin/toolbox/$TB_PLAT nao encontrado: sem modo Banco de dados neste pen drive."; fi
+fi
+start_toolbox() {
+  TB_RUN="$CACHE/toolbox"
+  if [ ! -x "$TB_RUN" ] || ! cmp -s "$TB_SRC" "$TB_RUN"; then
+    cp "$TB_SRC" "$TB_RUN.tmp" && chmod +x "$TB_RUN.tmp" && mv "$TB_RUN.tmp" "$TB_RUN" || { say "Falha ao copiar o toolbox para $CACHE"; return 1; }
+    [ "$OS" = "Darwin" ] && xattr -dr com.apple.quarantine "$TB_RUN" 2>/dev/null
+  fi
+  # o db.env so e lido dentro do subshell que vira o toolbox (exec): a senha nao
+  # fica no ambiente deste script nem chega ao navegador aberto depois.
+  TB_LOG="$CACHE/toolbox.log"; : > "$TB_LOG"
+  # A senha vai escapada para o escalar "..." da receita (o db.env continua com ela crua).
+  ( set -a; . "$DB_ENV"; set +a
+    CD2_DB_PASSWORD="$(db_yaml_dq "$CD2_DB_PASSWORD")"
+    exec "$TB_RUN" --config "$ROOT/core/toolbox/$CD2_DB_ENGINE.yaml" --address 127.0.0.1 --port "$TB_PORT" \
+      --allowed-hosts "127.0.0.1:$TB_PORT,localhost:$TB_PORT" \
+      --allowed-origins "http://127.0.0.1:$PORT,http://localhost:$PORT" --disable-reload ) >> "$TB_LOG" 2>&1 &
+  TB_PID=$!
+  i=0
+  while [ "$i" -lt 15 ]; do
+    kill -0 "$TB_PID" 2>/dev/null || break
+    curl -sf --max-time 2 "http://127.0.0.1:$TB_PORT/" >/dev/null 2>&1 && return 0
+    i=$((i + 1)); sleep 1
+  done
+  kill "$TB_PID" 2>/dev/null; TB_PID=""
+  # o toolbox pode citar a linha da senha num erro de YAML: limpa o log antes de mostrar
+  # (se a limpeza falhar, o log e zerado em vez de ficar com a senha)
+  TB_CUT=$(awk 'END { print NR }' "$TB_LOG")
+  if ( umask 077; set -a; . "$DB_ENV"; CD2_DB_PASSWORD_DQ="$(db_yaml_dq "$CD2_DB_PASSWORD")"; set +a
+       db_log_scrub < "$TB_LOG" > "$TB_LOG.tmp" ); then cat "$TB_LOG.tmp" > "$TB_LOG"; else : > "$TB_LOG"; fi
+  rm -f "$TB_LOG.tmp"; TB_CUT=$((TB_CUT - $(awk 'END { print NR }' "$TB_LOG")))
+  say ""; say "[AVISO] O banco nao respondeu. Ultimas linhas do log ($TB_LOG):"
+  tail -n 15 "$TB_LOG" | db_log_scrub | sed 's/^/   /'
+  [ "$TB_CUT" -gt 0 ] 2>/dev/null && say "   ($TB_CUT linha(s) omitida(s) por citar a senha; confira usuario e senha)"
+  say "Seguindo em Demonstracao. Para corrigir a conexao: INICIAR --banco"
+  return 1
+}
+if [ -f "$DB_ENV" ] && [ -f "$TB_SRC" ]; then
+  say "Conectando ao banco (MCP Toolbox em 127.0.0.1:$TB_PORT)..."
+  # so os campos nao secretos, sem exportar nada
+  DB_INFO="$(. "$DB_ENV"; printf '%s em %s (%s)' "$CD2_DB_ENGINE" "$CD2_DB_HOST" "$CD2_DB_NAME")"
+  start_toolbox && say "Banco conectado: $DB_INFO"
+fi
 
 # --- abrir como janela de aplicativo quando houver Chrome/Edge ---------------
 open_app() {

@@ -1,0 +1,148 @@
+# CD2 Harness - receita do MCP Toolbox para Oracle (driver Go puro, sem Instant Client).
+# Conexao vem do ambiente (db.env no cache do computador; nunca no pen drive).
+# Somente leitura em tres camadas: conta de leitura, excludedValues em
+# db_read_only_query e guarda de SELECT no front. O toolbox nao valida SQL.
+# Binds :n aparecem uma vez cada, na ordem de 'parameters'. Aliases entre aspas
+# para sairem em minusculas.
+kind: source
+name: cd2-db
+type: oracle
+host: ${CD2_DB_HOST}
+port: ${CD2_DB_PORT}
+serviceName: ${CD2_DB_NAME}
+user: ${CD2_DB_USER}
+password: "${CD2_DB_PASSWORD}"
+
+---
+kind: tool
+name: db_connection_status
+type: oracle-sql
+source: cd2-db
+description: Verifica se o banco está acessível e se a conexão está pronta para uso. Devolve motor, versão, host, service name, usuário, schema e quantas tabelas a conta enxerga. Use como primeiro passo.
+annotations: { readOnlyHint: true }
+statement: |
+  SELECT 'oracle' AS "engine",
+         (SELECT 'Oracle ' || version FROM product_component_version WHERE ROWNUM = 1) AS "db_version",
+         '${CD2_DB_HOST}' AS "host",
+         SYS_CONTEXT('USERENV', 'SERVICE_NAME') AS "database",
+         USER AS "user",
+         '${CD2_DB_SCHEMA}' AS "schema",
+         (SELECT COUNT(*) FROM all_tables WHERE owner = '${CD2_DB_SCHEMA}') AS "visible_tables"
+    FROM dual
+
+---
+kind: tool
+name: db_list_tables
+type: oracle-sql
+source: cd2-db
+description: Lista as tabelas e views disponíveis no banco de dados (schema ${CD2_DB_SCHEMA}). Use pattern para filtrar pelo nome. num_rows vem das estatísticas e pode estar defasado.
+annotations: { readOnlyHint: true }
+statement: |
+  SELECT o.object_name AS "name",
+         CASE o.object_type WHEN 'VIEW' THEN 'VIEW' ELSE 'TABLE' END AS "type",
+         (SELECT t.num_rows FROM all_tables t WHERE t.owner = o.owner AND t.table_name = o.object_name) AS "num_rows",
+         (SELECT c.comments FROM all_tab_comments c WHERE c.owner = o.owner AND c.table_name = o.object_name) AS "comments"
+    FROM all_objects o
+   WHERE o.owner = '${CD2_DB_SCHEMA}'
+     AND o.object_type IN ('TABLE', 'VIEW')
+     AND (TO_CHAR(:1) IN ('1', 'true', 'TRUE') OR o.object_type = 'TABLE')
+     AND UPPER(o.object_name) LIKE '%' || UPPER(:2) || '%'
+   ORDER BY o.object_name
+  OFFSET :3 ROWS FETCH NEXT :4 ROWS ONLY
+parameters:
+  - { name: include_views, type: boolean, description: "Incluir views.", required: false, default: true }
+  - { name: pattern, type: string, description: "Trecho do nome (insensível a caixa). Vazio = sem filtro.", required: false, default: "" }
+  - { name: offset, type: integer, description: "Deslocamento para paginação.", required: false, default: 0 }
+  - { name: limit, type: integer, description: "Máximo de resultados (1-500).", required: false, default: 50 }
+
+---
+kind: tool
+name: db_describe_table
+type: oracle-sql
+source: cd2-db
+description: Apresenta as colunas, os tipos e a estrutura de uma tabela. Mostra chave primária e, em foreign_key_references, para onde cada coluna aponta (use para montar JOIN). Nome insensível a caixa. Devolve vazio se a tabela não existir.
+annotations: { readOnlyHint: true }
+statement: |
+  SELECT c.column_name AS "column_name",
+         c.data_type || CASE WHEN c.data_type IN ('VARCHAR2', 'CHAR', 'NVARCHAR2', 'NCHAR', 'RAW') THEN '(' || c.char_length || ')'
+                             WHEN c.data_type = 'NUMBER' AND c.data_precision IS NOT NULL THEN '(' || c.data_precision || ',' || NVL(c.data_scale, 0) || ')'
+                             ELSE '' END AS "data_type",
+         CASE c.nullable WHEN 'Y' THEN 1 ELSE 0 END AS "nullable",
+         cc.comments AS "comments",
+         CASE WHEN pk.column_name IS NULL THEN 0 ELSE 1 END AS "is_primary_key",
+         fk.ref AS "foreign_key_references",
+         c.owner || '.' || c.table_name AS "table"
+    FROM all_tab_columns c
+    LEFT JOIN all_col_comments cc ON cc.owner = c.owner AND cc.table_name = c.table_name AND cc.column_name = c.column_name
+    LEFT JOIN (SELECT acc.owner, acc.table_name, acc.column_name
+                 FROM all_constraints ac
+                 JOIN all_cons_columns acc ON acc.owner = ac.owner AND acc.constraint_name = ac.constraint_name
+                WHERE ac.constraint_type = 'P') pk
+           ON pk.owner = c.owner AND pk.table_name = c.table_name AND pk.column_name = c.column_name
+    LEFT JOIN (SELECT acc.owner, acc.table_name, acc.column_name,
+                      MIN(rcc.owner || '.' || rcc.table_name || '(' || rcc.column_name || ')') AS ref
+                 FROM all_constraints ac
+                 JOIN all_cons_columns acc ON acc.owner = ac.owner AND acc.constraint_name = ac.constraint_name
+                 JOIN all_cons_columns rcc ON rcc.owner = ac.r_owner AND rcc.constraint_name = ac.r_constraint_name AND rcc.position = acc.position
+                WHERE ac.constraint_type = 'R'
+                GROUP BY acc.owner, acc.table_name, acc.column_name) fk
+           ON fk.owner = c.owner AND fk.table_name = c.table_name AND fk.column_name = c.column_name
+   WHERE c.owner = '${CD2_DB_SCHEMA}'
+     AND c.table_name = UPPER(:1)
+   ORDER BY c.column_id
+parameters:
+  - { name: table_name, type: string, description: "Nome da tabela ou view, como devolvido por db_list_tables." }
+
+---
+kind: tool
+name: db_search_columns
+type: oracle-sql
+source: cd2-db
+description: Encontra colunas pelo nome em todas as tabelas e schemas. Atalho para descobrir onde mora um dado (CNPJ, preço, código de loja) sem abrir tabela por tabela.
+annotations: { readOnlyHint: true }
+statement: |
+  SELECT c.table_name AS "table",
+         c.column_name AS "column",
+         c.data_type AS "data_type",
+         cc.comments AS "comments"
+    FROM all_tab_columns c
+    LEFT JOIN all_col_comments cc ON cc.owner = c.owner AND cc.table_name = c.table_name AND cc.column_name = c.column_name
+   WHERE c.owner = '${CD2_DB_SCHEMA}'
+     AND UPPER(c.column_name) LIKE '%' || UPPER(:1) || '%'
+   ORDER BY c.table_name, c.column_name
+  OFFSET :2 ROWS FETCH NEXT :3 ROWS ONLY
+parameters:
+  - { name: pattern, type: string, description: "Trecho do nome da coluna (insensível a caixa). Ex.: cnpj, preco, data." }
+  - { name: offset, type: integer, description: "Deslocamento para paginação.", required: false, default: 0 }
+  - { name: limit, type: integer, description: "Máximo de resultados (1-500).", required: false, default: 50 }
+
+---
+kind: tool
+name: db_sample_table
+type: oracle-sql
+source: cd2-db
+description: Mostra uma amostra de até 20 linhas para entender o conteúdo de uma tabela. Informe só um nome devolvido por db_list_tables (letras, números, _, $ e #).
+annotations: { readOnlyHint: true }
+statement: |
+  SELECT * FROM ${CD2_DB_SCHEMA}.{{.table_name}} FETCH FIRST 20 ROWS ONLY
+templateParameters:
+  - name: table_name
+    type: string
+    description: "Nome exato da tabela ou view, como devolvido por db_list_tables."
+    allowedValues: ["^[A-Za-z_][A-Za-z0-9_$#]*$"]
+
+---
+kind: tool
+name: db_read_only_query
+type: oracle-sql
+source: cd2-db
+description: Executa uma consulta SELECT avulsa em modo somente leitura. Dialeto Oracle (FETCH FIRST n ROWS ONLY, sem LIMIT; tabelas sem prefixo resolvem no schema da conta). Um único SELECT (ou WITH), sem ponto e vírgula, sem DML. Devolve no máximo 200 linhas.
+annotations: { readOnlyHint: true }
+statement: |
+  SELECT * FROM ({{.sql}}) q FETCH FIRST 200 ROWS ONLY
+templateParameters:
+  - name: sql
+    type: string
+    description: "A consulta SELECT, no dialeto Oracle, sem ponto e vírgula."
+    allowedValues: ["(?is)^\\s*(select|with)\\b.*$"]
+    excludedValues: [";", "(?i)\\b(insert|update|delete|drop|alter|truncate|create|grant|revoke|merge|exec|execute|call|into)\\b"]

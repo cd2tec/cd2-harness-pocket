@@ -69,7 +69,7 @@ foreach ($i in $items) {
 Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $Stage 'core\make-usb-unix.sh'), (Join-Path $Stage 'core\make-usb-windows.ps1')
 
 Write-Host ''
-Write-Host 'Baixando motor e modelo (uns 2,9 GB na primeira vez; depois fica em cache)...'
+Write-Host 'Baixando motor e modelo (uns 3,9 GB na primeira vez (motor, modelo e toolbox); depois fica em cache)...'
 & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Stage 'core\prepare-windows.ps1')
 if ($LASTEXITCODE -ne 0) { Die 'O preparo (download) falhou. Rode de novo: ele retoma de onde parou.' }
 
@@ -114,6 +114,7 @@ Copy-Item -Force $sums $keep
 Write-Host ''
 Write-Host 'Conteudo gravado:'
 Get-ChildItem (Join-Path $Dest 'bin'), (Join-Path $Dest 'models') | ForEach-Object { Write-Host ('  {0,10:N0} KB  {1}' -f ($_.Length / 1KB), $_.Name) }
+Get-ChildItem -Recurse (Join-Path $Dest 'bin\toolbox') -File | ForEach-Object { Write-Host ('  {0,10:N0} KB  toolbox\{1}\{2}' -f ($_.Length / 1KB), $_.Directory.Name, $_.Name) }
 try { (New-Object -ComObject Shell.Application).NameSpace(17).ParseName("${letter}:").InvokeVerb('Eject'); Write-Host 'Ejetado.' }
 catch { Write-Host 'Nao consegui ejetar sozinha; use "Remover hardware com seguranca" antes de tirar.' }
 Write-Host ''

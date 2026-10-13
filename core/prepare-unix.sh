@@ -8,6 +8,10 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MODEL_URL="${CD2_MODEL_URL:-https://huggingface.co/pramodlohra/Qween3_4B_thinking_finetune/resolve/main/qwen3-4b-thinking-2507.Q4_K_M.gguf}"
 MODEL_FILE="${CD2_MODEL_FILE:-qwen3-4b-thinking-2507.Q4_K_M.gguf}"
 FALLBACK_BIN_URL="https://huggingface.co/mozilla-ai/llamafile_0.10/resolve/main/llamafile_0.10.1"
+# MCP Toolbox for Databases: versao fixa (pen drive reprodutivel), um binario por sistema.
+TOOLBOX_VERSION="${CD2_TOOLBOX_VERSION:-1.14.0}"
+TOOLBOX_PLATFORMS="${CD2_TOOLBOX_PLATFORMS:-windows-amd64 darwin-arm64 darwin-amd64 linux-amd64}"
+TOOLBOX_BASE="https://storage.googleapis.com/mcp-toolbox-for-databases/v$TOOLBOX_VERSION"
 
 # Tamanho do arquivo no servidor (segue redirecionamentos). Vazio se nao der para saber.
 remote_size() {
@@ -52,9 +56,21 @@ SIZE="$(wc -c < "$ROOT/models/$MODEL_FILE" | tr -d ' ')"
 if [ "$SIZE" -lt 1000000000 ]; then echo "[ERRO] Modelo com tamanho suspeito ($SIZE bytes). Apague e rode de novo."; exit 1; fi
 
 echo ""
+echo "== Toolbox (MCP Toolbox for Databases v$TOOLBOX_VERSION)"
+for plat in $TOOLBOX_PLATFORMS; do
+  os="${plat%-*}"; arch="${plat#*-}"; ext=""; [ "$os" = "windows" ] && ext=".exe"
+  mkdir -p "$ROOT/bin/toolbox/$plat"
+  echo "Origem: $TOOLBOX_BASE/$os/$arch/toolbox$ext"
+  fetch "$TOOLBOX_BASE/$os/$arch/toolbox$ext" "$ROOT/bin/toolbox/$plat/toolbox$ext"
+  chmod +x "$ROOT/bin/toolbox/$plat/toolbox$ext" 2>/dev/null || true
+  TSIZE="$(wc -c < "$ROOT/bin/toolbox/$plat/toolbox$ext" | tr -d ' ')"
+  if [ "$TSIZE" -lt 100000000 ]; then echo "[ERRO] Toolbox $plat com tamanho suspeito ($TSIZE bytes). Apague e rode de novo."; exit 1; fi
+done
+
+echo ""
 echo "== Checksums (anote para conferir depois)"
 if command -v shasum >/dev/null 2>&1; then SUM="shasum -a 256"; else SUM="sha256sum"; fi
-( cd "$ROOT" && $SUM bin/llamafile "models/$MODEL_FILE" | tee CHECKSUMS.sha256 )
+( cd "$ROOT" && $SUM bin/llamafile "models/$MODEL_FILE" $(ls bin/toolbox/*/toolbox bin/toolbox/*/toolbox.exe 2>/dev/null) | tee CHECKSUMS.sha256 )
 echo ""
 echo "Pronto. Pen drive preparado em: $ROOT"
 echo "Dica: formate o pen drive em exFAT (FAT32 nao aceita arquivos acima de 4 GB)."

@@ -7,6 +7,10 @@ $Root = Split-Path -Parent $PSScriptRoot
 $ModelUrl  = if ($env:CD2_MODEL_URL)  { $env:CD2_MODEL_URL }  else { 'https://huggingface.co/pramodlohra/Qween3_4B_thinking_finetune/resolve/main/qwen3-4b-thinking-2507.Q4_K_M.gguf' }
 $ModelFile = if ($env:CD2_MODEL_FILE) { $env:CD2_MODEL_FILE } else { 'qwen3-4b-thinking-2507.Q4_K_M.gguf' }
 $FallbackBin = 'https://huggingface.co/mozilla-ai/llamafile_0.10/resolve/main/llamafile_0.10.1'
+# MCP Toolbox for Databases: versao fixa (pen drive reprodutivel), um binario por sistema.
+$ToolboxVersion   = if ($env:CD2_TOOLBOX_VERSION)   { $env:CD2_TOOLBOX_VERSION }   else { '1.14.0' }
+$ToolboxPlatforms = if ($env:CD2_TOOLBOX_PLATFORMS) { $env:CD2_TOOLBOX_PLATFORMS -split ' ' } else { @('windows-amd64', 'darwin-arm64', 'darwin-amd64', 'linux-amd64') }
+$ToolboxBase = "https://storage.googleapis.com/mcp-toolbox-for-databases/v$ToolboxVersion"
 
 New-Item -ItemType Directory -Force -Path (Join-Path $Root 'bin'), (Join-Path $Root 'models') | Out-Null
 $curl = Join-Path $env:SystemRoot 'System32\curl.exe'
@@ -58,12 +62,28 @@ Fetch $ModelUrl $model
 if ((Get-Item $model).Length -lt 1GB) { throw "Modelo com tamanho suspeito. Apague $model e rode de novo." }
 
 Write-Host ''
+Write-Host "== Toolbox (MCP Toolbox for Databases v$ToolboxVersion)"
+$toolboxFiles = @()
+foreach ($plat in $ToolboxPlatforms) {
+    $os, $arch = $plat -split '-', 2
+    $ext = if ($os -eq 'windows') { '.exe' } else { '' }
+    $dir = Join-Path $Root "bin\toolbox\$plat"
+    New-Item -ItemType Directory -Force -Path $dir | Out-Null
+    $dest = Join-Path $dir "toolbox$ext"
+    Write-Host "Origem: $ToolboxBase/$os/$arch/toolbox$ext"
+    Fetch "$ToolboxBase/$os/$arch/toolbox$ext" $dest
+    if ((Get-Item $dest).Length -lt 100MB) { throw "Toolbox $plat com tamanho suspeito. Apague $dest e rode de novo." }
+    $toolboxFiles += @{ Path = $dest; Rel = "bin/toolbox/$plat/toolbox$ext" }
+}
+
+Write-Host ''
 Write-Host '== Checksums (anote para conferir depois)'
 # Mesmo formato do Mac/Linux (caminhos relativos com /), para o mesmo arquivo valer nos tres sistemas.
 $lines = @(
     "$((Get-FileHash -Algorithm SHA256 $bin).Hash.ToLower())  bin/llamafile",
     "$((Get-FileHash -Algorithm SHA256 $model).Hash.ToLower())  models/$ModelFile"
 )
+foreach ($f in $toolboxFiles) { $lines += "$((Get-FileHash -Algorithm SHA256 $f.Path).Hash.ToLower())  $($f.Rel)" }
 $lines | ForEach-Object { Write-Host $_ }
 [IO.File]::WriteAllText((Join-Path $Root 'CHECKSUMS.sha256'), (($lines -join "`n") + "`n"))
 Write-Host ''

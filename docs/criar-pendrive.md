@@ -7,7 +7,7 @@ O caminho até aqui foi feito na mão uma vez, no Mac, e deu certo. Esta página
 ## O que você precisa
 
 - Um pen drive de **16 GB ou mais, USB 3.x**. O modelo tem 2,5 GB e é lido do pen drive toda vez que o harness abre, então USB 2 deixa a partida bem mais lenta.
-- Internet na primeira gravação, por uns **2,9 GB de download**. Os pen drives seguintes não baixam nada: o motor e o modelo ficam guardados no seu computador.
+- Internet na primeira gravação, por uns **3,9 GB de download**. Os pen drives seguintes não baixam nada: o motor, o modelo e o toolbox ficam guardados no seu computador.
 - Esta pasta, clonada do repositório ou baixada como ZIP.
 
 Tudo que estiver no pen drive será apagado. Guarde o que importa antes.
@@ -53,6 +53,11 @@ CD2-HARNESS/
   bin/llamafile          ~350 MB
   bin/llamafile.exe      ~350 MB  (mesmo arquivo, com a extensão que o Windows exige)
   models/qwen3-4b-thinking-2507.Q4_K_M.gguf   ~2,4 GB
+  bin/toolbox/windows-amd64/toolbox.exe   ~295 MB
+  bin/toolbox/darwin-arm64/toolbox        ~156 MB
+  bin/toolbox/darwin-amd64/toolbox        ~167 MB
+  bin/toolbox/linux-amd64/toolbox         ~316 MB
+  core/toolbox/                           receitas por motor
   core/   web/
 ```
 
@@ -92,7 +97,7 @@ Serve para entender o que o script faz, ou para quando ele não puder rodar.
 
 2. Copiar a pasta do repositório para o pen drive como `CD2-HARNESS`, sem a pasta `.git`.
 3. Rodar o preparo uma vez, com internet: `sh core/prepare-unix.sh` no Mac/Linux ou duplo clique em `core\prepare-windows.bat` no Windows. Se o pen drive for lento, prepare numa pasta do disco e copie depois.
-4. Conferir: `bin/llamafile` e `bin/llamafile.exe` com uns 350 MB cada, modelo com uns 2,4 GB, e `CHECKSUMS.sha256` gerado. Guardar uma cópia do checksum fora do pen drive.
+4. Conferir: `bin/llamafile` e `bin/llamafile.exe` com uns 350 MB cada, modelo com uns 2,4 GB, os quatro `bin/toolbox/*/toolbox` (ou só os da variável `CD2_TOOLBOX_PLATFORMS`) e `CHECKSUMS.sha256` gerado. Guardar uma cópia do checksum fora do pen drive.
 5. No Mac, apagar os arquivos `._*` que o Finder deixa em exFAT:
 
    ```bash
@@ -105,4 +110,5 @@ Serve para entender o que o script faz, ou para quando ele não puder rodar.
 
 - Em `web/config.json`, ajuste o texto de abertura e as sugestões. Se for deixar o Archeo como padrão, coloque só a URL (`mcp.mode` igual a `"mcp"`). O login é feito pela conta de cada pessoa, no navegador, e não fica gravado. **Token nunca**, porque o pen drive vai circular.
 - O modelo padrão vem de um repositório pessoal no Hugging Face. Antes de distribuir sob a marca CD2, confirme licença e origem ou troque pelo GGUF oficial da Qwen (variável `CD2_MODEL_URL` no preparo).
+- A conexão com o banco não vai no pen drive: cada computador pergunta na primeira abertura. Leve a conta de leitura pronta.
 - Grave um, teste em um notebook que não seja o seu, e só então duplique.

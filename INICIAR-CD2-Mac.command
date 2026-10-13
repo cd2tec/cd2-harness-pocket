@@ -1,3 +1,3 @@
 #!/bin/sh
 cd "$(dirname "$0")" || exit 1
-exec sh core/start-unix.sh
+exec sh core/start-unix.sh "$@"
