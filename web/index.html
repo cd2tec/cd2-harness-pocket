@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#0000ff">
+<meta name="theme-color" content="#ffffff">
 <title>CD2 Tech · Harness Pocket</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='129 91 329 312'><path fill='#0000ff' d='M256.2 397.7C188.1 397.6 132.7 341.8 133.3 273.5C133.9 205.8 190.2 151.7 257.9 151.7L330 151.7C330 151.7 330.1 151.7 330.1 151.8C330.1 182.7 305 207.8 274.1 207.8L257.5 207.8C220.8 207.8 190 236.8 189.4 273.4C188.7 310.9 218.9 341.6 256.2 341.6C256.3 341.6 256.3 341.6 256.3 341.7L256.3 397.6C256.3 397.6 256.3 397.7 256.2 397.7'/><path fill='#210e9e' d='M328.4 341.6L256.3 341.6C256.3 341.6 256.3 341.6 256.3 341.6C256.3 310.6 281.3 285.6 312.3 285.6L328.9 285.6C365.5 285.6 396.3 256.5 397 219.9C397.6 182.4 367.4 151.7 330.1 151.7C330.1 151.7 330 151.7 330 151.6L330 95.7C330 95.7 330.1 95.6 330.1 95.6C398.3 95.7 453.7 151.5 453 219.8C452.4 287.5 396.2 341.6 328.4 341.6'/></svg>">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%22104%2081%20352%20332%22%3E%3Cpath%20fill%3D%22%230000ff%22%20d%3D%22M%20242.320312%20397.777344%20C%20174.101562%20397.742188%20118.683594%20341.917969%20119.3125%20273.550781%20C%20119.9375%20205.753906%20176.226562%20151.621094%20244.023438%20151.621094%20L%20316.152344%20151.621094%20C%20316.191406%20151.621094%20316.21875%20151.648438%20316.21875%20151.683594%20C%20316.21875%20182.632812%20291.132812%20207.722656%20260.183594%20207.722656%20L%20243.574219%20207.722656%20C%20206.863281%20207.722656%20176.082031%20236.761719%20175.421875%20273.46875%20C%20174.746094%20310.9375%20205.011719%20341.640625%20242.320312%20341.675781%20C%20242.355469%20341.675781%20242.386719%20341.703125%20242.386719%20341.738281%20L%20242.386719%20397.710938%20C%20242.386719%20397.75%20242.355469%20397.777344%20242.320312%20397.777344%20%22/%3E%3Cpath%20fill%3D%22%23210e9e%22%20d%3D%22M%20314.554688%20341.699219%20L%20242.421875%20341.699219%20C%20242.386719%20341.699219%20242.359375%20341.667969%20242.359375%20341.632812%20C%20242.359375%20310.683594%20267.445312%20285.597656%20298.394531%20285.597656%20L%20315.003906%20285.597656%20C%20351.714844%20285.597656%20382.492188%20256.554688%20383.15625%20219.851562%20C%20383.832031%20182.378906%20353.566406%20151.679688%20316.257812%20151.644531%20C%20316.21875%20151.644531%20316.191406%20151.613281%20316.191406%20151.578125%20L%20316.191406%2095.605469%20C%20316.191406%2095.570312%20316.222656%2095.539062%20316.257812%2095.539062%20C%20384.476562%2095.578125%20439.890625%20151.402344%20439.265625%20219.769531%20C%20438.640625%20287.5625%20382.351562%20341.699219%20314.554688%20341.699219%20%22/%3E%3C/svg%3E">
 <style>
 /* Design System CD2 Tech (Manual de Marca CD2 2026). Tema claro (White_HUMAN) para sistemas;
-   barra superior em surface-brand com a logo negativa. Fontes locais: funciona offline. */
+   barra superior branca com a logo colorida. Fontes locais: funciona offline. */
 @font-face{font-family:"Manrope";font-weight:400;font-style:normal;font-display:swap;src:url(fonts/manrope-regular.woff2) format("woff2")}
 @font-face{font-family:"Manrope";font-weight:500;font-style:normal;font-display:swap;src:url(fonts/manrope-medium.woff2) format("woff2")}
 @font-face{font-family:"Manrope";font-weight:600;font-style:normal;font-display:swap;src:url(fonts/manrope-semibold.woff2) format("woff2")}
@@ -42,14 +42,13 @@ html,body{height:100%;margin:0}
 body{background:var(--surface-100);color:var(--ink);font:400 15px/24px var(--font-sans);display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
 :focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 
-/* ---------- barra superior (tema azul) ---------- */
-.topbar{--focus:#dbff2a;display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3) var(--space-4);padding:var(--space-3) var(--space-6);background:var(--surface-brand);color:var(--on-brand)}
+/* ---------- barra superior (branca, no padrão de cd2tec.github.io) ---------- */
+.topbar{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3) var(--space-4);min-height:72px;padding:var(--space-3) var(--space-6);background:var(--surface-raised);color:var(--ink);border-bottom:1px solid rgba(13,18,51,.12)}
 .logo{display:block;height:28px;width:auto}
 .logo .li,.logo .lt{fill:var(--logo-ink)} .logo .lt{fill:var(--logo-ink-tech)}
-.topbar .logo{--logo-ink:#ffffff;--logo-ink-tech:#ffffff}
-.product{display:flex;flex-direction:column;line-height:1.15;padding-left:var(--space-4);border-left:1px solid rgba(255,255,255,.45)}
+.product{display:flex;flex-direction:column;line-height:1.15;padding-left:var(--space-4);border-left:1px solid rgba(13,18,51,.2)}
 .product b{font:700 17px/22px var(--font-sans)}
-.product span{font:500 12px/16px var(--font-sans);color:#f2f2f2}
+.product span{font:500 12px/16px var(--font-sans);color:var(--ink-muted)}
 .spacer{flex:1}
 .tags,.actions{display:flex;flex-wrap:wrap;gap:var(--space-2)}
 .tags .tag{max-width:220px}
@@ -58,7 +57,7 @@ body{background:var(--surface-100);color:var(--ink);font:400 15px/24px var(--fon
 /* ---------- tags (StatusTag) ---------- */
 .tag{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 var(--space-3);border-radius:var(--radius-sm);font:700 13px/16px var(--font-sans);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .tag i{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.8;flex:none}
-.tag--local{background:var(--surface-raised);color:var(--ink)}
+.tag--local{background:var(--surface-100);color:var(--ink);border:1px solid rgba(13,18,51,.12)}
 .tag--concluido{background:var(--status-concluido);color:var(--status-ink-escuro)}
 .tag--melhoria{background:var(--status-melhoria);color:var(--status-ink-escuro)}
 .tag--desenvolvendo{background:var(--status-desenvolvendo);color:var(--on-brand)}
@@ -72,8 +71,6 @@ button.primary{background:var(--brand);border-color:var(--brand);color:var(--on-
 button.primary:hover{background:var(--brand-hover);border-color:var(--brand-hover)}
 button.sm{height:32px;padding:0 var(--space-4);font-size:12px}
 button:disabled{background:var(--gray-solution);border-color:transparent;color:var(--ink-muted);cursor:not-allowed}
-.topbar button{border-color:#ffffff;color:#ffffff}
-.topbar button:hover{background:var(--blue-experience)}
 
 /* ---------- conversa ---------- */
 main{flex:1;overflow-y:auto;padding:var(--space-8) 0}
@@ -178,7 +175,7 @@ input:disabled,select:disabled{background:var(--surface-100);color:var(--ink-mut
     <span class="tag tag--backlog" id="pMcp"><i></i><span>ferramentas…</span></span>
   </div>
   <div class="actions">
-    <button class="sm" id="bNew" title="Começar uma nova conversa">Nova conversa</button>
+    <button class="sm primary" id="bNew" title="Começar uma nova conversa">Nova conversa</button>
     <button class="sm" id="bCfg" title="Configurar ferramentas (MCP)">Ferramentas</button>
   </div>
 </header>

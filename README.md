@@ -117,10 +117,10 @@ Interface, site e README seguem o **Design System CD2 Tech** (Manual de Marca CD
 
 | Elemento | Como aparece aqui |
 |---|---|
-| Cores | `blue-retail` #0000ff na barra superior, botões e destaques; `white-human` #f2f2f2 de fundo; texto em `ink` #0d1233. `yellow-like` #dbff2a só como energia pontual (modo Demonstração, terceiro passo do site). |
+| Cores | `blue-retail` #0000ff em botões e destaques; `white-human` #f2f2f2 de fundo; texto em `ink` #0d1233. `yellow-like` #dbff2a só como energia pontual (modo Demonstração, terceiro passo do site). |
 | Tema | Claro (White_HUMAN) na interface do harness, como pede o sistema para sistemas e dashboards; azul (Blue_RETAIL) no hero e no rodapé do site. |
 | Tipografia | Manrope (400 a 800), embutida em `web/fonts/` e `docs/assets/fonts/` em WOFF2 com subconjunto latino. Funciona offline. Licença SIL OFL 1.1, gravada nos próprios arquivos. |
-| Logo | `cd2-logo-horizontal` negativa (branca) sobre a barra azul; símbolo como avatar da IA e favicon. Arquivos em `docs/assets/logos/`. |
+| Logo | `cd2-logo-horizontal` colorida sobre a barra superior branca (fixa no topo, no padrão dos sites da CD2 em cd2tec.github.io); símbolo como avatar da IA e favicon, o mesmo do site do Archeo. Arquivos em `docs/assets/logos/`. |
 | Componentes | Botões em pílula (primário, secundário), StatusTag para o estado do modelo e das ferramentas (Concluído = pronto, Em melhoria = Demonstração, Atenção = offline ou erro), SectionHeader com eyebrow e régua de 240px, blocos de conexão no site. |
 | Movimento | Só transições de 150 ms em cor. O indicador de carregamento é uma barra que desliza; nada gira, pulsa ou salta, e ele para com "reduzir movimento". |
 
