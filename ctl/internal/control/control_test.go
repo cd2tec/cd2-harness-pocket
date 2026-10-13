@@ -372,3 +372,44 @@ func TestRollbackComToolboxFalso(t *testing.T) {
 	}
 	resp.Body.Close()
 }
+
+func TestRollbackQueTambemFalha(t *testing.T) {
+	prevErr := &toolbox.StartError{Msg: "anterior morreu", Log: []string{"log anterior"}}
+	run := &fakeRunner{fail: map[string]error{"ruim": boom}}
+	c, path := newCtl(t, run)
+	if err := dbconf.Save(path, saved("s1")); err != nil {
+		t.Fatal(err)
+	}
+	<-c.BootAsync()
+	run.mu.Lock()
+	run.fail["s1"] = prevErr
+	run.mu.Unlock()
+	st, err := c.Apply(input("ruim"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Estado != Falhou || st.Host != "db.local" || st.Usuario != "leitor" || !st.SenhaSalva {
+		t.Errorf("status %+v", st)
+	}
+	if !strings.Contains(st.Erro, toolbox.MsgDied) || !strings.Contains(st.Erro, "anterior morreu") {
+		t.Errorf("erro %q", st.Erro)
+	}
+	if !reflect.DeepEqual(st.Log, prevErr.Log) {
+		t.Errorf("log %v", st.Log)
+	}
+}
+
+func TestShutdownEFinal(t *testing.T) {
+	run := &fakeRunner{}
+	c, _ := newCtl(t, run)
+	<-c.BootAsync()
+	c.Shutdown()
+	if _, err := c.Apply(input("s1")); err != nil {
+		t.Fatal(err)
+	}
+	st := c.Clear()
+	<-c.BootAsync()
+	if len(run.starts) != 0 || st.Erro != MsgClosed || run.Running() {
+		t.Errorf("subidas %v, status %+v", run.starts, st)
+	}
+}

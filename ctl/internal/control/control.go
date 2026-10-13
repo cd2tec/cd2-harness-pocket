@@ -20,6 +20,9 @@ const (
 	Falhou   = "falhou"
 )
 
+// MsgClosed é a resposta de Apply e Clear depois do Shutdown.
+const MsgClosed = "O cd2-ctl está encerrando."
+
 // MsgStopped aparece quando o toolbox morre sozinho depois de pronto.
 const MsgStopped = "O toolbox parou sozinho. Clique em Salvar e conectar para tentar de novo."
 
@@ -49,7 +52,8 @@ type Controller struct {
 	envPath string
 	run     Runner
 
-	op sync.Mutex // um pedido de configuração (ou o arranque) por vez
+	op     sync.Mutex // um pedido de configuração (ou o arranque) por vez
+	closed bool       // true depois de Shutdown; lido e escrito só com op preso
 
 	mu     sync.Mutex // protege os campos abaixo
 	cur    *dbconf.Config
@@ -106,6 +110,9 @@ func (c *Controller) BootAsync() <-chan struct{} {
 }
 
 func (c *Controller) boot() {
+	if c.closed {
+		return
+	}
 	cfg, err := dbconf.Load(c.envPath)
 	if errors.Is(err, fs.ErrNotExist) {
 		return
@@ -139,6 +146,9 @@ func describe(err error) (string, []string) {
 func (c *Controller) Apply(in dbconf.Input) (Status, error) {
 	c.op.Lock()
 	defer c.op.Unlock()
+	if c.closed {
+		return c.closedStatus(), nil
+	}
 	prev := c.current()
 	cand, err := dbconf.Validate(in, prev)
 	if err != nil {
@@ -170,7 +180,10 @@ func (c *Controller) rollback(prev *dbconf.Config, failure error) {
 		return
 	}
 	if err := c.run.Start(*prev); err != nil {
-		c.set(prev, Falhou, msg, log)
+		// As duas falhas vão no Erro. O Log é o da volta à anterior, porque é a conexão
+		// que a tela mostra agora (os campos são os de prev).
+		rmsg, rlog := describe(err)
+		c.set(prev, Falhou, "A nova conexão falhou: "+msg+" A anterior também não voltou: "+rmsg, rlog)
 		return
 	}
 	c.set(prev, Rodando, msg, log)
@@ -180,6 +193,9 @@ func (c *Controller) rollback(prev *dbconf.Config, failure error) {
 func (c *Controller) Clear() Status {
 	c.op.Lock()
 	defer c.op.Unlock()
+	if c.closed {
+		return c.closedStatus()
+	}
 	_ = c.run.Stop()
 	if err := dbconf.Remove(c.envPath); err != nil {
 		c.set(c.current(), Falhou, "Não consegui apagar o db.env: "+err.Error(), nil)
@@ -193,5 +209,13 @@ func (c *Controller) Clear() Status {
 func (c *Controller) Shutdown() {
 	c.op.Lock()
 	defer c.op.Unlock()
+	c.closed = true
 	_ = c.run.Stop()
+}
+
+// closedStatus é a resposta de Apply e Clear depois do Shutdown: nada é iniciado nem apagado.
+func (c *Controller) closedStatus() Status {
+	st := c.Status()
+	st.Erro, st.Log = MsgClosed, nil
+	return st
 }
