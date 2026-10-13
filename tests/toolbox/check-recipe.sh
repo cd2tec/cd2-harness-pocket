@@ -61,6 +61,13 @@ A="$(invoke db_sample_table "{\"table_name\":\"$TBL\"}")"
 [ "$(printf '%s' "$A" | jq 'length')" = 20 ] || fail "sample: teto de 20 (deu $(printf '%s' "$A" | jq 'length'))"
 invoke_err db_sample_table '{"table_name":"produto; DROP TABLE produto"}' | grep -q "not an allowed value" || fail "sample: injecao passou"
 
+echo "== $ENGINE: db_catalog"
+K="$(invoke db_catalog '{}')"
+[ "$(printf '%s' "$K" | keys)" = "column_name,data_type,num_rows,ordinal,table_name,table_type" ] || fail "catalog: colunas $(printf '%s' "$K" | keys)"
+printf '%s' "$K" | jq -e --arg t "$TBL" '.[] | select(.table_name == $t and .table_type == "TABLE" and (.column_name|ascii_downcase) == "nome")' >/dev/null || fail "catalog: $TBL.nome"
+printf '%s' "$K" | jq -e --arg v "$VW" '.[] | select(.table_name == $v and .table_type == "VIEW")' >/dev/null || fail "catalog: $VW como VIEW"
+[ "$(printf '%s' "$K" | jq '[.[] | .ordinal | tonumber] | max')" -le 60 ] || fail "catalog: ordinal acima de 60"
+
 echo "== $ENGINE: db_read_only_query"
 Q="$(invoke db_read_only_query "{\"sql\":\"select count(*) as n from $TBL\"}")"
 [ "$(printf '%s' "$Q" | jq -r '.[0].n // .[0].N')" = 25 ] || fail "query: count"
@@ -74,6 +81,7 @@ if [ "$ENGINE" = sqlserver ]; then
   [ "$(invoke db_read_only_query '{"sql":"select id, use_count = 1 from produto order by id offset 10 rows fetch next 5 rows only"}' | jq 'length')" = 5 ] || fail "query: OFFSET/FETCH legitimo foi barrado"
 fi
 if [ "$ENGINE" = postgres ]; then
+  [ "$(invoke db_read_only_query '{"sql":"select current_setting($$statement_timeout$$) as t"}' | jq -r '.[0].t')" = 15s ] || fail "query: statement_timeout da sessao nao e 15s"
   invoke_err db_read_only_query '{"sql":"select pg_terminate_backend(1)"}' | grep -q "excluded value" || fail "query: pg_terminate_backend passou"
   [ "$(invoke db_read_only_query '{"sql":"select current_setting($$default_transaction_read_only$$) as ro"}' | jq -r '.[0].ro')" = on ] || fail "query: sessao nao esta em default_transaction_read_only=on"
 fi

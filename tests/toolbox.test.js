@@ -84,8 +84,8 @@ test('statusLines: ordem fixa, versão só na primeira linha, tabelas como texto
   assert.deepEqual(lines, [['Motor','SQL Server'],['Versão','Microsoft SQL Server 2022'],['Host','h'],['Base','d'],['Usuário','u'],['Schema','dbo'],['Tabelas visíveis','7']]);
 });
 
-test('TOOL_DESCRIPTIONS cobre as seis ferramentas', () => {
-  assert.deepEqual(Object.keys(T.TOOL_DESCRIPTIONS).sort(), ['db_connection_status','db_describe_table','db_list_tables','db_read_only_query','db_sample_table','db_search_columns']);
+test('TOOL_DESCRIPTIONS cobre as sete ferramentas', () => {
+  assert.deepEqual(Object.keys(T.TOOL_DESCRIPTIONS).sort(), ['db_catalog','db_connection_status','db_describe_table','db_list_tables','db_read_only_query','db_sample_table','db_search_columns']);
 });
 
 /* ---------- cd2-ctl (controle do banco pela tela) ---------- */
@@ -139,4 +139,17 @@ test('configPayload: apara, porta numérica, porta vazia e senha vazia somem', (
 test('ctlStatusLines: campos do /status, sem senha', () => {
   const l = T.ctlStatusLines({ estado:'rodando', motor:'oracle', host:'h', porta:1521, base:'FREEPDB1', usuario:'leitor', schema:'LEITOR', senha_salva:true });
   assert.deepEqual(l, [['Motor','Oracle'],['Host','h'],['Porta','1521'],['Base','FREEPDB1'],['Usuário','leitor'],['Schema','LEITOR']]);
+});
+
+test('prepareSql: SQL Server ganha OFFSET 0 ROWS quando tem ORDER BY sem TOP nem OFFSET', () => {
+  assert.equal(T.prepareSql('SELECT mes, SUM(v) AS total FROM venda GROUP BY mes ORDER BY mes', 'sqlserver'),
+    'SELECT mes, SUM(v) AS total FROM venda GROUP BY mes ORDER BY mes OFFSET 0 ROWS');
+  assert.equal(T.prepareSql('SELECT TOP (10) nome FROM p ORDER BY nome', 'sqlserver'), 'SELECT TOP (10) nome FROM p ORDER BY nome');
+  assert.equal(T.prepareSql('SELECT nome FROM p ORDER BY nome OFFSET 5 ROWS', 'sqlserver'), 'SELECT nome FROM p ORDER BY nome OFFSET 5 ROWS');
+  assert.equal(T.prepareSql('SELECT count(*) AS n FROM p', 'sqlserver'), 'SELECT count(*) AS n FROM p');
+});
+
+test('prepareSql: outros motores passam intactos', () => {
+  for(const m of ['postgres', 'mariadb', 'oracle', undefined])
+    assert.equal(T.prepareSql('SELECT a FROM t ORDER BY a', m), 'SELECT a FROM t ORDER BY a');
 });

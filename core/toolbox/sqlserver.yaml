@@ -143,6 +143,31 @@ templateParameters:
 
 ---
 kind: tool
+name: db_catalog
+type: mssql-sql
+source: cd2-db
+description: Mapa do banco para o roteiro de relatórios. Uma linha por coluna das 300 tabelas e views com mais linhas do schema ${CD2_DB_SCHEMA}, até 60 colunas por tabela.
+annotations: { readOnlyHint: true }
+statement: |
+  WITH t AS (
+    SELECT TOP (300) o.object_id, o.name,
+           CASE WHEN o.type = 'V' THEN 'VIEW' ELSE 'TABLE' END AS table_type,
+           COALESCE((SELECT SUM(p.rows) FROM sys.partitions p
+                      WHERE p.object_id = o.object_id AND p.index_id IN (0, 1)), 0) AS num_rows
+      FROM sys.objects o
+      JOIN sys.schemas s ON s.schema_id = o.schema_id
+     WHERE s.name = '${CD2_DB_SCHEMA}' AND o.type IN ('U', 'V')
+     ORDER BY num_rows DESC, o.name)
+  SELECT t.name AS table_name, t.table_type, t.num_rows,
+         c.name AS column_name, ty.name AS data_type, c.column_id AS ordinal
+    FROM t
+    JOIN sys.columns c ON c.object_id = t.object_id
+    JOIN sys.types ty ON ty.user_type_id = c.user_type_id
+   WHERE c.column_id <= 60
+   ORDER BY t.num_rows DESC, t.name, c.column_id
+
+---
+kind: tool
 name: db_read_only_query
 type: mssql-sql
 source: cd2-db

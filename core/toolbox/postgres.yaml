@@ -3,6 +3,7 @@
 # Somente leitura em quatro camadas: conta de leitura no banco, sessao com
 # default_transaction_read_only=on (queryParams), excludedValues em
 # db_read_only_query e guarda de SELECT no front. O toolbox nao valida SQL.
+# Cada consulta tem 15 s (statement_timeout).
 kind: source
 name: cd2-db
 type: postgres
@@ -14,6 +15,7 @@ password: "${CD2_DB_PASSWORD}"
 connectTimeout: 10
 queryParams:
   default_transaction_read_only: "on"
+  statement_timeout: "15000"
 
 ---
 kind: tool
@@ -133,6 +135,31 @@ templateParameters:
     type: string
     description: "Nome exato da tabela ou view, como devolvido por db_list_tables."
     allowedValues: ["^[A-Za-z_][A-Za-z0-9_$#]*$"]
+
+---
+kind: tool
+name: db_catalog
+type: postgres-sql
+source: cd2-db
+description: Mapa do banco para o roteiro de relatórios. Uma linha por coluna das 300 tabelas e views com mais linhas estimadas do schema ${CD2_DB_SCHEMA}, até 60 colunas por tabela.
+annotations: { readOnlyHint: true }
+statement: |
+  WITH t AS (
+    SELECT c.oid, c.relname,
+           CASE WHEN c.relkind IN ('v','m') THEN 'VIEW' ELSE 'TABLE' END AS table_type,
+           GREATEST(c.reltuples, 0)::bigint AS num_rows
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE n.nspname = '${CD2_DB_SCHEMA}'
+       AND c.relkind IN ('r','p','v','m')
+     ORDER BY GREATEST(c.reltuples, 0) DESC, c.relname
+     LIMIT 300)
+  SELECT t.relname AS table_name, t.table_type, t.num_rows,
+         a.attname AS column_name, format_type(a.atttypid, a.atttypmod) AS data_type, a.attnum AS ordinal
+    FROM t
+    JOIN pg_attribute a ON a.attrelid = t.oid
+   WHERE a.attnum > 0 AND a.attnum <= 60 AND NOT a.attisdropped
+   ORDER BY t.num_rows DESC, t.relname, a.attnum
 
 ---
 kind: tool
