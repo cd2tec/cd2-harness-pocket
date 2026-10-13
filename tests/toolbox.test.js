@@ -169,3 +169,28 @@ test('prepareSql: so enxerga ORDER BY, TOP e OFFSET no nivel externo', () => {
     "SELECT 'it''s (' AS s FROM t ORDER BY s"
   ]) assert.equal(ss(s), s + ' OFFSET 0 ROWS');
 });
+
+test('placeholdersFor: exemplos genéricos por motor, sem credencial', () => {
+  const pg = T.placeholdersFor('postgres', '', '');
+  assert.match(pg.host, /^ex\.: /); assert.equal(pg.base, 'ex.: erp'); assert.equal(pg.schema, 'ex.: public');
+  assert.equal(pg.senha, 'Senha da conta de leitura');
+  assert.equal(T.placeholdersFor('oracle', '', '').base, 'ex.: ORCLPDB1');
+  assert.equal(T.placeholdersFor('oracle', '', '').schema, 'ex.: LEITURA_RO');
+  assert.equal(T.placeholdersFor('oracle', 'leitor', '').schema, 'ex.: LEITOR');
+  assert.equal(T.placeholdersFor('mariadb', '', 'loja').schema, 'ex.: loja');
+  assert.equal(T.placeholdersFor('sqlserver', '', '').schema, 'ex.: dbo');
+  for(const m of Object.keys(T.ENGINES)){
+    const p = T.placeholdersFor(m, '', '');
+    for(const k of ['host', 'base', 'usuario', 'schema']) assert.match(p[k], /^ex\.: /, m + '.' + k);
+  }
+  assert.deepEqual(T.placeholdersFor('xpto', '', ''), { host:'', base:'', usuario:'', senha:'', schema:'' });
+});
+
+test('portFor: porta padrão do motor, sem sobrescrever porta digitada', () => {
+  assert.equal(T.portFor('postgres', ''), '5432');
+  assert.equal(T.portFor('oracle', '5432'), '1521');
+  assert.equal(T.portFor('mariadb', ' 1521 '), '3306');
+  assert.equal(T.portFor('sqlserver', '3306'), '1433');
+  assert.equal(T.portFor('sqlserver', '14330'), '14330');
+  assert.equal(T.portFor('xpto', '5432'), '5432');
+});

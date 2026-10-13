@@ -10,6 +10,14 @@ const ENGINES = {
   mariadb:   { label:'MariaDB / MySQL', port:3306 },
   sqlserver: { label:'SQL Server',      port:1433 }
 };
+// Exemplos dos campos do formulário do banco. Só exemplos genéricos: nada de
+// host, usuário ou senha reais, que circulariam com o pen drive.
+const PLACEHOLDERS = {
+  postgres:  { host:'ex.: pg.empresa.local',    base:'ex.: erp',      usuario:'ex.: leitura_ro' },
+  oracle:    { host:'ex.: ora.empresa.local',   base:'ex.: ORCLPDB1', usuario:'ex.: LEITURA_RO' },
+  mariadb:   { host:'ex.: mysql.empresa.local', base:'ex.: erp',      usuario:'ex.: leitura_ro' },
+  sqlserver: { host:'ex.: mssql.empresa.local', base:'ex.: ERP',      usuario:'ex.: leitura_ro' }
+};
 const TOOL_DESCRIPTIONS = {
   db_catalog:           'Lê o mapa do banco (tabelas e colunas) para o roteiro de relatórios.',
   db_connection_status: 'Verifica se o banco está acessível e se a conexão está pronta para uso.',
@@ -108,6 +116,24 @@ function defaultsFor(motor, usuario, base){
   const schema = { postgres:'public', oracle:String(usuario || '').toUpperCase(), mariadb:String(base || ''), sqlserver:'dbo' }[motor];
   return { porta:e.port, schema };
 }
+// Exemplos do formulário para o motor. O schema repete a regra do defaultsFor e,
+// quando ela depende de um campo ainda vazio, usa o exemplo desse campo.
+function placeholdersFor(motor, usuario, base){
+  const p = PLACEHOLDERS[motor];
+  if(!p) return { host:'', base:'', usuario:'', senha:'', schema:'' };
+  const d = defaultsFor(motor, usuario, base);
+  const fallback = { oracle:'LEITURA_RO', mariadb:'erp' }[motor] || '';
+  return { host:p.host, base:p.base, usuario:p.usuario, senha:'Senha da conta de leitura', schema:'ex.: ' + (d.schema || fallback) };
+}
+// Porta ao trocar de motor: vazia ou ainda na porta padrão de algum motor vira a
+// padrão do motor novo; porta digitada pela pessoa fica como está.
+function portFor(motor, atual){
+  const a = String(atual == null ? '' : atual).trim();
+  const e = ENGINES[motor];
+  if(!e) return a;
+  const padrao = Object.keys(ENGINES).some(k => String(ENGINES[k].port) === a);
+  return (a === '' || padrao) ? String(e.port) : a;
+}
 // Corpo de POST /config. A senha não é aparada (espaço pode fazer parte dela) e só vai se
 // foi digitada: vazia significa "manter a salva".
 function configPayload(form){
@@ -128,6 +154,6 @@ function ctlStatusLines(cs){
 }
 
 const api = { ENGINES, TOOL_DESCRIPTIONS, engineLabel, urlFor, guardSql, prepareSql, parseStatus, statusLines,
-  UNSAFE_PORTS, ctlUrlFor, readKeyFromHash, defaultsFor, configPayload, ctlStatusLines };
+  UNSAFE_PORTS, ctlUrlFor, readKeyFromHash, defaultsFor, placeholdersFor, portFor, configPayload, ctlStatusLines };
 if(typeof module !== 'undefined' && module.exports) module.exports = api; else root.CD2Toolbox = api;
 })(typeof window !== 'undefined' ? window : globalThis);
