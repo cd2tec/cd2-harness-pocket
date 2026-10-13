@@ -3,20 +3,23 @@
 (function(root){
 "use strict";
 function esc(v){ return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c])); }
-// Decimal com vírgula para o Excel em português; texto que começa como fórmula ganha apóstrofo.
+// Decimal com vírgula para o Excel em português. Só valor inteiramente numérico escapa da neutralização;
+// texto que pode virar fórmula (inclusive após espaço, tabulação ou CR) ganha apóstrofo.
 function cell(v){
   if(v == null) return '';
   let s;
   if(typeof v === 'number') s = String(v).replace('.', ',');
-  else if(/^\s*-?\d+\.\d+\s*$/.test(String(v))) s = String(v).trim().replace('.', ',');
-  else s = String(v);
-  if(/^[=+@]/.test(s) || /^-(?!\d)/.test(s)) s = "'" + s;
+  else if(/^\s*-?\d+([.,]\d+)?\s*$/.test(String(v))) s = String(v).trim().replace('.', ',');
+  else {
+    s = String(v);
+    if(/^[\t\r]/.test(s) || /^\s*[=+\-@]/.test(s)) s = "'" + s;
+  }
   return /[;"\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 function toCsv(colunas, linhas){
   const out = [colunas.map(cell).join(';')];
   for(const r of linhas) out.push(colunas.map(c => cell(r[c])).join(';'));
-  return '﻿' + out.join('\r\n') + '\r\n';
+  return '\uFEFF' + out.join('\r\n') + '\r\n';
 }
 function fileName(d){
   const p = n => String(n).padStart(2, '0');

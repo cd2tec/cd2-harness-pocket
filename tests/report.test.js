@@ -6,7 +6,7 @@ const R = require('../web/report.js');
 
 test('toCsv: BOM, ponto e vírgula, CRLF, aspas e decimal com vírgula', () => {
   const s = R.toCsv(['loja', 'total', 'obs'], [{ loja:'A;B', total:'12.5', obs:'diz "oi"' }, { loja:'C', total:3, obs:null }]);
-  assert.ok(s.startsWith('﻿'));
+  assert.ok(s.startsWith('\uFEFF'));
   assert.equal(s.slice(1), 'loja;total;obs\r\n"A;B";12,5;"diz ""oi"""\r\nC;3;\r\n');
 });
 
@@ -29,4 +29,18 @@ test('printHtml escapa o texto, mantém o HTML do gráfico e mostra o contato', 
   const sem = R.printHtml({ pergunta:'p', titulo:'t', frase:'f', visualHtml:'', tabelaHtml:'', sql:'s', quando:'q', motor:'m', base:'', contato:'', logoSvg:'' });
   assert.ok(sem.includes('CD2 Tech</footer>') || /CD2 Tech\s*<\/span>\s*<\/footer>/.test(sem));
   assert.ok(!sem.includes('undefined'));
+});
+
+test('toCsv nao deixa fórmula escapar por espaço, tabulação, CR ou número seguido de texto', () => {
+  const casos = [
+    ['-1+1', "'-1+1"],
+    ["-1+cmd|' /C calc'!A0", "'-1+cmd|' /C calc'!A0"],
+    ['\t=1', "'\t=1"],
+    [' =1', "' =1"],
+    ['\r=1', "\"'\r=1\""],
+  ];
+  for (const [entrada, esperado] of casos) {
+    const linha = R.toCsv(['a'], [{ a: entrada }]).slice(1).split('\r\n')[1];
+    assert.equal(linha, esperado, 'entrada ' + JSON.stringify(entrada));
+  }
 });
