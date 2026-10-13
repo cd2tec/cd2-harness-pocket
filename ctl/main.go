@@ -1,7 +1,10 @@
 // cd2-ctl: controle do banco de dados do CD2 Harness Pocket. Escuta só em 127.0.0.1:P+3000,
 // é o único dono do MCP Toolbox (127.0.0.1:P+1000) e grava a conexão no db.env do cache.
 //
-// Uso: CD2_CTL_KEY=<64 hex> cd2-ctl --root <pen drive> --cache <pasta> --harness-port P
+// Uso: CD2_CTL_KEY=<64 hex> cd2-ctl --root <pen drive> --cache <pasta> --harness-port P [--parent-pid N]
+//
+// Com --parent-pid, o cd2-ctl confere a cada 2 s se o launcher ainda existe e, se ele sumiu sem
+// limpar (console do Windows fechado no X, kill -9 no Unix), encerra como se tivesse recebido TERM.
 package main
 
 import (
@@ -23,6 +26,9 @@ import (
 	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/control"
 	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/toolbox"
 )
+
+// parentPollInterval é de quanto em quanto tempo o --parent-pid é conferido.
+var parentPollInterval = 2 * time.Second
 
 // version vem do -ldflags "-X main.version=X.Y.Z" no release.
 var version = "dev"
@@ -52,6 +58,7 @@ func run(args []string, key string, stop <-chan os.Signal, stdout, stderr io.Wri
 	root := fs.String("root", "", "raiz do pen drive")
 	cache := fs.String("cache", "", "pasta de cache deste computador (db.env e toolbox.log)")
 	hport := fs.Int("harness-port", 0, "porta do harness (P); toolbox em P+1000, controle em P+3000")
+	parentPID := fs.Int("parent-pid", 0, "PID do launcher: quando ele some, o cd2-ctl encerra sozinho")
 	showVersion := fs.Bool("version", false, "mostra a versao e sai")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -64,8 +71,8 @@ func run(args []string, key string, stop <-chan os.Signal, stdout, stderr io.Wri
 		fmt.Fprintln(stderr, "cd2-ctl: CD2_CTL_KEY ausente ou invalida (64 caracteres hexadecimais)")
 		return 2
 	}
-	if *root == "" || *cache == "" || *hport < 1 || *hport+3000 > 65535 {
-		fmt.Fprintln(stderr, "uso: CD2_CTL_KEY=<chave> cd2-ctl --root <pen drive> --cache <pasta> --harness-port P")
+	if *root == "" || *cache == "" || *hport < 1 || *hport+3000 > 65535 || *parentPID < 0 {
+		fmt.Fprintln(stderr, "uso: CD2_CTL_KEY=<chave> cd2-ctl --root <pen drive> --cache <pasta> --harness-port P [--parent-pid N]")
 		return 2
 	}
 	if err := os.MkdirAll(*cache, 0o700); err != nil {
@@ -103,11 +110,38 @@ func run(args []string, key string, stop <-chan os.Signal, stdout, stderr io.Wri
 	}
 	go func() { _ = srv.Serve(ln) }()
 	fmt.Fprintf(stdout, "cd2-ctl %s em 127.0.0.1:%d (toolbox em 127.0.0.1:%d)\n", version, ctlPort, tbPort)
-	<-stop
+	parentGone := make(chan struct{})
+	quit := make(chan struct{})
+	defer close(quit)
+	if *parentPID > 0 {
+		go watchParent(*parentPID, parentGone, quit)
+	}
+	select {
+	case <-stop:
+	case <-parentGone:
+		fmt.Fprintf(stdout, "cd2-ctl: o launcher (PID %d) sumiu, encerrando\n", *parentPID)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(ctx)
 	ctl.Shutdown()
 	fmt.Fprintln(stdout, "cd2-ctl encerrado")
 	return 0
+}
+
+// watchParent fecha gone quando o processo pid deixa de existir (ou para quando quit fecha).
+func watchParent(pid int, gone, quit chan struct{}) {
+	t := time.NewTicker(parentPollInterval)
+	defer t.Stop()
+	for {
+		select {
+		case <-quit:
+			return
+		case <-t.C:
+			if !processAlive(pid) {
+				close(gone)
+				return
+			}
+		}
+	}
 }

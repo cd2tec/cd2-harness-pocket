@@ -51,7 +51,7 @@ Go, só biblioteca padrão. Módulo `ctl/`, binário `cd2-ctl` (`cd2-ctl.exe` no
 Linha de comando (nada sensível nela):
 
 ```
-cd2-ctl --root <raiz do pen drive> --cache <pasta de cache> --harness-port P
+cd2-ctl --root <raiz do pen drive> --cache <pasta de cache> --harness-port P --parent-pid <PID do launcher>
 ```
 
 Variável de ambiente `CD2_CTL_KEY`: a chave da sessão, 64 caracteres hexadecimais (32 bytes
@@ -109,10 +109,12 @@ Igual ao launcher da v0.5.0, agora em Go:
 - Ambiente do toolbox: o do `cd2-ctl` mais `CD2_DB_*`, com `CD2_DB_PASSWORD` escapada para YAML
   entre aspas duplas (`\` vira `\\`, `"` vira `\"`). As receitas já usam `password: "${CD2_DB_PASSWORD}"`.
 - Saída do toolbox passa por um filtro antes de ir para `toolbox.log`: some toda linha que contém a
-  senha (crua ou escapada, comparação literal) ou que casa `password` sem diferenciar maiúsculas.
+  senha (crua, escapada para YAML ou escapada para URL com `QueryEscape`/`PathEscape`, comparação literal) ou que casa `password` sem diferenciar maiúsculas.
   Diferente da v0.5.0, a senha nunca chega ao disco, nem por um instante.
 - Pronto quando `GET http://127.0.0.1:P+1000/` responde 200 e uma chamada MCP a
-  `db_connection_status` devolve resultado sem `isError`. Prazo: 15 s.
+  `db_connection_status` devolve resultado sem `isError`. Prazo: 15 s no total. O `GET /` tem
+  limite próprio de 2 s por tentativa; o `initialize` e o `db_connection_status` podem usar o
+  prazo inteiro (um banco atrás de VPN pode levar vários segundos no primeiro teste).
 
 ### Troca com rollback (`POST /config`)
 
@@ -154,6 +156,13 @@ temporário antes de escrever o conteúdo. `DELETE /config` apaga o arquivo.
 Em `SIGINT`, `SIGTERM` (e fechamento do console no Windows), derruba o toolbox e sai. O launcher
 também derruba o `cd2-ctl` no `cleanup`.
 
+Se o launcher morre sem rodar o `cleanup` (console do Windows fechado no X, `kill -9` no Unix), o
+`--parent-pid` evita órfãos: o `cd2-ctl` confere a cada 2 s se aquele processo ainda existe
+(`kill(pid, 0)` no Unix, onde `EPERM` conta como vivo; `OpenProcess` com `SYNCHRONIZE` e
+`WaitForSingleObject` de 0 ms no Windows) e, quando ele some, encerra exatamente como no
+`SIGTERM`: para o HTTP, derruba o toolbox e sai com 0. O `start-unix.sh` passa `$$` e o
+`start-windows.ps1` passa `$PID`.
+
 ## 2. Distribuição e preparo
 
 - `.github/workflows/ci.yml`: em pull request e push na `main`, roda `go test ./...` em `ctl/` e
@@ -165,7 +174,8 @@ também derruba o `cd2-ctl` no `cleanup`.
   por `CD2_CTL_VERSION`, nunca "latest"), baixa de
   `https://github.com/cd2tec/cd2-harness-pocket/releases/download/ctl-v<versão>/cd2-ctl-<os>-<arch>[.exe]`
   para `bin/ctl/<os>-<arch>/cd2-ctl[.exe]`, confere com o `SHA256SUMS` do release e inclui no
-  `CHECKSUMS.sha256`. Mesmas plataformas do toolbox (`CD2_TOOLBOX_PLATFORMS` vale para os dois).
+  `CHECKSUMS.sha256`. Se o arquivo local já tem o SHA-256 esperado, pula; senão apaga e baixa
+  inteiro (sem retomar: emendar em cima do binário de outra versão quebraria o checksum). Mesmas plataformas do toolbox (`CD2_TOOLBOX_PLATFORMS` vale para os dois).
 - Gravadores: já copiam `bin/` inteiro; só a listagem final e a estimativa de tamanho mudam.
 
 ## 3. Launchers

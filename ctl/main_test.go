@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -104,4 +105,16 @@ func TestSobeRespondeEEncerra(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("não encerrou com o sinal")
 	}
+}
+
+// syncBuf deixa ler o bytes.Buffer enquanto run escreve nele de outra goroutine.
+type syncBuf struct {
+	mu sync.Mutex
+	b  *bytes.Buffer
+}
+
+func (s *syncBuf) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
 }

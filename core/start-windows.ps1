@@ -70,12 +70,15 @@ function Start-Ctl {
         return $false
     }
     $ctlLog = Join-Path $LogDir 'ctl.log'; $ctlErr = Join-Path $LogDir 'ctl.err.log'
-    $ctlArgs = @('--root', (Quote-Path $Root), '--cache', (Quote-Path $Cache), '--harness-port', "$Port")
+    $ctlArgs = @('--root', (Quote-Path $Root), '--cache', (Quote-Path $Cache), '--harness-port', "$Port", '--parent-pid', "$PID")
     # a chave vai so no ambiente do cd2-ctl: sai daqui assim que ele sobe, antes de abrir o navegador
     $env:CD2_CTL_KEY = $CtlKey
     try {
         $script:CtlProc = Start-Process -FilePath $src -ArgumentList $ctlArgs -WindowStyle Hidden -PassThru `
             -RedirectStandardOutput $ctlLog -RedirectStandardError $ctlErr
+    } catch {
+        Write-Host "[AVISO] Nao consegui iniciar o controle do banco: $($_.Exception.Message). Seguindo sem banco de dados." -ForegroundColor DarkYellow
+        return $false
     } finally {
         Remove-Item Env:CD2_CTL_KEY -ErrorAction SilentlyContinue
     }

@@ -170,6 +170,9 @@ Só quem altera a pasta `ctl/` precisa de Go (1.23 ou mais novo; no Mac, `brew i
 - Testes: `cd ctl && go test ./...` e, com o Postgres do Docker no ar (`docker compose -f tests/toolbox/docker-compose.yml up -d postgres`), `sh tests/ctl/e2e.sh`. A CI (`.github/workflows/ci.yml`) roda `go test` e `node --test` em todo pull request e push na `main`.
 - Teste local sem release: `sh ctl/build.sh` compila para `bin/ctl/<plataforma>/`, e `CD2_CTL_LOCAL=1 sh core/prepare-unix.sh` usa esse binário em vez de baixar.
 - Publicar uma versão: suba `CTL_VERSION` em `core/prepare-unix.sh` e `core/prepare-windows.ps1`, faça o merge e crie a tag, por exemplo `git tag ctl-v0.6.1 && git push origin ctl-v0.6.1`. O workflow `.github/workflows/ctl-release.yml` compila as quatro plataformas e anexa `cd2-ctl-<os>-<arch>` e `SHA256SUMS` ao release; o preparo confere o checksum antes de usar. `CD2_CTL_VERSION` escolhe outra versão no preparo, nunca "latest".
+- Primeiro release: depois do merge desta versão, quem mantém o repositório precisa empurrar a tag `ctl-v0.6.0` (`git tag ctl-v0.6.0 && git push origin ctl-v0.6.0`) para o release existir. Até lá, o preparo só funciona com `CD2_CTL_LOCAL=1` (depois de `sh ctl/build.sh`).
+- No preparo, um `cd2-ctl` que já confere com o `SHA256SUMS` é pulado; um de outra versão é apagado e baixado inteiro.
+- Órfãos: os launchers passam o próprio PID em `--parent-pid` (`$$` no Mac/Linux, `$PID` no Windows). O `cd2-ctl` confere a cada 2 s se o launcher ainda existe e, se ele sumiu sem limpar (console do Windows fechado no X, `kill -9`), derruba o toolbox e sai sozinho.
 
 ## 9. Licenças e origem dos componentes
 

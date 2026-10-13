@@ -108,7 +108,7 @@ start_ctl() {
     [ "$OS" = "Darwin" ] && xattr -dr com.apple.quarantine "$CTL_RUN" 2>/dev/null
   fi
   CTL_LOG="$CACHE/ctl.log"; : > "$CTL_LOG"
-  CD2_CTL_KEY="$CTL_KEY" "$CTL_RUN" --root "$ROOT" --cache "$CACHE" --harness-port "$PORT" >> "$CTL_LOG" 2>&1 &
+  CD2_CTL_KEY="$CTL_KEY" "$CTL_RUN" --root "$ROOT" --cache "$CACHE" --harness-port "$PORT" --parent-pid $$ >> "$CTL_LOG" 2>&1 &
   CTL_PID=$!
   i=0
   while [ "$i" -lt 10 ]; do
