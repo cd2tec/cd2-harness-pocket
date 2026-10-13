@@ -57,6 +57,10 @@ CD2-HARNESS/
   bin/toolbox/darwin-arm64/toolbox        ~156 MB
   bin/toolbox/darwin-amd64/toolbox        ~167 MB
   bin/toolbox/linux-amd64/toolbox         ~316 MB
+  bin/ctl/windows-amd64/cd2-ctl.exe       ~7 MB
+  bin/ctl/darwin-arm64/cd2-ctl            ~7 MB
+  bin/ctl/darwin-amd64/cd2-ctl            ~7 MB
+  bin/ctl/linux-amd64/cd2-ctl             ~7 MB
   core/toolbox/                           receitas por motor
   core/   web/
 ```
@@ -68,7 +72,8 @@ Os scripts de gravação (`GRAVAR-*`, `gravar-*` e `core/make-usb-*`) e a pasta 
 1. Tire e plugue de novo o pen drive.
 2. Abra pelo launcher do seu sistema (`INICIAR-CD2-...`).
 3. Espere a janela abrir e mande uma pergunta qualquer. Na primeira vez, o modelo leva de 20 a 90 segundos para carregar.
-4. Feche e ejete com segurança.
+4. Se for usar banco: Ferramentas, modo MCP Nativo para Banco de dados, preencha a conexão e clique em Salvar e conectar. A lista com motor, versão e tabelas tem de aparecer.
+5. Feche e ejete com segurança.
 
 Se passou, está aprovado. Grave os outros com o mesmo script ou copie a pasta `CD2-HARNESS` inteira de um pen drive para outro já formatado em exFAT, e compare o `CHECKSUMS.sha256` no final.
 
@@ -97,7 +102,7 @@ Serve para entender o que o script faz, ou para quando ele não puder rodar.
 
 2. Copiar a pasta do repositório para o pen drive como `CD2-HARNESS`, sem a pasta `.git`.
 3. Rodar o preparo uma vez, com internet: `sh core/prepare-unix.sh` no Mac/Linux ou duplo clique em `core\prepare-windows.bat` no Windows. Se o pen drive for lento, prepare numa pasta do disco e copie depois.
-4. Conferir: `bin/llamafile` e `bin/llamafile.exe` com uns 350 MB cada, modelo com uns 2,4 GB, os quatro `bin/toolbox/*/toolbox` (ou só os da variável `CD2_TOOLBOX_PLATFORMS`) e `CHECKSUMS.sha256` gerado. Guardar uma cópia do checksum fora do pen drive.
+4. Conferir: `bin/llamafile` e `bin/llamafile.exe` com uns 350 MB cada, modelo com uns 2,4 GB, os quatro `bin/toolbox/*/toolbox` e os quatro `bin/ctl/*/cd2-ctl` (ou só os da variável `CD2_TOOLBOX_PLATFORMS`) e `CHECKSUMS.sha256` gerado. Guardar uma cópia do checksum fora do pen drive.
 5. No Mac, apagar os arquivos `._*` que o Finder deixa em exFAT:
 
    ```bash
@@ -110,5 +115,5 @@ Serve para entender o que o script faz, ou para quando ele não puder rodar.
 
 - Em `web/config.json`, ajuste o texto de abertura e as sugestões. Se for deixar o Archeo como padrão, coloque só a URL (`mcp.mode` igual a `"mcp"`). O login é feito pela conta de cada pessoa, no navegador, e não fica gravado. **Token nunca**, porque o pen drive vai circular.
 - O modelo padrão vem de um repositório pessoal no Hugging Face. Antes de distribuir sob a marca CD2, confirme licença e origem ou troque pelo GGUF oficial da Qwen (variável `CD2_MODEL_URL` no preparo).
-- A conexão com o banco não vai no pen drive: cada computador pergunta na primeira abertura. Leve a conta de leitura pronta.
+- A conexão com o banco não vai no pen drive: em cada computador ela é feita pela tela Ferramentas e fica guardada só nele. Leve a conta de leitura pronta.
 - Grave um, teste em um notebook que não seja o seu, e só então duplique.

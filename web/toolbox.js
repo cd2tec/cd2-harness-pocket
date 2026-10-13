@@ -60,6 +60,42 @@ function statusLines(s){
   ];
 }
 
-const api = { ENGINES, TOOL_DESCRIPTIONS, engineLabel, urlFor, guardSql, parseStatus, statusLines };
+/* ---------- cd2-ctl: controle do banco na porta do harness + 3000 ---------- */
+/* portas que Chrome e Firefox bloqueiam (ERR_UNSAFE_PORT); o trio P, P+1000, P+3000 nao pode cair aqui */
+const UNSAFE_PORTS = [1,7,9,11,13,15,17,19,20,21,22,23,25,37,42,43,53,69,77,79,87,95,101,102,103,104,109,110,111,113,115,117,119,123,135,137,139,143,161,179,389,427,465,512,513,514,515,526,530,531,532,540,548,554,556,563,587,601,636,989,990,993,995,1719,1720,1723,2049,3659,4045,4190,5060,5061,6000,6566,6665,6666,6667,6668,6669,6679,6697,10080];
+function ctlUrlFor(loc){ const p = parseInt(loc.port, 10) || 80; return 'http://127.0.0.1:' + (p + 3000); }
+// A chave da sessão chega uma vez no endereço (#k=<64 hex>), posta pelo launcher.
+function readKeyFromHash(hash){
+  const m = /(?:^#|&)k=([0-9a-fA-F]{64})(?=&|$)/.exec(String(hash || ''));
+  return m ? m[1] : null;
+}
+// Mesmas regras do cd2-ctl (e da v0.5.0): Oracle usa o usuário em maiúsculas, MariaDB a base.
+function defaultsFor(motor, usuario, base){
+  const e = ENGINES[motor];
+  if(!e) return { porta:'', schema:'' };
+  const schema = { postgres:'public', oracle:String(usuario || '').toUpperCase(), mariadb:String(base || ''), sqlserver:'dbo' }[motor];
+  return { porta:e.port, schema };
+}
+// Corpo de POST /config. A senha não é aparada (espaço pode fazer parte dela) e só vai se
+// foi digitada: vazia significa "manter a salva".
+function configPayload(form){
+  const t = v => String(v == null ? '' : v).trim();
+  const out = { motor:t(form.motor), host:t(form.host), base:t(form.base), usuario:t(form.usuario), schema:t(form.schema) };
+  const p = t(form.porta);
+  if(p) out.porta = /^\d+$/.test(p) ? Number(p) : p;
+  const s = form.senha == null ? '' : String(form.senha);
+  if(s) out.senha = s;
+  return out;
+}
+function ctlStatusLines(cs){
+  const v = x => (x == null ? '' : String(x));
+  return [
+    ['Motor', engineLabel(cs.motor)], ['Host', v(cs.host)], ['Porta', v(cs.porta)],
+    ['Base', v(cs.base)], ['Usuário', v(cs.usuario)], ['Schema', v(cs.schema)]
+  ];
+}
+
+const api = { ENGINES, TOOL_DESCRIPTIONS, engineLabel, urlFor, guardSql, parseStatus, statusLines,
+  UNSAFE_PORTS, ctlUrlFor, readKeyFromHash, defaultsFor, configPayload, ctlStatusLines };
 if(typeof module !== 'undefined' && module.exports) module.exports = api; else root.CD2Toolbox = api;
 })(typeof window !== 'undefined' ? window : globalThis);

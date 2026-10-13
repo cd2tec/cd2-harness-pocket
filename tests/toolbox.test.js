@@ -87,3 +87,56 @@ test('statusLines: ordem fixa, versão só na primeira linha, tabelas como texto
 test('TOOL_DESCRIPTIONS cobre as seis ferramentas', () => {
   assert.deepEqual(Object.keys(T.TOOL_DESCRIPTIONS).sort(), ['db_connection_status','db_describe_table','db_list_tables','db_read_only_query','db_sample_table','db_search_columns']);
 });
+
+/* ---------- cd2-ctl (controle do banco pela tela) ---------- */
+const K = 'a'.repeat(32) + '0123456789abcdef0123456789ABCDEF';
+
+test('ctlUrlFor: porta do harness + 3000, sempre 127.0.0.1, sem barra no fim', () => {
+  assert.equal(T.ctlUrlFor({ port:'8080' }), 'http://127.0.0.1:11080');
+  assert.equal(T.ctlUrlFor({ hostname:'localhost', port:'8093' }), 'http://127.0.0.1:11093');
+  assert.equal(T.ctlUrlFor({ port:'' }), 'http://127.0.0.1:3080');
+});
+
+test('trio de portas P, P+1000, P+3000 nunca cai em porta bloqueada pelos navegadores (P de 8080 a 8100)', () => {
+  for (let p = 8080; p <= 8100; p++) {
+    for (const q of [p, p + 1000, p + 3000]) {
+      assert.ok(!T.UNSAFE_PORTS.includes(q), 'porta bloqueada: ' + q + ' (P=' + p + ')');
+    }
+  }
+});
+
+test('readKeyFromHash: só k= com 64 hexadecimais; hash vazio não é chave', () => {
+  assert.equal(K.length, 64);
+  assert.equal(T.readKeyFromHash('#k=' + K), K);
+  assert.equal(T.readKeyFromHash('#x=1&k=' + K), K);
+  assert.equal(T.readKeyFromHash('#k=' + K + '&y=2'), K);
+  for(const h of ['', '#', '#k=', '#k=' + K.slice(1), '#k=' + K + 'f', '#k=' + K.slice(1) + 'g', '#kk=' + K, '?k=' + K, null, undefined]){
+    assert.equal(T.readKeyFromHash(h), null, String(h));
+  }
+});
+
+test('defaultsFor: porta e schema padrão por motor (mesmas regras do cd2-ctl)', () => {
+  assert.deepEqual(T.defaultsFor('postgres', 'u', 'b'), { porta:5432, schema:'public' });
+  assert.deepEqual(T.defaultsFor('oracle', 'leitor', 'FREEPDB1'), { porta:1521, schema:'LEITOR' });
+  assert.deepEqual(T.defaultsFor('mariadb', 'u', 'loja'), { porta:3306, schema:'loja' });
+  assert.deepEqual(T.defaultsFor('sqlserver', 'u', 'b'), { porta:1433, schema:'dbo' });
+  assert.deepEqual(T.defaultsFor('oracle', '', ''), { porta:1521, schema:'' });
+  assert.deepEqual(T.defaultsFor('xpto', 'u', 'b'), { porta:'', schema:'' });
+});
+
+test('configPayload: apara, porta numérica, porta vazia e senha vazia somem', () => {
+  assert.deepEqual(
+    T.configPayload({ motor:'postgres', host:' db.local ', porta:' 5432 ', base:' cd2', usuario:'leitor ', senha:'', schema:'' }),
+    { motor:'postgres', host:'db.local', porta:5432, base:'cd2', usuario:'leitor', schema:'' });
+  assert.deepEqual(
+    T.configPayload({ motor:'oracle', host:'h', porta:'', base:'s', usuario:'u', senha:' com espaço ', schema:'X' }),
+    { motor:'oracle', host:'h', base:'s', usuario:'u', schema:'X', senha:' com espaço ' });
+  assert.equal(T.configPayload({ motor:'postgres', porta:'54a' }).porta, '54a');
+  assert.equal('senha' in T.configPayload({ motor:'postgres' }), false);
+  assert.equal(T.configPayload({ motor:'postgres', senha:"cd2 s3nh@'x" }).senha, "cd2 s3nh@'x");
+});
+
+test('ctlStatusLines: campos do /status, sem senha', () => {
+  const l = T.ctlStatusLines({ estado:'rodando', motor:'oracle', host:'h', porta:1521, base:'FREEPDB1', usuario:'leitor', schema:'LEITOR', senha_salva:true });
+  assert.deepEqual(l, [['Motor','Oracle'],['Host','h'],['Porta','1521'],['Base','FREEPDB1'],['Usuário','leitor'],['Schema','LEITOR']]);
+});

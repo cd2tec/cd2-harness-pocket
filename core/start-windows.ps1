@@ -1,5 +1,4 @@
 # CD2 Harness - launcher para Windows (PowerShell 5.1+)
-param([switch]$Banco)
 $ErrorActionPreference = 'Stop'
 $Root   = Split-Path -Parent $PSScriptRoot
 $Ctx    = if ($env:CD2_CTX) { $env:CD2_CTX } else { '8192' }
@@ -9,6 +8,7 @@ New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 $Log    = Join-Path $LogDir 'server.log'
 $LogErr = Join-Path $LogDir 'server.err.log'
 $script:Proc = $null
+$script:CtlProc = $null
 
 function Fail($msg) {
     Write-Host ""
@@ -30,9 +30,9 @@ function Stop-Server {
 function Start-Server([string[]]$extra) {
     Stop-Server
     Set-Content -Path $Log -Value '' ; Set-Content -Path $LogErr -Value ''
-    $args = @('-m', "`"$Model`"", '--server', '--host', '127.0.0.1', '--port', "$Port",
+    $srvArgs = @('-m', "`"$Model`"", '--server', '--host', '127.0.0.1', '--port', "$Port",
               '--jinja', '-c', $Ctx, '--path', "`"$(Join-Path $Root 'web')`"") + $extra
-    $script:Proc = Start-Process -FilePath $Exe -ArgumentList $args -WindowStyle Hidden -PassThru `
+    $script:Proc = Start-Process -FilePath $Exe -ArgumentList $srvArgs -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput $Log -RedirectStandardError $LogErr
 }
 function Wait-Ready {
@@ -47,94 +47,52 @@ function Wait-Ready {
     return $false
 }
 
-function Unquote([string]$v) { if ($v -match "^'(.*)'$") { return $Matches[1] -replace "'\\''", "'" } ; return $v }
-function Quote([string]$v) { return "'" + ($v -replace "'", "'\''") + "'" }
-function Read-DbEnv {
-    $h = @{}
-    foreach ($line in Get-Content -Encoding UTF8 $DbEnv) { if ($line -match '^([A-Z_]+)=(.*)$') { $h[$Matches[1]] = Unquote $Matches[2] } }
-    return $h
+# chave da sessao: 32 bytes aleatorios em hexadecimal (vai so para o cd2-ctl e para a janela)
+function New-SessionKey {
+    $bytes = New-Object byte[] 32
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    try { $rng.GetBytes($bytes) } finally { $rng.Dispose() }
+    return -join ($bytes | ForEach-Object { $_.ToString('x2') })
 }
-function Ask-DbEnv {
-    Write-Host ''
-    Write-Host 'Conectar a um banco de dados? (a IA vai explorar as tabelas em modo somente leitura)'
-    Write-Host '  1) PostgreSQL   2) Oracle   3) MariaDB / MySQL   4) SQL Server   0) nenhum, seguir em Demonstracao'
-    $op = Read-Host 'Opcao [0]'
-    $eng = switch ($op) { '1' { 'postgres' } '2' { 'oracle' } '3' { 'mariadb' } '4' { 'sqlserver' } default { $null } }
-    if (-not $eng) { return $false }
-    $dport = @{ postgres = '5432'; oracle = '1521'; mariadb = '3306'; sqlserver = '1433' }[$eng]
-    $dschema = @{ postgres = 'public'; oracle = ''; mariadb = ''; sqlserver = 'dbo' }[$eng]
-    $host_ = Read-Host 'Host'
-    $port = Read-Host "Porta [$dport]"; if (-not $port) { $port = $dport }
-    $name = Read-Host $(if ($eng -eq 'oracle') { 'Service name' } else { 'Base de dados' })
-    $user = Read-Host 'Usuario (use uma conta somente leitura)'
-    $sec = Read-Host 'Senha (nao aparece ao digitar)' -AsSecureString
-    $pw = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec))
-    if ($eng -eq 'oracle') { $dschema = $user.ToUpperInvariant() } elseif ($eng -eq 'mariadb') { $dschema = $name }
-    $schema = Read-Host "Schema [$dschema]"; if (-not $schema) { $schema = $dschema }
-    $lines = @("CD2_DB_ENGINE=$(Quote $eng)", "CD2_DB_HOST=$(Quote $host_)", "CD2_DB_PORT=$(Quote $port)", "CD2_DB_NAME=$(Quote $name)",
-               "CD2_DB_USER=$(Quote $user)", "CD2_DB_PASSWORD=$(Quote $pw)", "CD2_DB_SCHEMA=$(Quote $schema)")
-    [IO.File]::WriteAllText($DbEnv, (($lines -join "`n") + "`n"))
-    # ACL: so o usuario atual (remove heranca e os demais)
-    $acl = Get-Acl $DbEnv; $acl.SetAccessRuleProtection($true, $false)
-    $acl.Access | ForEach-Object { $acl.RemoveAccessRule($_) | Out-Null }
-    $acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule([Security.Principal.WindowsIdentity]::GetCurrent().Name, 'FullControl', 'Allow')))
-    Set-Acl $DbEnv $acl
-    Write-Host "Conexao guardada em $DbEnv (so neste computador)." -ForegroundColor Gray
-    return $true
-}
-# remove CD2_DB_* do ambiente deste processo: o navegador aberto depois herda o ambiente
-function Clear-DbEnvVars { Get-ChildItem Env: | Where-Object { $_.Name -like 'CD2_DB_*' } | ForEach-Object { Remove-Item -Path "Env:$($_.Name)" -ErrorAction SilentlyContinue } }
-# escalar YAML entre aspas duplas: \ -> \\ e " -> \"
-function Escape-YamlDq([string]$v) { return $v.Replace('\', '\\').Replace('"', '\"') }
-# reescreve o log sem as linhas com "password" (qualquer caixa) ou com a senha literal; devolve as linhas que ficaram
-# e soma em $script:ScrubCut quantas linhas sairam
-function Get-ScrubbedLog([string]$path, [string[]]$secrets) {
-    if (-not (Test-Path $path)) { return @() }
-    $all = @(Get-Content -Encoding UTF8 $path -ErrorAction SilentlyContinue)
-    $keep = @($all | Where-Object {
-        $l = $_; if ($l -match 'password') { return $false }
-        foreach ($s in $secrets) { if ($s -and $l.Contains($s)) { return $false } }
-        return $true })
-    $script:ScrubCut += $all.Count - $keep.Count
-    try { Set-Content -Path $path -Value $keep -Encoding UTF8 -ErrorAction Stop } catch { Clear-Content -Path $path -ErrorAction SilentlyContinue }
-    return $keep
-}
-function Stop-Toolbox { if ($script:TbProc -and -not $script:TbProc.HasExited) { & taskkill.exe /PID $script:TbProc.Id /T /F 2>&1 | Out-Null } }
-function Start-Toolbox {
-    $src = Join-Path $Root 'bin\toolbox\windows-amd64\toolbox.exe'
-    if (-not (Test-Path $src)) { Write-Host 'bin\toolbox\windows-amd64 nao encontrado: sem modo Banco de dados neste pen drive.' -ForegroundColor DarkYellow; return $false }
-    $env_ = Read-DbEnv
-    $script:DbInfo = "$($env_['CD2_DB_ENGINE']) em $($env_['CD2_DB_HOST']) ($($env_['CD2_DB_NAME']))"
-    # o toolbox troca ${CD2_DB_PASSWORD} pelo texto cru antes de ler o YAML e a receita usa
-    # password: "${CD2_DB_PASSWORD}": a senha vai escapada (\ e ") so no ambiente do toolbox
-    if ($env_.ContainsKey('CD2_DB_PASSWORD')) { $env_['CD2_DB_PASSWORD'] = Escape-YamlDq $env_['CD2_DB_PASSWORD'] }
-    foreach ($k in $env_.Keys) { Set-Item -Path "Env:$k" -Value $env_[$k] }
-    $yaml = Join-Path $Root "core\toolbox\$($env_['CD2_DB_ENGINE']).yaml"
-    $tbLog = Join-Path $LogDir 'toolbox.log'; $tbErr = Join-Path $LogDir 'toolbox.err.log'
-    $args = @('--config', "`"$yaml`"", '--address', '127.0.0.1', '--port', "$TbPort",
-              '--allowed-hosts', "127.0.0.1:$TbPort,localhost:$TbPort",
-              '--allowed-origins', "http://127.0.0.1:$Port,http://localhost:$Port", '--disable-reload')
-    try {
-        $script:TbProc = Start-Process -FilePath $src -ArgumentList $args -WindowStyle Hidden -PassThru -RedirectStandardOutput $tbLog -RedirectStandardError $tbErr
-    } finally {
-        # o toolbox ja copiou o ambiente; a senha nao fica aqui para o navegador
-        $env_ = $null; Clear-DbEnvVars
+# caminho entre aspas para a linha de comando; "E:\" terminaria em \" e quebraria o argumento
+function Quote-Path([string]$p) { if ($p.EndsWith('\')) { $p = $p + '.' }; return '"' + $p + '"' }
+# taskkill /T derruba o cd2-ctl e o toolbox que ele subiu
+function Stop-Ctl {
+    if ($script:CtlProc -and -not $script:CtlProc.HasExited) {
+        & taskkill.exe /PID $script:CtlProc.Id /T /F 2>&1 | Out-Null
     }
-    for ($i = 0; $i -lt 15; $i++) {
-        if ($script:TbProc.HasExited) { break }
-        try { $r = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$TbPort/" -TimeoutSec 2; if ($r.StatusCode -eq 200) { return $true } } catch { }
+}
+function Start-Ctl {
+    # roda direto do pen drive, como o llamafile.exe (no Windows nao falta bit de execucao)
+    $src = Join-Path $Root 'bin\ctl\windows-amd64\cd2-ctl.exe'
+    if (-not (Test-Path $src)) {
+        Write-Host 'bin\ctl\windows-amd64 nao encontrado: banco de dados indisponivel neste pen drive' -ForegroundColor DarkYellow
+        return $false
+    }
+    $ctlLog = Join-Path $LogDir 'ctl.log'; $ctlErr = Join-Path $LogDir 'ctl.err.log'
+    $ctlArgs = @('--root', (Quote-Path $Root), '--cache', (Quote-Path $Cache), '--harness-port', "$Port", '--parent-pid', "$PID")
+    # a chave vai so no ambiente do cd2-ctl: sai daqui assim que ele sobe, antes de abrir o navegador
+    $env:CD2_CTL_KEY = $CtlKey
+    try {
+        $script:CtlProc = Start-Process -FilePath $src -ArgumentList $ctlArgs -WindowStyle Hidden -PassThru `
+            -RedirectStandardOutput $ctlLog -RedirectStandardError $ctlErr
+    } catch {
+        Write-Host "[AVISO] Nao consegui iniciar o controle do banco: $($_.Exception.Message). Seguindo sem banco de dados." -ForegroundColor DarkYellow
+        return $false
+    } finally {
+        Remove-Item Env:CD2_CTL_KEY -ErrorAction SilentlyContinue
+    }
+    for ($i = 0; $i -lt 10; $i++) {
+        if ($script:CtlProc.HasExited) { break }
+        # 401 = esta no ar (o teste vai sem a chave)
+        try { $null = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$CtlPort/status" -TimeoutSec 2; return $true }
+        catch { if ($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -eq 401) { return $true } }
         Start-Sleep -Seconds 1
     }
-    Stop-Toolbox; $script:TbProc = $null
-    # o toolbox pode citar a linha da senha num erro de YAML: limpa os logs antes de mostrar
-    [string]$pw = (Read-DbEnv)['CD2_DB_PASSWORD']; $secrets = @($pw, (Escape-YamlDq $pw)); $pw = $null
-    $script:ScrubCut = 0
-    $null = Get-ScrubbedLog $tbLog $secrets
-    $shown = Get-ScrubbedLog $tbErr $secrets; $secrets = $null
-    Write-Host ''; Write-Host "[AVISO] O banco nao respondeu. Ultimas linhas do log ($tbErr):" -ForegroundColor DarkYellow
-    if ($shown) { $shown | Select-Object -Last 15 | ForEach-Object { Write-Host "   $_" } }
-    if ($script:ScrubCut -gt 0) { Write-Host "   ($script:ScrubCut linha(s) omitida(s) por citar a senha; confira usuario e senha)" }
-    Write-Host 'Seguindo em Demonstracao. Para corrigir a conexao: INICIAR-CD2-Windows.bat --banco' -ForegroundColor DarkYellow
+    Stop-Ctl
+    Write-Host "[AVISO] O controle do banco (cd2-ctl) nao subiu. Ultimas linhas de ${ctlErr}:" -ForegroundColor DarkYellow
+    if (Test-Path $ctlErr) { Get-Content $ctlErr -Tail 5 | ForEach-Object { Write-Host "   $_" } }
+    Write-Host 'Seguindo sem banco de dados (Demonstracao e Archeo continuam).' -ForegroundColor DarkYellow
     return $false
 }
 
@@ -152,14 +110,14 @@ $ModelFile = Get-ChildItem -Path (Join-Path $Root 'models') -Filter *.gguf -Erro
 if (-not $ModelFile) { Fail "Nenhum modelo .gguf em models\. Rode a preparacao do pen drive." }
 $Model = $ModelFile.FullName
 
+# trio de portas livre: P (harness), P+1000 (toolbox) e P+3000 (cd2-ctl), avancando juntas
 $Port = $PortFrom
-while ((-not (PortFree $Port) -or -not (PortFree ($Port + 1000))) -and $Port -lt ($PortFrom + 20)) { $Port++ }
+while ((-not (PortFree $Port) -or -not (PortFree ($Port + 1000)) -or -not (PortFree ($Port + 3000))) -and $Port -lt ($PortFrom + 20)) { $Port++ }
 $Url = "http://127.0.0.1:$Port"
-$TbPort = $Port + 1000
+$CtlPort = $Port + 3000
 $Cache = Join-Path $env:LOCALAPPDATA 'cd2-harness'
 New-Item -ItemType Directory -Force -Path $Cache | Out-Null
-$DbEnv = Join-Path $Cache 'db.env'
-$script:TbProc = $null
+$CtlKey = New-SessionKey
 
 try {
     Write-Host "Carregando o modelo: $($ModelFile.Name)" -ForegroundColor Gray
@@ -177,12 +135,8 @@ try {
     Write-Host ""
     Write-Host "Pronto: $Url" -ForegroundColor Green
 
-    $tbSrc = Join-Path $Root 'bin\toolbox\windows-amd64\toolbox.exe'
-    if (($Banco -or -not (Test-Path $DbEnv)) -and (Test-Path $tbSrc)) { if (-not (Ask-DbEnv)) { Remove-Item $DbEnv -ErrorAction SilentlyContinue } }
-    if (Test-Path $DbEnv) {
-        Write-Host "Conectando ao banco (MCP Toolbox em 127.0.0.1:$TbPort)..." -ForegroundColor Gray
-        if (Start-Toolbox) { Write-Host "Banco conectado: $script:DbInfo" -ForegroundColor Green }
-    }
+    if (Start-Ctl) { Write-Host "Controle do banco em 127.0.0.1:$CtlPort. Configure o banco pela tela Ferramentas." -ForegroundColor Gray }
+    $AppUrl = "$Url/#k=$CtlKey"
 
     # abre como janela de aplicativo (Edge vem com o Windows; Chrome como alternativa)
     $cands = @(
@@ -193,8 +147,8 @@ try {
         "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe"
     )
     $browser = $cands | Where-Object { Test-Path $_ } | Select-Object -First 1
-    if ($browser) { Start-Process -FilePath $browser -ArgumentList @("--app=$Url", '--window-size=1280,860') }
-    else { Start-Process $Url }
+    if ($browser) { Start-Process -FilePath $browser -ArgumentList @("--app=$AppUrl", '--window-size=1280,860') }
+    else { Start-Process $AppUrl }
 
     Write-Host ""
     Write-Host "O harness esta rodando. Para encerrar, pressione ENTER nesta janela." -ForegroundColor Gray
@@ -204,6 +158,6 @@ try {
     }
 }
 finally {
-    try { Stop-Toolbox } catch { }
+    try { Stop-Ctl } catch { }
     try { Stop-Server } catch { }
 }

@@ -12,6 +12,11 @@ FALLBACK_BIN_URL="https://huggingface.co/mozilla-ai/llamafile_0.10/resolve/main/
 TOOLBOX_VERSION="${CD2_TOOLBOX_VERSION:-1.14.0}"
 TOOLBOX_PLATFORMS="${CD2_TOOLBOX_PLATFORMS:-windows-amd64 darwin-arm64 darwin-amd64 linux-amd64}"
 TOOLBOX_BASE="https://storage.googleapis.com/mcp-toolbox-for-databases/v$TOOLBOX_VERSION"
+# cd2-ctl (controle do banco pela tela): versao fixa, baixada do release deste repositorio.
+# CD2_CTL_LOCAL=1 pula o download e usa o compilado por "sh ctl/build.sh" (antes do 1o release).
+CTL_VERSION="${CD2_CTL_VERSION:-0.6.0}"
+CTL_BASE="https://github.com/cd2tec/cd2-harness-pocket/releases/download/ctl-v$CTL_VERSION"
+if command -v shasum >/dev/null 2>&1; then SUM="shasum -a 256"; else SUM="sha256sum"; fi
 
 # Tamanho do arquivo no servidor (segue redirecionamentos). Vazio se nao der para saber.
 remote_size() {
@@ -68,9 +73,55 @@ for plat in $TOOLBOX_PLATFORMS; do
 done
 
 echo ""
+echo "== Controle do banco (cd2-ctl v$CTL_VERSION)"
+mkdir -p "$ROOT/bin/ctl"
+CTL_SUMS=""
+if [ "${CD2_CTL_LOCAL:-}" = "1" ]; then
+  echo "CD2_CTL_LOCAL=1: usando o cd2-ctl compilado localmente (sh ctl/build.sh)."
+else
+  CTL_SUMS="$(mktemp "${TMPDIR:-/tmp}/cd2-ctl-sums.XXXXXX")"
+  if ! curl -fsSL -H 'User-Agent: cd2-harness' -o "$CTL_SUMS" "$CTL_BASE/SHA256SUMS"; then
+    echo "[AVISO] Release ctl-v$CTL_VERSION indisponivel; vou usar o cd2-ctl local, se existir."
+    rm -f "$CTL_SUMS"; CTL_SUMS=""
+  fi
+fi
+for plat in $TOOLBOX_PLATFORMS; do
+  os="${plat%-*}"; ext=""; [ "$os" = "windows" ] && ext=".exe"
+  asset="cd2-ctl-$plat$ext"; dest="$ROOT/bin/ctl/$plat/cd2-ctl$ext"
+  mkdir -p "$ROOT/bin/ctl/$plat"
+  if [ -n "$CTL_SUMS" ]; then
+    want="$(awk -v f="$asset" '$2 == f || $2 == "*" f { print $1 }' "$CTL_SUMS")"
+    got=""
+    [ -s "$dest" ] && got="$($SUM "$dest" | cut -d' ' -f1)"
+    if [ -n "$want" ] && [ "$want" = "$got" ]; then
+      echo "Ja conferido, pulando: bin/ctl/$plat/cd2-ctl$ext"
+    else
+      # sem retomar (-C -): o arquivo que esta ai e de outra versao, emendar nele corromperia o binario
+      echo "Origem: $CTL_BASE/$asset"
+      rm -f "$dest"
+      if ! curl -L --fail -H 'User-Agent: cd2-harness' -o "$dest" "$CTL_BASE/$asset"; then
+        rm -f "$dest" "$CTL_SUMS"
+        echo "[ERRO] Falha ao baixar o cd2-ctl $plat. Rode de novo."; exit 1
+      fi
+      got="$($SUM "$dest" | cut -d' ' -f1)"
+    fi
+    if [ -z "$want" ] || [ "$want" != "$got" ]; then
+      rm -f "$dest" "$CTL_SUMS"
+      echo "[ERRO] cd2-ctl $plat nao confere com o SHA256SUMS do release. Rode de novo."; exit 1
+    fi
+  elif [ -s "$dest" ]; then
+    echo "Usando o cd2-ctl local: bin/ctl/$plat/cd2-ctl$ext"
+  else
+    echo "[ERRO] Sem cd2-ctl para $plat. Publique a tag ctl-v$CTL_VERSION ou compile com: sh ctl/build.sh \"$plat\" e rode com CD2_CTL_LOCAL=1."
+    exit 1
+  fi
+  chmod +x "$dest" 2>/dev/null || true
+done
+if [ -n "$CTL_SUMS" ]; then rm -f "$CTL_SUMS"; fi
+
+echo ""
 echo "== Checksums (anote para conferir depois)"
-if command -v shasum >/dev/null 2>&1; then SUM="shasum -a 256"; else SUM="sha256sum"; fi
-( cd "$ROOT" && $SUM bin/llamafile "models/$MODEL_FILE" $(ls bin/toolbox/*/toolbox bin/toolbox/*/toolbox.exe 2>/dev/null) | tee CHECKSUMS.sha256 )
+( cd "$ROOT" && $SUM bin/llamafile "models/$MODEL_FILE" $(ls bin/toolbox/*/toolbox bin/toolbox/*/toolbox.exe bin/ctl/*/cd2-ctl bin/ctl/*/cd2-ctl.exe 2>/dev/null) | tee CHECKSUMS.sha256 )
 echo ""
 echo "Pronto. Pen drive preparado em: $ROOT"
 echo "Dica: formate o pen drive em exFAT (FAT32 nao aceita arquivos acima de 4 GB)."

@@ -100,7 +100,7 @@ rm -f "$STAGE/core/make-usb-unix.sh" "$STAGE/core/make-usb-windows.ps1"
 find "$STAGE" \( -name '.DS_Store' -o -name '._*' \) -delete 2>/dev/null || true
 
 say ""
-say "Baixando motor e modelo (uns 3,9 GB na primeira vez (motor, modelo e toolbox); depois fica em cache)..."
+say "Baixando motor e modelo (uns 3,9 GB na primeira vez: motor, modelo, toolbox e cd2-ctl; depois fica em cache)..."
 sh "$STAGE/core/prepare-unix.sh" || die "O preparo (download) falhou. Rode de novo: ele retoma de onde parou."
 
 # --- 2. formatar ----------------------------------------------------------------
@@ -152,7 +152,7 @@ KEEP="$CACHE/CHECKSUMS-$(date +%Y%m%d-%H%M%S).sha256"
 cp "$MNT/CD2-HARNESS/CHECKSUMS.sha256" "$KEEP"
 say ""
 say "Conteudo gravado:"
-( cd "$MNT/CD2-HARNESS" && ls -lh bin bin/toolbox/* models CHECKSUMS.sha256 | sed 's/^/  /' )
+( cd "$MNT/CD2-HARNESS" && ls -lh bin bin/toolbox/* bin/ctl/* models CHECKSUMS.sha256 | sed 's/^/  /' )
 sync
 if [ "$OS" = "Darwin" ]; then
   diskutil eject "$DISK" >/dev/null && say "Ejetado." || say "Nao consegui ejetar sozinha; ejete pelo Finder antes de tirar."
