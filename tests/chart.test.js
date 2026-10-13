@@ -60,3 +60,29 @@ test('render tabela: cabeçalho, células escapadas, número alinhado, código s
   assert.ok(s.includes('&lt;x&gt;')); assert.ok(s.includes('12345678000199')); assert.ok(s.includes('12,5')); assert.ok(s.includes('class="n"'));
   assert.ok(G.render('qualquer', ['a'], [{ a:1 }]).includes('<table>'));
 });
+
+test('num: overflow de texto numérico vira null, não Infinity', () => {
+  assert.equal(G.num('1e999'), null);
+});
+
+test('render barra/linha/pizza com overflow no valor: sem NaN nem Infinity', () => {
+  const rows = [{ k:'A', v:'1e999' }, { k:'B', v:5 }];
+  const barraS = G.render('barra', ['k', 'v'], rows, { x:'k', y:'v' });
+  const linhaS = G.render('linha', ['k', 'v'], rows, { x:'k', y:'v' });
+  const pizzaS = G.render('pizza', ['k', 'v'], rows, { x:'k', y:'v' });
+  for(const s of [barraS, linhaS, pizzaS]) {
+    assert.ok(!/NaN/.test(s)); assert.ok(!/Infinity/.test(s));
+  }
+});
+
+test('labelsOf: só datas inteiras viram data; texto com data no início fica como está', () => {
+  assert.deepEqual(G.labelsOf(['2026-01-15 Loja Centro']), ['2026-01-15 Loja Centro']);
+  assert.deepEqual(G.labelsOf(['2024-05-12-XYZ']), ['2024-05-12-XYZ']);
+  assert.deepEqual(G.labelsOf(['2026-01-01 00:00:00', '2026-02-01T00:00:00.000Z']), ['jan/2026', 'fev/2026']);
+  assert.deepEqual(G.labelsOf(['2026-03-05T10:30:00-03:00']), ['05/03/2026']);
+});
+
+test('fmt: sem sinal de menos em zero', () => {
+  assert.equal(G.fmt(-0), '0');
+  assert.equal(G.fmt(-0.001), '0');
+});

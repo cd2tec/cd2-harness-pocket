@@ -11,16 +11,16 @@ const NF = new Intl.NumberFormat('pt-BR', { maximumFractionDigits:2 });
 function esc(v){ return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c])); }
 function num(v){
   if(typeof v === 'number') return isFinite(v) ? v : null;
-  if(typeof v === 'string' && /^\s*-?\d+(\.\d+)?([eE][+-]?\d+)?\s*$/.test(v)) return Number(v);
+  if(typeof v === 'string' && /^\s*-?\d+(\.\d+)?([eE][+-]?\d+)?\s*$/.test(v)){ const n = Number(v); return isFinite(n) ? n : null; }
   return null;
 }
-function fmt(v){ const n = num(v); return n == null ? String(v == null ? '' : v) : NF.format(n); }
+function fmt(v){ const n = num(v); if(n == null) return String(v == null ? '' : v); return NF.format(Math.abs(n) < 0.005 ? 0 : n); }
 // Na tabela, só formata o que é claramente número: inteiro em texto pode ser código (CNPJ, EAN).
 function fmtCell(v){ return (typeof v === 'number' || (typeof v === 'string' && /^\s*-?\d+\.\d+\s*$/.test(v))) ? fmt(v) : String(v == null ? '' : v); }
 function cut(s, n){ s = String(s); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
 function labelsOf(vals){
   const empty = v => v == null || v === '';
-  const iso = vals.map(v => empty(v) ? null : /^(\d{4})-(\d{2})(?:-(\d{2}))?/.exec(String(v)));
+  const iso = vals.map(v => empty(v) ? null : /^(\d{4})-(\d{2})(?:-(\d{2}))?(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/.exec(String(v)));
   const mensal = iso.some(Boolean) && iso.every((m, i) => empty(vals[i]) || (m && (!m[3] || m[3] === '01')));
   return vals.map((v, i) => {
     if(empty(v)) return '(vazio)';
