@@ -144,3 +144,48 @@ test('kindOf: texto antes de número, serial é número', () => {
   assert.equal(C.kindOf('serial'), 'numero');
   assert.equal(C.kindOf('bigserial'), 'numero');
 });
+
+const MARCA = C.buildCatalog(ROWS.concat([
+  { table_name:'marca', table_type:'TABLE', num_rows:30, column_name:'cd_marca', data_type:'integer', ordinal:1 },
+  { table_name:'marca', table_type:'TABLE', num_rows:30, column_name:'ds_marca', data_type:'varchar(40)', ordinal:2 }
+]));
+
+test('rankTables: ticket médio acha a tabela de vendas', () => {
+  assert.equal(C.rankTables(CAT, 'Qual o ticket médio?')[0].name, 'mov_venda');
+});
+
+test('rankTables: vendemos e vendeu casam com venda pelo sinônimo', () => {
+  assert.equal(C.rankTables(CAT, 'Quanto vendemos em março de 2026?')[0].name, 'mov_venda');
+  assert.equal(C.rankTables(CAT, 'Qual loja vendeu mais?')[0].name, 'mov_venda');
+});
+
+test('rankTables: março casa com coluna de data, não com a tabela marca', () => {
+  const nomes = C.rankTables(MARCA, 'março').map(t => t.name);
+  assert.ok(nomes.includes('mov_venda'), nomes.join());
+  assert.ok(!nomes.includes('marca'), nomes.join());
+});
+
+test('rankTables: mov sozinho não é sinônimo de venda', () => {
+  const cat = C.buildCatalog([{ table_name:'mov_estoque', table_type:'TABLE', num_rows:10, column_name:'qtd', data_type:'int', ordinal:1 }]);
+  assert.deepEqual(C.rankTables(cat, 'vendas'), []);
+});
+
+test('rankTables: tabela com cara de log perde metade da nota, mas continua elegível', () => {
+  const cat = C.buildCatalog([
+    { table_name:'venda_log', table_type:'TABLE', num_rows:10, column_name:'valor', data_type:'numeric', ordinal:1 },
+    { table_name:'venda', table_type:'TABLE', num_rows:10, column_name:'valor', data_type:'numeric', ordinal:1 }]);
+  const r = C.rankTables(cat, 'vendas');
+  assert.deepEqual(r.map(t => t.name), ['venda', 'venda_log']);
+  assert.equal(r[1].score * 2, r[0].score);
+});
+
+test('questionTokens: stop words saem antes do stem (mais não vira mal)', () => {
+  assert.deepEqual(C.questionTokens('Qual loja vendeu mais?'), ['loja', 'vendeu']);
+  assert.deepEqual(C.questionTokens('Quais produtos temos?'), ['produto']);
+});
+
+test('suggest: não usa seq, ano, cep, mes, dia nem chave como medida', () => {
+  const cat = C.buildCatalog(['seq', 'ano', 'cep', 'mes', 'dia', 'produto_id', 'nro_nota'].map((c, i) => ({ table_name:'item_nota', table_type:'TABLE', num_rows:100, column_name:c, data_type:'integer', ordinal:i + 1 }))
+    .concat([{ table_name:'item_nota', table_type:'TABLE', num_rows:100, column_name:'ds_item', data_type:'varchar(40)', ordinal:9 }]));
+  assert.deepEqual(C.suggest(cat), ['Quantos registros tem item nota']);
+});

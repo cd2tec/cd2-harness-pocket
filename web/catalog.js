@@ -6,16 +6,19 @@
 const MAX_COLS_TABLE = 60;
 // Prefixos comuns de coluna em ERP. Separados só quando o resto tem 3 letras ou mais.
 const PREFIXES = ['vlr', 'qtd', 'dt', 'cod', 'cd', 'tot', 'nro', 'nr', 'ds', 'nm'];
-const STOP = new Set(['de','da','do','das','dos','por','e','o','a','os','as','em','no','na','nos','nas','qual','quai','quanto',
+// Palavras cruas e os stems delas: 'mais' vira 'mal' no stem, então a crua precisa estar aqui.
+const STOP_RAW = ['de','da','do','das','dos','por','e','o','a','os','as','em','no','na','nos','nas','qual','quais','quanto',
   'quantos','quanta','quantas','mostre','mostra','me','um','uma','com','para','pelo','pela','cada','todo','todos','the','of','by',
-  'per','what','how','many','show','list','liste','foram','tem','temo','ha','sao','que','mai','menos','maior','menor','meu','minha'].map(stem));
+  'per','what','how','many','show','list','liste','foram','tem','temos','ha','sao','que','mais','menos','maior','menor','meu','minha'];
+const STOP = new Set(STOP_RAW.concat(STOP_RAW.map(stem)));
 const WHOLE = new Set(['codigo','total','totais','numero','nome','descricao']);
 const SYN = [
-  ['venda','sale','pedido','order','cupom','movimento','mov','vend','vendido','vendida','faturamento','fatura','receita'],
+  ['venda','sale','pedido','order','cupom','vend','vendido','vendida','faturamento','fatura','receita','ticket'],
   ['produto','product','item','sku','mercadoria','prod','artigo'],
   ['cliente','customer','client','cli','consumidor'],
-  ['data','date','dt','dia','mes','ano','periodo','day','month','year','time','semana'],
-  ['valor','vlr','total','tot','amount','price','preco','faturamento','receita','custo'],
+  ['data','date','dt','dia','mes','ano','periodo','day','month','year','time','semana',
+    'janeiro','fevereiro','marco','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'],
+  ['valor','vlr','total','tot','amount','price','preco','faturamento','receita','custo','ticket'],
   ['quantidade','qtd','qty','quant'],
   ['loja','store','filial','branch','unidade'],
   ['departamento','depto','dept','department','secao','categoria','category'],
@@ -32,11 +35,12 @@ function stem(t){
   if(t.endsWith('eis')) return t.slice(0, -3) + 'el';
   return t.endsWith('s') ? t.slice(0, -1) : t;
 }
-function tokens(s){
+function tokens(s, semStop){
   const base = String(s == null ? '' : s).replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
   const out = [];
   for(let t of base){
+    if(semStop && (STOP.has(t) || STOP.has(stem(t)))) continue;
     if(WHOLE.has(t)){ out.push(stem(t)); continue; }
     let p;
     while((p = PREFIXES.find(x => t.length >= x.length + 3 && t.startsWith(x)))){ out.push(p); t = t.slice(p.length); }
@@ -48,11 +52,14 @@ function tokens(s){
 const SYN_INDEX = new Map();
 for(const g of SYN){ const set = g.map(stem); for(const w of set){ const cur = SYN_INDEX.get(w) || new Set(); set.forEach(x => cur.add(x)); SYN_INDEX.set(w, cur); } }
 function syn(q){ return SYN_INDEX.get(q) || new Set([q]); }
+// Também casa quando a palavra da pergunta começa com um sinônimo de 4+ letras ('vendemos' e 'vend').
 function match(q, x){
   if(q === x || syn(q).has(x)) return true;
-  return q.length >= 4 && x.length >= 4 && (x.startsWith(q) || q.startsWith(x));
+  if(q.length >= 4 && x.length >= 4 && (x.startsWith(q) || q.startsWith(x))) return true;
+  for(const w of syn(x)) if(w.length >= 4 && q.startsWith(w)) return true;
+  return false;
 }
-function questionTokens(p){ return [...new Set(tokens(p).filter(t => t.length >= 2 && !STOP.has(t)))]; }
+function questionTokens(p){ return [...new Set(tokens(p, true).filter(t => t.length >= 2 && !STOP.has(t)))]; }
 
 function kindOf(type){
   const t = String(type || '').toLowerCase();
@@ -103,7 +110,8 @@ function rankTables(catalog, pergunta, opts){
     }
     if(!tableHits && !colHits) continue;
     const hasData = t.columns.some(c => c.kind === 'data'), hasNum = t.columns.some(c => c.kind === 'numero');
-    const score = 3 * tableHits + Math.min(5, colHits) + (hasData ? 1 : 0) + (hasNum ? 1 : 0) + Math.log10(t.rows + 1) / 100;
+    let score = 3 * tableHits + Math.min(5, colHits) + (hasData ? 1 : 0) + (hasNum ? 1 : 0) + Math.log10(t.rows + 1) / 100;
+    if(t.tokens.some(x => NOISE.has(x))) score /= 2;
     scored.push({ t, score, hitCols });
   }
   scored.sort((a, b) => b.score - a.score || a.t.name.localeCompare(b.t.name));
@@ -116,13 +124,15 @@ function humanize(name){
     .split(/[^a-z0-9]+/).filter(x => x && x !== 'id');
   return t.length ? t.join(' ') : raw.toLowerCase();
 }
-function isKey(c){ return c.tokens.includes('id') || ['cod', 'cd', 'nr'].includes(c.tokens[0]); }
+// Chave: palavra que começa com id, cod, cd, nr ou nro, ou que termina em id.
+function isKey(c){ return c.tokens.some(t => /^(id|cod|cd|nr|nro)/.test(t) || t.endsWith('id')); }
+const NAO_MEDIDA = new Set(['seq', 'ano', 'cep', 'mes', 'dia']);
 function suggest(catalog){
   const tables = ((catalog && catalog.tables) || []).filter(t => t.type === 'TABLE' && !t.tokens.some(x => NOISE.has(x)))
     .slice().sort((a, b) => b.rows - a.rows || a.name.localeCompare(b.name));
   const out = [], used = new Set();
   const add = (s, t) => { if(out.length < 4 && !out.includes(s)){ out.push(s); used.add(t.name); } };
-  const val = t => t.columns.find(c => c.kind === 'numero' && !isKey(c));
+  const val = t => t.columns.find(c => c.kind === 'numero' && !isKey(c) && !c.tokens.some(x => NAO_MEDIDA.has(x)));
   const txt = t => t.columns.find(c => c.kind === 'texto' && !isKey(c));
   const fato = tables.find(t => t.columns.some(c => c.kind === 'data') && val(t));
   if(fato) add('Total por mês em ' + humanize(fato.name), fato);
@@ -133,6 +143,6 @@ function suggest(catalog){
   return out;
 }
 
-const api = { tokens, kindOf, buildCatalog, rankTables, suggest, humanize };
+const api = { tokens, questionTokens, kindOf, buildCatalog, rankTables, suggest, humanize };
 if(typeof module !== 'undefined' && module.exports) module.exports = api; else root.CD2Catalog = api;
 })(typeof window !== 'undefined' ? window : globalThis);
