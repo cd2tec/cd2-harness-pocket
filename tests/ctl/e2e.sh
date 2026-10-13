@@ -26,10 +26,17 @@ BAD_DQ="$(printf '%s' "$BAD_PW" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')"
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/cd2-e2e.XXXXXX")"
 cleanup() {
-  if [ -n "$CTL_PID" ]; then kill "$CTL_PID" 2>/dev/null; wait "$CTL_PID" 2>/dev/null; fi
+  if [ -n "$CTL_PID" ]; then kill "$CTL_PID" 2>/dev/null; wait_gone "$CTL_PID"; fi
   rm -rf "$WORK"
 }
+# espera ate ~10 s o processo sumir (kill -0 falhar); nunca trava
+wait_gone() {
+  w=0; while kill -0 "$1" 2>/dev/null && [ "$w" -lt 50 ]; do w=$((w + 1)); sleep 0.2; done
+  wait "$1" 2>/dev/null
+  return 0
+}
 trap cleanup EXIT
+trap 'exit 130' INT TERM
 # raiz de mentira: o cd2-ctl so le bin/toolbox/<plataforma>/toolbox e core/toolbox/
 mkdir -p "$WORK/root/bin/toolbox/$PLAT" "$WORK/root/core" "$WORK/cache"
 ln -s "$TB" "$WORK/root/bin/toolbox/$PLAT/toolbox"
@@ -80,6 +87,7 @@ R="$(post "$(body "$BAD_PW")")"
 [ "$(field "$R" .estado)" = rodando ] || fail "a conexao anterior deveria seguir rodando: $R"
 [ -n "$(field "$R" '.erro // empty')" ] || fail "sem erro na resposta: $R"
 [ "$(field "$R" '.log | length')" -ge 1 ] || fail "sem log na resposta: $R"
+[ -s "$WORK/cache/toolbox.log" ] || fail "toolbox.log ausente ou vazio"
 # o JSON escapa " e \ do mesmo jeito que o YAML: procurar BAD_DQ pega a senha dentro do JSON
 for s in "$BAD_PW" "$BAD_DQ" "$GOOD_PW"; do
   printf '%s' "$R" | grep -qF -- "$s" && fail "senha na resposta"
@@ -101,7 +109,9 @@ R="$(api -X DELETE "$CTL/config")"
 
 echo "== encerra sem sobrar processo"
 post "$(body "$GOOD_PW")" >/dev/null
-kill "$CTL_PID"; wait "$CTL_PID" 2>/dev/null; CTL_PID=""
+kill "$CTL_PID"; wait_gone "$CTL_PID"
+kill -0 "$CTL_PID" 2>/dev/null && fail "cd2-ctl nao encerrou em 10 s"
+CTL_PID=""
 [ "$(code --max-time 2 "http://127.0.0.1:$TP/")" = 000 ] || fail "toolbox sobrou depois do TERM"
 pgrep -f "$WORK/cache/toolbox" >/dev/null && fail "processo do toolbox sobrou"
 
