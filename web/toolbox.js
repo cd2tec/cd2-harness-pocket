@@ -1,4 +1,4 @@
-/* Modo "Banco de dados (Toolbox)" do CD2 Harness: lógica sem DOM.
+/* Modo "MCP Nativo para Banco de dados" do CD2 Harness: lógica sem DOM.
    O toolbox (googleapis/mcp-toolbox) sobe pelo launcher em 127.0.0.1 na porta
    do harness + 1000; o front só deriva a URL. A guarda de SELECT é a terceira
    camada de leitura (conta do banco e excludedValues do YAML são as outras). */

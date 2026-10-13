@@ -1,5 +1,5 @@
 'use strict';
-// Testes da lógica pura do modo "Banco de dados (Toolbox)". Rodar: node --test
+// Testes da lógica pura do modo "MCP Nativo para Banco de dados". Rodar: node --test
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const T = require('../web/toolbox.js');
