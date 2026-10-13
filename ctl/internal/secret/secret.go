@@ -4,6 +4,7 @@ package secret
 import (
 	"bytes"
 	"io"
+	"net/url"
 	"strings"
 	"sync"
 )
@@ -20,7 +21,7 @@ func YamlDQ(s string) string { return dq.Replace(s) }
 const maxLine = 64 << 10
 
 // Scrubber repassa a saida do toolbox para out linha a linha, descartando toda linha que
-// contem a senha (crua ou escapada para YAML, comparacao literal) ou a palavra password em
+// contem a senha (crua, escapada para YAML ou escapada para URL, comparacao literal) ou a palavra password em
 // qualquer caixa.
 //
 // Write e protegido por mutex, mas o buffer de linha e UM so: use um Scrubber por fluxo de
@@ -42,9 +43,15 @@ type Scrubber struct {
 func NewScrubber(out io.Writer, password string) *Scrubber {
 	s := &Scrubber{out: out}
 	if password != "" {
-		s.secrets = append(s.secrets, password)
-		if e := YamlDQ(password); e != password {
-			s.secrets = append(s.secrets, e)
+		// crua, escapada para YAML e escapada para URL (DSN do tipo postgres://u:<senha>@h)
+		for _, v := range []string{password, YamlDQ(password), url.QueryEscape(password), url.PathEscape(password)} {
+			dup := false
+			for _, have := range s.secrets {
+				dup = dup || have == v
+			}
+			if !dup {
+				s.secrets = append(s.secrets, v)
+			}
 		}
 	}
 	return s

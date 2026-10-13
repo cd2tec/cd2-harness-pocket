@@ -217,3 +217,33 @@ func TestStartDuasVezes(t *testing.T) {
 		t.Error("o primeiro deveria seguir rodando")
 	}
 }
+
+// db_connection_status levando 3 s (mais que o limite do GET /) tem de passar dentro do prazo.
+func TestConexaoLentaPassaDentroDoPrazo(t *testing.T) {
+	s := newSup(t, 15*time.Second)
+	t0 := time.Now()
+	if err := s.Start(cfg("demora")); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if d := time.Since(t0); d < 3*time.Second || d > 15*time.Second {
+		t.Errorf("levou %v, esperava entre 3 s e o prazo de 15 s", d)
+	}
+	if !s.Running() {
+		t.Error("deveria estar rodando")
+	}
+}
+
+// Uma chamada MCP pendurada não pode estourar o prazo total.
+func TestPrazoRespeitadoComChamadaPendurada(t *testing.T) {
+	s := newSup(t, 2*time.Second)
+	t0 := time.Now()
+	se := startErr(t, s.Start(cfg("demora")))
+	waited := time.Since(t0)
+	if !strings.Contains(se.Msg, "não respondeu em 2 segundos") {
+		t.Errorf("Msg = %q", se.Msg)
+	}
+	// Start inclui o Stop (até 3 s de TERM); o que importa é a espera pela prontidão
+	if waited > 2*time.Second+1500*time.Millisecond {
+		t.Errorf("Start levou %v", waited)
+	}
+}

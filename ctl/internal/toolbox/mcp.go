@@ -2,6 +2,7 @@ package toolbox
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,9 +15,16 @@ const protocolVersion = "2025-06-18"
 
 var errToolError = errors.New("db_connection_status voltou com isError")
 
-// probe: GET / tem de dar 200 e db_connection_status tem de voltar sem isError.
-func probe(c *http.Client, base string) error {
-	resp, err := c.Get(base + "/")
+// probe: GET / tem de dar 200 (em até livenessTimeout) e db_connection_status tem de voltar sem
+// isError (até o prazo de ctx).
+func probe(ctx context.Context, c *http.Client, base string) error {
+	lctx, lcancel := context.WithTimeout(ctx, livenessTimeout)
+	defer lcancel()
+	req, err := http.NewRequestWithContext(lctx, http.MethodGet, base+"/", nil)
+	if err != nil {
+		return err
+	}
+	resp, err := c.Do(req)
 	if err != nil {
 		return err
 	}
@@ -25,14 +33,14 @@ func probe(c *http.Client, base string) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("GET / respondeu %d", resp.StatusCode)
 	}
-	sid, _, err := rpc(c, base+"/mcp", "", 1, "initialize", map[string]any{
+	sid, _, err := rpc(ctx, c, base+"/mcp", "", 1, "initialize", map[string]any{
 		"protocolVersion": protocolVersion, "capabilities": map[string]any{},
 		"clientInfo": map[string]any{"name": "cd2-ctl", "version": "1"},
 	})
 	if err != nil {
 		return err
 	}
-	_, res, err := rpc(c, base+"/mcp", sid, 2, "tools/call", map[string]any{"name": "db_connection_status", "arguments": map[string]any{}})
+	_, res, err := rpc(ctx, c, base+"/mcp", sid, 2, "tools/call", map[string]any{"name": "db_connection_status", "arguments": map[string]any{}})
 	if err != nil {
 		return err
 	}
@@ -50,12 +58,12 @@ func probe(c *http.Client, base string) error {
 
 // rpc faz uma chamada JSON-RPC no MCP (Streamable HTTP; resposta em JSON ou SSE). Devolve o
 // Mcp-Session-Id (se o servidor mandar) e o result.
-func rpc(c *http.Client, url, sid string, id int, method string, params any) (string, json.RawMessage, error) {
+func rpc(ctx context.Context, c *http.Client, url, sid string, id int, method string, params any) (string, json.RawMessage, error) {
 	body, err := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": id, "method": method, "params": params})
 	if err != nil {
 		return "", nil, err
 	}
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return "", nil, err
 	}

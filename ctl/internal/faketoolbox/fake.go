@@ -36,6 +36,7 @@ var unescape = strings.NewReplacer(`\\`, `\`, `\"`, `"`)
 //	morre...   imprime a senha crua, a escapada e uma linha com "Password", e sai com 1
 //	lenta...   nunca abre a porta
 //	iserror... sobe, mas db_connection_status devolve isError
+//	demora...  sobe, mas db_connection_status leva 3 s para responder (banco atrás de VPN)
 //	outra      sobe e responde como o toolbox de verdade
 func Main() {
 	fs := flag.NewFlagSet("toolbox", flag.ExitOnError)
@@ -67,6 +68,7 @@ func Main() {
 		os.Exit(0)
 	}
 	isError := strings.HasPrefix(pw, "iserror")
+	slow := strings.HasPrefix(pw, "demora")
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
@@ -86,6 +88,9 @@ func Main() {
 		case "initialize":
 			result = map[string]any{"protocolVersion": "2025-06-18", "capabilities": map[string]any{}, "serverInfo": map[string]any{"name": "falso"}}
 		case "tools/call":
+			if slow {
+				time.Sleep(3 * time.Second)
+			}
 			result = map[string]any{"content": []any{map[string]any{"type": "text", "text": `{"engine":"postgres"}`}}, "isError": isError}
 		}
 		w.Header().Set("Content-Type", "application/json")

@@ -2,6 +2,7 @@ package secret
 
 import (
 	"bytes"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -76,5 +77,21 @@ func TestScrubberCRLF(t *testing.T) {
 	s.Close()
 	if out.String() != "a\nb\n" {
 		t.Errorf("saiu %q", out.String())
+	}
+}
+
+func TestScrubberTiraSenhaEscapadaParaURL(t *testing.T) {
+	pw := `p@ss w/rd?&#`
+	var out bytes.Buffer
+	s := NewScrubber(&out, pw)
+	in := "ok 1\ndsn postgres://u:" + url.PathEscape(pw) + "@h:5432/d\nquery ?pw=" + url.QueryEscape(pw) + "\nok 2\n"
+	if _, err := s.Write([]byte(in)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if out.String() != "ok 1\nok 2\n" || s.Dropped() != 2 {
+		t.Errorf("saida %q, descartadas %d", out.String(), s.Dropped())
 	}
 }

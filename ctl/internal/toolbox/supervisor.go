@@ -2,6 +2,7 @@
 package toolbox
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -182,30 +183,52 @@ func (s *Supervisor) env(cfg dbconf.Config) []string {
 	return append(env, c.Env()...)
 }
 
-// waitReady devolve "" quando pronto, ou a mensagem para a tela.
+// livenessTimeout limita só o GET / (o toolbox responde na hora quando está no ar). O initialize
+// e o db_connection_status usam o prazo inteiro (ReadyTimeout): um Oracle ou SQL Server atrás de
+// VPN pode levar vários segundos para responder ao primeiro teste de conexão.
+const livenessTimeout = 2 * time.Second
+
+// waitReady devolve "" quando pronto, ou a mensagem para a tela. Nunca passa do ReadyTimeout
+// (mais os 200 ms de uma pausa entre tentativas).
 func (s *Supervisor) waitReady(done <-chan struct{}) string {
 	base := "http://127.0.0.1:" + strconv.Itoa(s.opt.Port)
-	client := &http.Client{Timeout: 2 * time.Second}
+	client := &http.Client{}
 	deadline := time.Now().Add(s.opt.ReadyTimeout)
+	ctx, cancel := context.WithDeadline(context.Background(), deadline)
+	defer cancel()
+	// se o toolbox morrer no meio de uma chamada, ela é cancelada na hora
+	go func() {
+		select {
+		case <-done:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
 	for {
 		select {
 		case <-done:
 			return MsgDied
 		default:
 		}
-		err := probe(client, base)
+		err := probe(ctx, client, base)
 		if err == nil {
 			return ""
 		}
 		if errors.Is(err, errToolError) {
 			return MsgToolError
 		}
-		if time.Now().After(deadline) {
+		select {
+		case <-done:
+			return MsgDied
+		default:
+		}
+		if !time.Now().Before(deadline) {
 			return fmt.Sprintf("O banco não respondeu em %d segundos. Confira host, porta e firewall.", int(s.opt.ReadyTimeout/time.Second))
 		}
 		select {
 		case <-done:
 			return MsgDied
+		case <-ctx.Done():
 		case <-time.After(200 * time.Millisecond):
 		}
 	}
