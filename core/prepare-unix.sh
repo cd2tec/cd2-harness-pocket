@@ -90,10 +90,21 @@ for plat in $TOOLBOX_PLATFORMS; do
   asset="cd2-ctl-$plat$ext"; dest="$ROOT/bin/ctl/$plat/cd2-ctl$ext"
   mkdir -p "$ROOT/bin/ctl/$plat"
   if [ -n "$CTL_SUMS" ]; then
-    echo "Origem: $CTL_BASE/$asset"
-    fetch "$CTL_BASE/$asset" "$dest"
     want="$(awk -v f="$asset" '$2 == f || $2 == "*" f { print $1 }' "$CTL_SUMS")"
-    got="$($SUM "$dest" | cut -d' ' -f1)"
+    got=""
+    [ -s "$dest" ] && got="$($SUM "$dest" | cut -d' ' -f1)"
+    if [ -n "$want" ] && [ "$want" = "$got" ]; then
+      echo "Ja conferido, pulando: bin/ctl/$plat/cd2-ctl$ext"
+    else
+      # sem retomar (-C -): o arquivo que esta ai e de outra versao, emendar nele corromperia o binario
+      echo "Origem: $CTL_BASE/$asset"
+      rm -f "$dest"
+      if ! curl -L --fail -H 'User-Agent: cd2-harness' -o "$dest" "$CTL_BASE/$asset"; then
+        rm -f "$dest" "$CTL_SUMS"
+        echo "[ERRO] Falha ao baixar o cd2-ctl $plat. Rode de novo."; exit 1
+      fi
+      got="$($SUM "$dest" | cut -d' ' -f1)"
+    fi
     if [ -z "$want" ] || [ "$want" != "$got" ]; then
       rm -f "$dest" "$CTL_SUMS"
       echo "[ERRO] cd2-ctl $plat nao confere com o SHA256SUMS do release. Rode de novo."; exit 1

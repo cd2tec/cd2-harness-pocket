@@ -103,13 +103,22 @@ foreach ($plat in $ToolboxPlatforms) {
     $dest = Join-Path $dir "cd2-ctl$ext"
     $asset = "cd2-ctl-$plat$ext"
     if ($ctlSums) {
-        Write-Host "Origem: $CtlBase/$asset"
-        Fetch "$CtlBase/$asset" $dest
         $want = $null
         foreach ($l in ($ctlSums -split "`n")) {
             if ($l -match '^([0-9a-fA-F]{64})\s+\*?(\S+)\s*$' -and $Matches[2] -eq $asset) { $want = $Matches[1].ToLower() }
         }
-        $got = (Get-FileHash -Algorithm SHA256 $dest).Hash.ToLower()
+        $got = $null
+        if ((Test-Path $dest) -and (Get-Item $dest).Length -gt 0) { $got = (Get-FileHash -Algorithm SHA256 $dest).Hash.ToLower() }
+        if ($want -and $want -eq $got) {
+            Write-Host "Ja conferido, pulando: bin/ctl/$plat/cd2-ctl$ext"
+        } else {
+            # sem retomar (-C -): o arquivo que esta ai e de outra versao, emendar nele corromperia o binario
+            Write-Host "Origem: $CtlBase/$asset"
+            if (Test-Path $dest) { Remove-Item -Force $dest }
+            & $curl -L --fail -H 'User-Agent: cd2-harness' -o $dest "$CtlBase/$asset"
+            if ($LASTEXITCODE -ne 0) { if (Test-Path $dest) { Remove-Item -Force $dest }; throw "Falha ao baixar $CtlBase/$asset" }
+            $got = (Get-FileHash -Algorithm SHA256 $dest).Hash.ToLower()
+        }
         if (-not $want -or $want -ne $got) { Remove-Item -Force $dest; throw "cd2-ctl $plat nao confere com o SHA256SUMS do release. Rode de novo." }
     } elseif ((Test-Path $dest) -and (Get-Item $dest).Length -gt 0) {
         Write-Host "Usando o cd2-ctl local: bin/ctl/$plat/cd2-ctl$ext"
