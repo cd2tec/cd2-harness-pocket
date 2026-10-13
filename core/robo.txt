@@ -1,0 +1,47 @@
+# Quadros do robo que leva o modelo do pen drive ate o cerebro (core/robo-unix.sh e
+# core/robo-windows.ps1). Cada letra e um pixel; "." e transparente. Cores:
+# g cinza, k fundo escuro, b azul CD2, w branco, c olho, y amarelo, p contorno do cerebro,
+# m cerebro cheio, i cerebro (cheio ou vazio conforme o progresso), r vermelho.
+[pen]
+..gggg..
+..gkkg..
+.bbbbbb.
+.bbbbbb.
+.bwwwwb.
+.bbbbbb.
+.bbbbbb.
+.bbbbbb.
+[roboA]
+..ggg..
+.ggggg.
+.gcgcg.
+.ggggg.
+..bbb..
+.bbbbb.
+b.bbb.b
+..bbb..
+.g...g.
+.g...g.
+[roboB]
+..ggg..
+.ggggg.
+.gcgcg.
+.ggggg.
+..bbb..
+.bbbbb.
+b.bbb.b
+..bbb..
+..g.g..
+..g.g..
+[bloco]
+yyy
+yyy
+[cerebro]
+..pppppp..
+.piiiiiip.
+piiiiiiiip
+piiiiiiiip
+piiiiiiiip
+piiiiiiiip
+.piiiiiip.
+..pppppp..

@@ -35,17 +35,6 @@ function Start-Server([string[]]$extra) {
     $script:Proc = Start-Process -FilePath $Exe -ArgumentList $srvArgs -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput $Log -RedirectStandardError $LogErr
 }
-function Wait-Ready {
-    for ($i = 0; $i -lt 240; $i++) {
-        if ($script:Proc.HasExited) { return $false }
-        try {
-            $r = Invoke-WebRequest -UseBasicParsing -Uri "$Url/health" -TimeoutSec 2
-            if ($r.StatusCode -eq 200) { return $true }
-        } catch { }
-        Start-Sleep -Seconds 1
-    }
-    return $false
-}
 
 # chave da sessao: 32 bytes aleatorios em hexadecimal (vai so para o cd2-ctl e para a janela)
 function New-SessionKey {
@@ -120,20 +109,23 @@ New-Item -ItemType Directory -Force -Path $Cache | Out-Null
 $CtlKey = New-SessionKey
 
 try {
+    # robo de carregamento: le o modelo em pedacos (progresso real) e anima enquanto o servidor sobe
+    . (Join-Path $PSScriptRoot 'robo-windows.ps1')
+    Robo-Init (Join-Path $PSScriptRoot 'robo.txt')
     Write-Host "Carregando o modelo: $($ModelFile.Name)" -ForegroundColor Gray
-    Write-Host "(na primeira vez pode levar de 20 a 90 segundos)" -ForegroundColor DarkGray
+    if (-not (Robo-Ler $Model)) { Write-Host "[AVISO] Nao consegui ler o modelo antes de subir o servidor; seguindo assim mesmo." -ForegroundColor DarkYellow }
     Start-Server @('-ngl', '999')
-    if (-not (Wait-Ready)) {
-        Write-Host "Aceleracao por GPU indisponivel, tentando so com CPU..." -ForegroundColor DarkYellow
+    if (-not (Robo-Esperar $Url $script:Proc 240)) {
+        Robo-Aviso "Aceleracao por GPU indisponivel, tentando so com CPU..."
         Start-Server @('--gpu', 'disable', '-ngl', '0')
-        if (-not (Wait-Ready)) {
+        if (-not (Robo-Esperar $Url $script:Proc 240)) {
+            Robo-Fim 'erro' "O modelo nao subiu."
             if (Test-Path $LogErr) { Get-Content $LogErr -Tail 25 }
             Fail "O servidor nao iniciou. Logs em $LogDir"
         }
     }
-
+    Robo-Fim 'ok' "Pronto: $Url"
     Write-Host ""
-    Write-Host "Pronto: $Url" -ForegroundColor Green
 
     if (Start-Ctl) { Write-Host "Controle do banco em 127.0.0.1:$CtlPort. Configure o banco pela tela Ferramentas." -ForegroundColor Gray }
     $AppUrl = "$Url/#k=$CtlKey"
@@ -158,6 +150,7 @@ try {
     }
 }
 finally {
+    if (Get-Command Robo-Restaura -ErrorAction SilentlyContinue) { Robo-Restaura }
     try { Stop-Ctl } catch { }
     try { Stop-Server } catch { }
 }
