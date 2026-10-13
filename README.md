@@ -111,11 +111,12 @@ No modo Banco de dados, cada pergunta vira uma consulta, um gráfico e um relat�
 - **Pergunte do jeito que falaria:** "faturamento por mês", "top 10 produtos por valor", "quantos clientes por estado".
 - **O que aparece:** título, uma frase de resumo e o visual (número, barra, linha, pizza ou tabela), com a consulta usada num bloco recolhível.
 - **Os números vêm do banco, não do modelo.** O modelo escolhe a consulta e o tipo de gráfico, mas nunca vê o resultado. A frase de resumo é montada pelo harness a partir do dado.
-- **Quando não dá:** o harness diz que não achou tabelas, que não conseguiu montar a consulta, que a consulta demorou demais ou que veio vazia. Nunca inventa.
+- **Quando não dá:** o harness diz que não achou tabelas, que não conseguiu montar a consulta, que a consulta demorou demais ou que veio vazia.
+- **Confira a consulta usada.** Os números vêm do banco, mas a consulta pode estar errada. Um JOIN errado mostra um número real, só que de outra pergunta.
 - **Levar embora:** **CSV** baixa os dados (abre no Excel com acentos e decimais certos). **Imprimir/PDF** gera o relatório com logo e contato da CD2 no rodapé.
 - **Contato no relatório:** preencha `report.contact` em `web/config.json` (site, e-mail, telefone).
 
-Para medir a qualidade num banco de teste com cara de ERP: `sh tests/eval/rodar.sh` (precisa de Docker). O portão para levar a cliente é 70% de acerto com o llamafile só em CPU. Na avaliação atual o modelo padrão acerta 65% das perguntas do banco de teste, abaixo da meta de 70%; veja `tests/eval/`.
+Para medir a qualidade num banco de teste com cara de ERP: `sh tests/eval/rodar.sh` (precisa de Docker). O portão para levar a cliente é 70% de acerto com o llamafile só em CPU. Na avaliação atual o modelo padrão acerta 90% das perguntas (18 de 20) e passa no portão. Em 2 de 20 ele mostrou um resultado errado, sem aviso; a avaliação marca esses casos como `[ERRADO]`. Veja `tests/eval/`.
 
 ## 4. Personalizar
 
@@ -143,7 +144,7 @@ Regras de texto que valem para qualquer mudança: português do Brasil, frases c
 
 ## 6. Limitações e cuidados
 
-- **Velocidade.** O modelo padrão é o Qwen3 4B Instruct 2507, sem fase de raciocínio. No modo Banco de dados cada pergunta custa uma chamada ao modelo (duas no pior caso). Em notebook só com CPU, espere cerca de 8 segundos por pergunta, medido na avaliação em `tests/eval/`.
+- **Velocidade.** O modelo padrão é o Qwen3 4B Instruct 2507, sem fase de raciocínio. No modo Banco de dados cada pergunta custa uma chamada ao modelo (duas no pior caso). Em notebook só com CPU, espere cerca de 9 segundos por pergunta, medido na avaliação em `tests/eval/`.
 - **Procedência do modelo.** GGUF do Qwen3-4B-Instruct-2507 quantizado pela Unsloth, licença Apache 2.0 da Qwen, conferido por SHA-256 no preparo. A Qwen não publica o GGUF oficial deste modelo.
 - **Antivírus e SmartScreen.** O llamafile é um executável "poliglota" (APE) e alguns antivírus corporativos o bloqueiam. Teste nos notebooks em que vai rodar e leve o seu como reserva.
 - **Mac.** Em Apple Silicon o llamafile precisa das Xcode Command Line Tools na primeira execução. Se o macOS reclamar de "desenvolvedor não verificado", libere em Ajustes do Sistema > Privacidade e Segurança.
