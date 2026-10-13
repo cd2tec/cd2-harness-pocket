@@ -2211,10 +2211,10 @@ git commit -m "Documenta relatórios e gráficos, modelo Instruct e sobe para v0
 
 ## Resultados da Task 1
 
-(Preenchido pelo executor da Task 1. Formato:)
+Verificado em 13/10/2026 com llamafile v0.10.6, toolbox v1.14.0 e Qwen3-4B-Instruct-2507-Q4_K_M (SHA-256 conferido: `3605803b...c67e597`).
 
-- `response_format` com `json_schema` no llamafile v0.10.x: **aceito / recusado** → `USE_SCHEMA = true / false`. Evidência: (resposta resumida).
-- PostgreSQL, `statement_timeout`: **suportado**. Mensagem: `...`
-- MariaDB, `queryTimeout`: **suportado**. Mensagem: `...`
-- SQL Server, `queryTimeout`: **suportado / não suportado / aceito e ignorado**. Mensagem: `...`
-- Oracle, `queryTimeout`: **suportado / não suportado / aceito e ignorado**. Mensagem: `...`
+- `response_format` com `json_schema` no llamafile v0.10.x: **aceito** → `USE_SCHEMA = true`. Evidência: com pedido de "texto livre", `content` veio `{"sql":"SELECT COUNT(*) AS total_pedidos FROM pedido;","visual":"pizza","titulo":"..."}`, JSON válido; pedindo `scatter` (fora do enum) voltou `barra`, então o enum é imposto. Cuidado para a Task 8: o servidor às vezes emite `reasoning_content` antes do JSON e, com `max_tokens` baixo (200), o `content` vem vazio com `finish_reason: "length"`. Usar `max_tokens` de 800 ou mais.
+- PostgreSQL, `statement_timeout`: **suportado** (queryParams `statement_timeout: "1000"`, falha em ~1,2 s). Mensagem: `ERROR: canceling statement due to statement timeout (SQLSTATE 57014)`
+- MariaDB, `queryTimeout`: **suportado** (falha em ~1,0 s). Mensagem: `unable to execute query: invalid connection` (o driver derruba a conexão, não há texto de timeout; a Task 5 deve tratar `invalid connection` como timeout provável).
+- SQL Server, `queryTimeout`: **não suportado**. O toolbox recusa a receita: `unknown field "queryTimeout"` (source `mssql`). Sem timeout no servidor.
+- Oracle, `queryTimeout`: **não suportado**. O toolbox recusa a receita: `unknown field "queryTimeout"` (source `oracle`). Sem timeout no servidor.
