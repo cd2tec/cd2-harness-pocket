@@ -1,0 +1,22 @@
+[
+  { "pergunta": "Quantas vendas foram feitas?", "sql": "SELECT count(*) AS n FROM mov_venda", "visual": ["numero"] },
+  { "pergunta": "Qual o faturamento total?", "sql": "SELECT sum(vlr_tot) AS total FROM mov_venda", "visual": ["numero"] },
+  { "pergunta": "Faturamento por mês", "sql": "SELECT to_char(dt_mov, 'YYYY-MM') AS mes, sum(vlr_tot) AS total FROM mov_venda GROUP BY 1", "visual": ["linha", "barra"] },
+  { "pergunta": "Faturamento por loja", "sql": "SELECT l.nm_loja AS loja, sum(v.vlr_tot) AS total FROM mov_venda v JOIN loja l ON l.cd_loja = v.cd_loja GROUP BY 1", "visual": ["barra", "pizza"] },
+  { "pergunta": "Quantidade de vendas por loja", "sql": "SELECT l.nm_loja AS loja, count(*) AS n FROM mov_venda v JOIN loja l ON l.cd_loja = v.cd_loja GROUP BY 1", "visual": ["barra", "pizza"] },
+  { "pergunta": "Top 5 produtos por faturamento", "sql": "SELECT p.ds_prod AS produto, sum(i.vlr_tot_it) AS total FROM mov_venda_item i JOIN produto p ON p.cd_prod = i.cd_prod GROUP BY 1 ORDER BY 2 DESC LIMIT 5", "visual": ["barra", "tabela"] },
+  { "pergunta": "Faturamento por departamento", "sql": "SELECT d.ds_depto AS departamento, sum(i.vlr_tot_it) AS total FROM mov_venda_item i JOIN produto p ON p.cd_prod = i.cd_prod JOIN departamento d ON d.cd_depto = p.cd_depto GROUP BY 1", "visual": ["barra", "pizza"] },
+  { "pergunta": "Qual o ticket médio?", "sql": "SELECT avg(vlr_tot) AS ticket_medio FROM mov_venda", "visual": ["numero"] },
+  { "pergunta": "Ticket médio por loja", "sql": "SELECT l.nm_loja AS loja, avg(v.vlr_tot) AS ticket_medio FROM mov_venda v JOIN loja l ON l.cd_loja = v.cd_loja GROUP BY 1", "visual": ["barra", "tabela"] },
+  { "pergunta": "Quantos clientes temos?", "sql": "SELECT count(*) AS n FROM cliente", "visual": ["numero"] },
+  { "pergunta": "Clientes por estado", "sql": "SELECT uf, count(*) AS n FROM cliente GROUP BY 1", "visual": ["barra", "pizza"] },
+  { "pergunta": "Quantos produtos tem cada departamento?", "sql": "SELECT d.ds_depto AS departamento, count(*) AS n FROM produto p JOIN departamento d ON d.cd_depto = p.cd_depto GROUP BY 1", "visual": ["barra", "pizza", "tabela"] },
+  { "pergunta": "Faturamento por mês da Loja Centro", "sql": "SELECT to_char(v.dt_mov, 'YYYY-MM') AS mes, sum(v.vlr_tot) AS total FROM mov_venda v JOIN loja l ON l.cd_loja = v.cd_loja WHERE l.nm_loja = 'Loja Centro' GROUP BY 1", "visual": ["linha", "barra"] },
+  { "pergunta": "Quanto vendemos em março de 2026?", "sql": "SELECT sum(vlr_tot) AS total FROM mov_venda WHERE dt_mov >= DATE '2026-03-01' AND dt_mov < DATE '2026-04-01'", "visual": ["numero"] },
+  { "pergunta": "Quantidade de itens vendidos por mês", "sql": "SELECT to_char(v.dt_mov, 'YYYY-MM') AS mes, sum(i.qtd_it) AS itens FROM mov_venda_item i JOIN mov_venda v ON v.nr_cupom = i.nr_cupom GROUP BY 1", "visual": ["linha", "barra"] },
+  { "pergunta": "Faturamento por estado da loja", "sql": "SELECT l.uf, sum(v.vlr_tot) AS total FROM mov_venda v JOIN loja l ON l.cd_loja = v.cd_loja GROUP BY 1", "visual": ["barra", "pizza"] },
+  { "pergunta": "Qual loja vendeu mais?", "sql": "SELECT l.nm_loja AS loja, sum(v.vlr_tot) AS total FROM mov_venda v JOIN loja l ON l.cd_loja = v.cd_loja GROUP BY 1 ORDER BY 2 DESC LIMIT 1", "visual": ["barra", "tabela", "numero"] },
+  { "pergunta": "Qual o custo médio dos produtos?", "sql": "SELECT avg(vlr_custo) AS custo_medio FROM produto", "visual": ["numero"] },
+  { "pergunta": "Quantas vendas não têm cliente identificado?", "sql": "SELECT count(*) AS n FROM mov_venda WHERE cd_cli IS NULL", "visual": ["numero"] },
+  { "pergunta": "Média de itens por cupom", "sql": "SELECT avg(n) AS media_itens FROM (SELECT count(*) AS n FROM mov_venda_item GROUP BY nr_cupom) q", "visual": ["numero"] }
+]
