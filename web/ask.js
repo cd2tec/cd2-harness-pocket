@@ -154,7 +154,7 @@ const SCHEMA = { type:'object', properties:{ sql:{ type:'string' }, visual:{ typ
 const DIALETO = {
   postgres:  { nome:'PostgreSQL', mes:c => "to_char(" + c + ", 'YYYY-MM')", top:(s, o) => s + ' ' + o + ' LIMIT 10' },
   mariadb:   { nome:'MariaDB/MySQL (crases em nomes reservados)', mes:c => "DATE_FORMAT(" + c + ", '%Y-%m')", top:(s, o) => s + ' ' + o + ' LIMIT 10' },
-  sqlserver: { nome:'SQL Server (TOP em vez de LIMIT)', mes:c => "FORMAT(" + c + ", 'yyyy-MM')", top:(s, o) => s.replace(/^SELECT /, 'SELECT TOP (10) ') + ' ' + o },
+  sqlserver: { nome:'SQL Server (TOP em vez de LIMIT; sem WITH; use subconsulta)', mes:c => "FORMAT(" + c + ", 'yyyy-MM')", top:(s, o) => s.replace(/^SELECT /, 'SELECT TOP (10) ') + ' ' + o },
   oracle:    { nome:'Oracle (sem LIMIT; nomes sem aspas)', mes:c => "TO_CHAR(" + c + ", 'YYYY-MM')", top:(s, o) => s + ' ' + o + ' FETCH FIRST 10 ROWS ONLY' }
 };
 function exemplos(motor){
@@ -173,18 +173,23 @@ function schemaPrefix(motor, schema, usuario){
   const padrao = { postgres:'public', sqlserver:'dbo', oracle:String(usuario == null ? '' : usuario).trim() }[motor] || 'public';
   return s.toLowerCase() === padrao.toLowerCase() ? '' : s + '.';
 }
+// Nome e tipo vindos do banco: sem quebra de linha nem controle, e no máximo 80 caracteres.
+const limpo = v => String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f\s]+/g, ' ').trim().slice(0, 80);
 function buildMessages(o){
-  const d = DIALETO[o.motor] || DIALETO.postgres, pre = schemaPrefix(o.motor, o.schema, o.usuario);
-  const tabs = o.tabelas.map(t => '- ' + pre + t.name + ' (' + (t.type === 'VIEW' ? 'view, ' : '') + 'cerca de ' + t.rows + ' linhas): '
-    + t.columns.map(c => c.name + ' ' + c.type).join(', ')).join('\n');
+  const d = DIALETO[o.motor] || DIALETO.postgres, pre = limpo(schemaPrefix(o.motor, o.schema, o.usuario));
+  const tabs = o.tabelas.map(t => '- ' + pre + limpo(t.name) + ' (' + (t.type === 'VIEW' ? 'view, ' : '') + 'cerca de ' + t.rows + ' linhas): '
+    + t.columns.map(c => limpo(c.name) + ' ' + limpo(c.type)).join(', ')).join('\n');
   const sys = [
     'Você transforma uma pergunta em uma consulta SQL de leitura e diz como mostrar o resultado.',
     'Banco: ' + d.nome + (o.versao ? '. Versão: ' + o.versao : '') + '.',
     'Tabelas disponíveis (use só estas tabelas e colunas, com os nomes exatamente como estão' + (pre ? ', com o schema na frente' : '') + '):',
     tabs,
     'Regras:',
-    '- Um único SELECT (ou WITH), sem ponto e vírgula.',
+    o.motor === 'sqlserver' ? '- Um único SELECT, sem WITH e sem ponto e vírgula. Use subconsulta no lugar de WITH.' : '- Um único SELECT (ou WITH), sem ponto e vírgula.',
     '- Agregue no banco com GROUP BY e devolva no máximo 50 linhas.',
+    '- Ao agrupar por uma entidade (loja, produto, departamento, cliente), mostre o nome ou a descrição com JOIN na tabela de cadastro, não o código.',
+    "- Para filtrar por nome ou descrição, use comparação parcial sem diferenciar caixa (UPPER(coluna) LIKE '%TEXTO%').",
+    '- Depois de JOIN com tabela de itens, não some colunas do cabeçalho (evita contar em dobro).',
     '- Dê a cada coluna do resultado um alias curto em português, sem espaço nem acento (ex.: total, mes, loja).',
     '- visual: numero (um valor só), barra (comparar categorias), linha (evolução no tempo), pizza (até 6 partes de um todo), tabela (lista).',
     '- x é o alias da coluna de categoria ou de tempo; y é o alias da coluna numérica. Em numero e tabela, x pode ficar vazio.',
@@ -194,7 +199,7 @@ function buildMessages(o){
     exemplos(o.motor)
   ].join('\n');
   let user = 'Pergunta: ' + o.pergunta;
-  if(o.anterior) user += '\n\nA tentativa anterior falhou.\nSQL anterior: ' + (o.anterior.sql || '(nenhum)') + '\nErro: ' + o.anterior.erro + '\nCorrija e responda de novo só com o JSON.';
+  if(o.anterior) user += '\n\nA tentativa anterior falhou.\nSQL anterior: ' + (o.anterior.sql || '(nenhum)') + '\nErro: ' + String(o.anterior.erro == null ? '' : o.anterior.erro).slice(0, 300) + '\nCorrija e responda de novo só com o JSON.';
   return [{ role:'system', content:sys }, { role:'user', content:user }];
 }
 
