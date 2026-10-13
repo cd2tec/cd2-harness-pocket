@@ -60,6 +60,40 @@ function statusLines(s){
   ];
 }
 
-const api = { ENGINES, TOOL_DESCRIPTIONS, engineLabel, urlFor, guardSql, parseStatus, statusLines };
+/* ---------- cd2-ctl: controle do banco na porta do harness + 2000 ---------- */
+function ctlUrlFor(loc){ const p = parseInt(loc.port, 10) || 80; return 'http://127.0.0.1:' + (p + 2000); }
+// A chave da sessão chega uma vez no endereço (#k=<64 hex>), posta pelo launcher.
+function readKeyFromHash(hash){
+  const m = /(?:^#|&)k=([0-9a-fA-F]{64})(?=&|$)/.exec(String(hash || ''));
+  return m ? m[1] : null;
+}
+// Mesmas regras do cd2-ctl (e da v0.5.0): Oracle usa o usuário em maiúsculas, MariaDB a base.
+function defaultsFor(motor, usuario, base){
+  const e = ENGINES[motor];
+  if(!e) return { porta:'', schema:'' };
+  const schema = { postgres:'public', oracle:String(usuario || '').toUpperCase(), mariadb:String(base || ''), sqlserver:'dbo' }[motor];
+  return { porta:e.port, schema };
+}
+// Corpo de POST /config. A senha não é aparada (espaço pode fazer parte dela) e só vai se
+// foi digitada: vazia significa "manter a salva".
+function configPayload(form){
+  const t = v => String(v == null ? '' : v).trim();
+  const out = { motor:t(form.motor), host:t(form.host), base:t(form.base), usuario:t(form.usuario), schema:t(form.schema) };
+  const p = t(form.porta);
+  if(p) out.porta = /^\d+$/.test(p) ? Number(p) : p;
+  const s = form.senha == null ? '' : String(form.senha);
+  if(s) out.senha = s;
+  return out;
+}
+function ctlStatusLines(cs){
+  const v = x => (x == null ? '' : String(x));
+  return [
+    ['Motor', engineLabel(cs.motor)], ['Host', v(cs.host)], ['Porta', v(cs.porta)],
+    ['Base', v(cs.base)], ['Usuário', v(cs.usuario)], ['Schema', v(cs.schema)]
+  ];
+}
+
+const api = { ENGINES, TOOL_DESCRIPTIONS, engineLabel, urlFor, guardSql, parseStatus, statusLines,
+  ctlUrlFor, readKeyFromHash, defaultsFor, configPayload, ctlStatusLines };
 if(typeof module !== 'undefined' && module.exports) module.exports = api; else root.CD2Toolbox = api;
 })(typeof window !== 'undefined' ? window : globalThis);
