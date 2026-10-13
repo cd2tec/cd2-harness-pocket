@@ -176,6 +176,7 @@ async function ask(o){
     let texto;
     try{ texto = await o.callModel(buildMessages({ pergunta:o.pergunta, tabelas, motor:o.motor, versao:o.versao, anterior }), o.signal); }
     catch(e){ if(e && e.name === 'AbortError') throw e; return { ok:false, motivo:'modelo' }; }
+    checkAbort(o.signal);
     const req = parseModelJson(texto);
     if(!req){ falha = 'modelo'; anterior = { sql:'', erro:'A resposta não era o objeto JSON pedido, com sql e um visual da lista.' }; continue; }
     const g = Tb.guardSql(req.sql);
@@ -183,6 +184,7 @@ async function ask(o){
     const sql = Tb.prepareSql(g.sql, o.motor);
     ultimoSql = sql;
     const r = await o.runSql(sql, o.signal);
+    checkAbort(o.signal);
     if(!r.ok){
       if(r.timeout) return { ok:false, motivo:'timeout', sql };
       falha = 'sql'; anterior = { sql, erro:r.error }; continue;
@@ -209,20 +211,26 @@ function modelCaller(o){
     return (m && m.content) || '';
   };
 }
+function abortError(){ const e = new Error('Interrompido'); e.name = 'AbortError'; return e; }
+function checkAbort(signal){ if(signal && signal.aborted) throw abortError(); }
 // Prazo do front: vale para todo motor, inclusive os que não cortam a consulta no servidor.
+// No prazo ou no Parar, o request ao toolbox é abortado (fetch com signal).
 function toolRunner(client, o){
   const ms = (o && o.timeoutMs) || 15000;
-  return async function(sql){
-    let timer;
-    const prazo = new Promise(res => { timer = setTimeout(() => res({ ok:false, timeout:true, error:'tempo esgotado' }), ms); });
+  return async function(sql, signal){
+    checkAbort(signal);
+    const ctl = new AbortController();
+    let timer, onAbort;
+    const prazo = new Promise(res => { timer = setTimeout(() => { res({ ok:false, timeout:true, error:'tempo esgotado', front:true }); ctl.abort(); }, ms); });
+    const parou = new Promise((res, rej) => { onAbort = () => { rej(abortError()); ctl.abort(); }; if(signal) signal.addEventListener('abort', onAbort, { once:true }); });
     try{
       const r = await Promise.race([
-        Promise.resolve().then(() => client.call('db_read_only_query', { sql })).then(parseRows, e => ({ ok:false, error:String((e && e.message) || e) })),
-        prazo
+        Promise.resolve().then(() => client.call('db_read_only_query', { sql }, ctl.signal)).then(parseRows, e => ({ ok:false, error:String((e && e.message) || e) })),
+        prazo, parou
       ]);
       if(!r.ok && !r.timeout && isTimeout(r.error)) r.timeout = true;
       return r;
-    }finally{ clearTimeout(timer); }
+    }finally{ clearTimeout(timer); if(signal) signal.removeEventListener('abort', onAbort); }
   };
 }
 

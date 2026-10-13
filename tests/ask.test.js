@@ -245,3 +245,32 @@ test('toolRunner: linhas, erro de timeout do banco e prazo do front', async () =
   const caiu = await A.toolRunner({ call:async () => { throw new Error('MCP respondeu HTTP 502'); } }, { timeoutMs:1000 })('SELECT 1');
   assert.deepEqual(caiu, { ok:false, error:'MCP respondeu HTTP 502' });
 });
+
+test('toolRunner: o prazo aborta o signal passado ao cliente', async () => {
+  let visto;
+  const cli = { call:(name, args, signal) => { visto = signal; return new Promise(() => {}); } };
+  const r = await A.toolRunner(cli, { timeoutMs:20 })('SELECT 1');
+  assert.equal(r.ok, false); assert.equal(r.timeout, true); assert.equal(r.front, true);
+  assert.ok(visto && visto.aborted);
+});
+
+test('toolRunner: Parar aborta o fetch e rejeita com AbortError', async () => {
+  let visto;
+  const cli = { call:(name, args, signal) => { visto = signal; return new Promise(() => {}); } };
+  const ctl = new AbortController();
+  const p = A.toolRunner(cli, { timeoutMs:5000 })('SELECT 1', ctl.signal);
+  setTimeout(() => ctl.abort(), 10);
+  await assert.rejects(p, { name:'AbortError' });
+  assert.ok(visto.aborted);
+});
+
+test('ask: Parar depois de a consulta voltar não mostra resposta', async () => {
+  const ctl = new AbortController();
+  const runSql = async () => { ctl.abort(); return { ok:true, rows:LINHAS }; };
+  await assert.rejects(A.ask(base({ callModel:fila([BARRA]), runSql, signal:ctl.signal })), { name:'AbortError' });
+  const ctl2 = new AbortController();
+  const callModel = async () => { ctl2.abort(); return BARRA; };
+  const rs = fila([{ ok:true, rows:LINHAS }]);
+  await assert.rejects(A.ask(base({ callModel, runSql:rs, signal:ctl2.signal })), { name:'AbortError' });
+  assert.equal(rs.calls.length, 0);
+});
