@@ -133,3 +133,115 @@ test('parseModelJson: visual sem diferenciar caixa e acento', () => {
 test('parseRows: ERRO com espaços antes', () => {
   assert.deepEqual(A.parseRows('  ERRO: x'), { ok:false, error:'x' });
 });
+
+const Cat = require('../web/catalog.js');
+const CAT2 = Cat.buildCatalog([
+  { table_name:'venda', table_type:'TABLE', num_rows:100, column_name:'dt_venda', data_type:'date', ordinal:1 },
+  { table_name:'venda', table_type:'TABLE', num_rows:100, column_name:'valor', data_type:'numeric', ordinal:2 },
+  { table_name:'venda', table_type:'TABLE', num_rows:100, column_name:'loja', data_type:'varchar(20)', ordinal:3 },
+  { table_name:'config', table_type:'TABLE', num_rows:5, column_name:'chave', data_type:'text', ordinal:1 }
+]);
+function fila(respostas){
+  const calls = [];
+  const fn = async (...args) => { calls.push(args); const r = respostas.shift(); if(r instanceof Error) throw r; return r; };
+  fn.calls = calls; return fn;
+}
+const J = o => JSON.stringify(o);
+const BARRA = J({ sql:'SELECT loja, SUM(valor) AS total FROM venda GROUP BY loja', visual:'barra', x:'loja', y:'total', titulo:'Vendas por loja' });
+const LINHAS = [{ loja:'A', total:'10' }, { loja:'B', total:'30' }];
+const base = o => Object.assign({ pergunta:'vendas por loja', catalog:CAT2, motor:'postgres', versao:'PostgreSQL 16' }, o);
+
+test('ask: caminho feliz com uma chamada ao modelo', async () => {
+  const callModel = fila([BARRA]), runSql = fila([{ ok:true, rows:LINHAS }]);
+  const r = await A.ask(base({ callModel, runSql }));
+  assert.equal(r.ok, true); assert.equal(r.visual, 'barra'); assert.equal(r.titulo, 'Vendas por loja');
+  assert.equal(r.frase, 'Maior: B, 30. Total: 40 em 2 categorias.');
+  assert.deepEqual(r.colunas, ['loja', 'total']); assert.equal(r.todas.length, 2);
+  assert.equal(callModel.calls.length, 1); assert.equal(runSql.calls[0][0], 'SELECT loja, SUM(valor) AS total FROM venda GROUP BY loja');
+  const prompt = callModel.calls[0][0].map(m => m.content).join('\n');
+  assert.match(prompt, /venda/); assert.doesNotMatch(prompt, /config/);
+});
+
+test('ask: sem tabelas não chama o modelo', async () => {
+  const callModel = fila([]);
+  assert.deepEqual(await A.ask(base({ pergunta:'funcionários admitidos', callModel, runSql:fila([]) })), { ok:false, motivo:'sem_tabelas' });
+  assert.equal(callModel.calls.length, 0);
+});
+
+test('ask: JSON inválido usa a nova tentativa; duas vezes inválido é motivo modelo', async () => {
+  const callModel = fila(['não sei', BARRA]);
+  const r = await A.ask(base({ callModel, runSql:fila([{ ok:true, rows:LINHAS }]) }));
+  assert.equal(r.ok, true); assert.equal(callModel.calls.length, 2);
+  assert.match(callModel.calls[1][0][1].content, /tentativa anterior falhou/);
+  assert.deepEqual(await A.ask(base({ callModel:fila(['x', 'y']), runSql:fila([]) })), { ok:false, motivo:'modelo' });
+});
+
+test('ask: erro de SQL volta ao modelo com o erro; segundo erro é motivo sql', async () => {
+  const callModel = fila([BARRA, BARRA]);
+  const r = await A.ask(base({ callModel, runSql:fila([{ ok:false, error:'column "lojaa" does not exist' }, { ok:true, rows:LINHAS }]) }));
+  assert.equal(r.ok, true);
+  assert.match(callModel.calls[1][0][1].content, /column "lojaa" does not exist/);
+  assert.match(callModel.calls[1][0][1].content, /SUM\(valor\)/);
+  const r2 = await A.ask(base({ callModel:fila([BARRA, BARRA]), runSql:fila([{ ok:false, error:'e1' }, { ok:false, error:'e2' }]) }));
+  assert.deepEqual(r2, { ok:false, motivo:'sql', sql:'SELECT loja, SUM(valor) AS total FROM venda GROUP BY loja' });
+});
+
+test('ask: SQL recusado pela guarda conta como erro de SQL e não vai ao banco', async () => {
+  const runSql = fila([{ ok:true, rows:LINHAS }]);
+  const r = await A.ask(base({ callModel:fila([J({ sql:'DELETE FROM venda', visual:'tabela' }), BARRA]), runSql }));
+  assert.equal(r.ok, true); assert.equal(runSql.calls.length, 1);
+});
+
+test('ask: timeout não tenta de novo; vazio é motivo vazio', async () => {
+  const callModel = fila([BARRA]);
+  assert.deepEqual(await A.ask(base({ callModel, runSql:fila([{ ok:false, timeout:true, error:'tempo esgotado' }]) })),
+    { ok:false, motivo:'timeout', sql:'SELECT loja, SUM(valor) AS total FROM venda GROUP BY loja' });
+  assert.equal(callModel.calls.length, 1);
+  assert.equal((await A.ask(base({ callModel:fila([BARRA]), runSql:fila([{ ok:true, rows:[] }]) }))).motivo, 'vazio');
+});
+
+test('ask: modelo fora do ar é motivo modelo; Parar propaga o AbortError', async () => {
+  assert.deepEqual(await A.ask(base({ callModel:fila([new Error('HTTP 500')]), runSql:fila([]) })), { ok:false, motivo:'modelo' });
+  const ab = new Error('parou'); ab.name = 'AbortError';
+  await assert.rejects(A.ask(base({ callModel:fila([ab]), runSql:fila([]) })), { name:'AbortError' });
+});
+
+test('ask: no SQL Server o ORDER BY sem TOP ganha OFFSET 0 ROWS', async () => {
+  const runSql = fila([{ ok:true, rows:LINHAS }]);
+  await A.ask(base({ motor:'sqlserver', callModel:fila([J({ sql:'SELECT loja, SUM(valor) AS total FROM venda GROUP BY loja ORDER BY total DESC', visual:'barra', x:'loja', y:'total', titulo:'t' })]), runSql }));
+  assert.match(runSql.calls[0][0], /OFFSET 0 ROWS$/);
+});
+
+test('buildMessages: dialeto e exemplos por motor, tabelas listadas, tentativa anterior', () => {
+  const tabelas = Cat.rankTables(CAT2, 'vendas');
+  const sys = m => A.buildMessages({ pergunta:'p', tabelas, motor:m })[0].content;
+  assert.match(sys('postgres'), /LIMIT 10/); assert.match(sys('sqlserver'), /TOP \(10\)/); assert.match(sys('oracle'), /FETCH FIRST 10 ROWS ONLY/);
+  assert.match(sys('mariadb'), /DATE_FORMAT/); assert.match(sys('postgres'), /venda \(cerca de 100 linhas\): dt_venda date, valor numeric, loja varchar\(20\)/);
+  const u = A.buildMessages({ pergunta:'p', tabelas, motor:'postgres', anterior:{ sql:'SELECT x', erro:'boom' } })[1].content;
+  assert.match(u, /SQL anterior: SELECT x/); assert.match(u, /Erro: boom/);
+});
+
+test('modelCaller: temperatura zero, schema opcional, conteúdo da resposta e erro HTTP', async () => {
+  let pedido;
+  const ok = async (url, init) => { pedido = { url, init }; return { ok:true, status:200, json:async () => ({ choices:[{ message:{ content:'{"a":1}' } }] }) }; };
+  const c = A.modelCaller({ fetch:ok, url:'/v1/chat/completions', useSchema:true });
+  assert.equal(await c([{ role:'user', content:'oi' }]), '{"a":1}');
+  const body = JSON.parse(pedido.init.body);
+  assert.equal(pedido.url, '/v1/chat/completions'); assert.equal(body.temperature, 0); assert.equal(body.stream, false); assert.equal(body.max_tokens, 1024);
+  assert.equal(body.response_format.type, 'json_schema'); assert.deepEqual(body.response_format.json_schema.schema, A.SCHEMA);
+  await A.modelCaller({ fetch:ok, url:'/x', useSchema:false })([]);
+  assert.equal(JSON.parse(pedido.init.body).response_format, undefined);
+  const falha = A.modelCaller({ fetch:async () => ({ ok:false, status:500, json:async () => ({}) }), url:'/x' });
+  await assert.rejects(falha([]), /HTTP 500/);
+});
+
+test('toolRunner: linhas, erro de timeout do banco e prazo do front', async () => {
+  const cli = t => ({ call:async (name, args) => { assert.equal(name, 'db_read_only_query'); assert.equal(args.sql, 'SELECT 1'); return t; } });
+  assert.deepEqual(await A.toolRunner(cli('[{"n":1}]'), { timeoutMs:1000 })('SELECT 1'), { ok:true, rows:[{ n:1 }] });
+  const t = await A.toolRunner(cli('ERRO: canceling statement due to statement timeout'), { timeoutMs:1000 })('SELECT 1');
+  assert.equal(t.ok, false); assert.equal(t.timeout, true);
+  const lento = await A.toolRunner({ call:() => new Promise(() => {}) }, { timeoutMs:20 })('SELECT 1');
+  assert.equal(lento.timeout, true);
+  const caiu = await A.toolRunner({ call:async () => { throw new Error('MCP respondeu HTTP 502'); } }, { timeoutMs:1000 })('SELECT 1');
+  assert.deepEqual(caiu, { ok:false, error:'MCP respondeu HTTP 502' });
+});

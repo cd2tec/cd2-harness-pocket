@@ -5,6 +5,8 @@
 "use strict";
 const isNode = typeof module !== 'undefined' && module.exports;
 const Chart = isNode ? require('./chart.js') : root.CD2Chart;
+const Cat = isNode ? require('./catalog.js') : root.CD2Catalog;
+const Tb = isNode ? require('./toolbox.js') : root.CD2Toolbox;
 
 const VISUALS = ['barra', 'linha', 'pizza', 'tabela', 'numero'];
 const MENSAGENS = {
@@ -126,6 +128,104 @@ function frase(r){
   return maior + 'Total: ' + Chart.fmt(tot) + ' em ' + n;
 }
 
-const api = { VISUALS, MENSAGENS, parseRows, parseModelJson, isTimeout, pickVisual, frase };
+const SCHEMA = { type:'object', properties:{ sql:{ type:'string' }, visual:{ type:'string', enum:VISUALS }, x:{ type:'string' }, y:{ type:'string' }, titulo:{ type:'string' } }, required:['sql', 'visual', 'titulo'] };
+const DIALETO = {
+  postgres:  { nome:'PostgreSQL', mes:c => "to_char(" + c + ", 'YYYY-MM')", top:(s, o) => s + ' ' + o + ' LIMIT 10' },
+  mariadb:   { nome:'MariaDB/MySQL (crases em nomes reservados)', mes:c => "DATE_FORMAT(" + c + ", '%Y-%m')", top:(s, o) => s + ' ' + o + ' LIMIT 10' },
+  sqlserver: { nome:'SQL Server (TOP em vez de LIMIT)', mes:c => "FORMAT(" + c + ", 'yyyy-MM')", top:(s, o) => s.replace(/^SELECT /, 'SELECT TOP (10) ') + ' ' + o },
+  oracle:    { nome:'Oracle (sem LIMIT; nomes sem aspas)', mes:c => "TO_CHAR(" + c + ", 'YYYY-MM')", top:(s, o) => s + ' ' + o + ' FETCH FIRST 10 ROWS ONLY' }
+};
+function exemplos(motor){
+  const d = DIALETO[motor] || DIALETO.postgres, m = d.mes('data_venda');
+  return [
+    'Pergunta: quantos pedidos existem? -> ' + JSON.stringify({ sql:'SELECT COUNT(*) AS pedidos FROM pedido', visual:'numero', x:'', y:'pedidos', titulo:'Total de pedidos' }),
+    'Pergunta: total vendido por mês -> ' + JSON.stringify({ sql:'SELECT ' + m + ' AS mes, SUM(valor) AS total FROM venda GROUP BY ' + m + ' ORDER BY mes', visual:'linha', x:'mes', y:'total', titulo:'Vendas por mês' }),
+    'Pergunta: 10 clientes que mais compraram -> ' + JSON.stringify({ sql:d.top('SELECT c.nome AS cliente, SUM(p.valor) AS total FROM pedido p JOIN cliente c ON c.id = p.cliente_id GROUP BY c.nome', 'ORDER BY total DESC'), visual:'barra', x:'cliente', y:'total', titulo:'Clientes que mais compraram' })
+  ].join('\n');
+}
+function buildMessages(o){
+  const d = DIALETO[o.motor] || DIALETO.postgres;
+  const tabs = o.tabelas.map(t => '- ' + t.name + ' (' + (t.type === 'VIEW' ? 'view, ' : '') + 'cerca de ' + t.rows + ' linhas): '
+    + t.columns.map(c => c.name + ' ' + c.type).join(', ')).join('\n');
+  const sys = [
+    'Você transforma uma pergunta em uma consulta SQL de leitura e diz como mostrar o resultado.',
+    'Banco: ' + d.nome + (o.versao ? '. Versão: ' + o.versao : '') + '.',
+    'Tabelas disponíveis (use só estas tabelas e colunas, com os nomes exatamente como estão):',
+    tabs,
+    'Regras:',
+    '- Um único SELECT (ou WITH), sem ponto e vírgula.',
+    '- Agregue no banco com GROUP BY e devolva no máximo 50 linhas.',
+    '- Dê a cada coluna do resultado um alias curto em português, sem espaço nem acento (ex.: total, mes, loja).',
+    '- visual: numero (um valor só), barra (comparar categorias), linha (evolução no tempo), pizza (até 6 partes de um todo), tabela (lista).',
+    '- x é o alias da coluna de categoria ou de tempo; y é o alias da coluna numérica. Em numero e tabela, x pode ficar vazio.',
+    '- titulo: curto, em português, sem números.',
+    'Responda só com um objeto JSON no formato {"sql": "...", "visual": "...", "x": "...", "y": "...", "titulo": "..."}.',
+    'Exemplos:',
+    exemplos(o.motor)
+  ].join('\n');
+  let user = 'Pergunta: ' + o.pergunta;
+  if(o.anterior) user += '\n\nA tentativa anterior falhou.\nSQL anterior: ' + (o.anterior.sql || '(nenhum)') + '\nErro: ' + o.anterior.erro + '\nCorrija e responda de novo só com o JSON.';
+  return [{ role:'system', content:sys }, { role:'user', content:user }];
+}
+
+async function ask(o){
+  const tabelas = Cat.rankTables(o.catalog, o.pergunta);
+  if(!tabelas.length) return { ok:false, motivo:'sem_tabelas' };
+  let anterior = null, falha = 'modelo', ultimoSql = '';
+  for(let tentativa = 0; tentativa < 2; tentativa++){
+    let texto;
+    try{ texto = await o.callModel(buildMessages({ pergunta:o.pergunta, tabelas, motor:o.motor, versao:o.versao, anterior }), o.signal); }
+    catch(e){ if(e && e.name === 'AbortError') throw e; return { ok:false, motivo:'modelo' }; }
+    const req = parseModelJson(texto);
+    if(!req){ falha = 'modelo'; anterior = { sql:'', erro:'A resposta não era o objeto JSON pedido, com sql e um visual da lista.' }; continue; }
+    const g = Tb.guardSql(req.sql);
+    if(!g.ok){ falha = 'sql'; ultimoSql = req.sql; anterior = { sql:req.sql, erro:g.error }; continue; }
+    const sql = Tb.prepareSql(g.sql, o.motor);
+    ultimoSql = sql;
+    const r = await o.runSql(sql, o.signal);
+    if(!r.ok){
+      if(r.timeout) return { ok:false, motivo:'timeout', sql };
+      falha = 'sql'; anterior = { sql, erro:r.error }; continue;
+    }
+    if(!r.rows.length) return { ok:false, motivo:'vazio', sql };
+    const colunas = Object.keys(r.rows[0]);
+    const v = pickVisual(req, colunas, r.rows);
+    const out = { ok:true, visual:v.visual, x:v.x, y:v.y, titulo:req.titulo || o.pergunta,
+      frase:frase({ visual:v.visual, x:v.x, y:v.y, linhas:v.linhas, todas:r.rows }), colunas, linhas:v.linhas, todas:r.rows, sql };
+    if(v.aviso) out.aviso = v.aviso;
+    return out;
+  }
+  return falha === 'sql' ? { ok:false, motivo:'sql', sql:ultimoSql } : { ok:false, motivo:'modelo' };
+}
+
+function modelCaller(o){
+  return async function(messages, signal){
+    const body = { model:'cd2', messages, stream:false, temperature:0, max_tokens:1024 };
+    if(o.useSchema) body.response_format = { type:'json_schema', json_schema:{ name:'consulta', strict:true, schema:SCHEMA } };
+    const r = await o.fetch(o.url, { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(body), signal });
+    if(!r.ok) throw new Error('Modelo respondeu HTTP ' + r.status);
+    const j = await r.json();
+    const m = j && j.choices && j.choices[0] && j.choices[0].message;
+    return (m && m.content) || '';
+  };
+}
+// Prazo do front: vale para todo motor, inclusive os que não cortam a consulta no servidor.
+function toolRunner(client, o){
+  const ms = (o && o.timeoutMs) || 15000;
+  return async function(sql){
+    let timer;
+    const prazo = new Promise(res => { timer = setTimeout(() => res({ ok:false, timeout:true, error:'tempo esgotado' }), ms); });
+    try{
+      const r = await Promise.race([
+        Promise.resolve().then(() => client.call('db_read_only_query', { sql })).then(parseRows, e => ({ ok:false, error:String((e && e.message) || e) })),
+        prazo
+      ]);
+      if(!r.ok && !r.timeout && isTimeout(r.error)) r.timeout = true;
+      return r;
+    }finally{ clearTimeout(timer); }
+  };
+}
+
+const api = { VISUALS, MENSAGENS, SCHEMA, parseRows, parseModelJson, isTimeout, pickVisual, frase, buildMessages, ask, modelCaller, toolRunner };
 if(isNode) module.exports = api; else root.CD2Ask = api;
 })(typeof window !== 'undefined' ? window : globalThis);
