@@ -148,3 +148,14 @@ test('call: junta o conteúdo de texto e prefixa ERRO quando isError', async () 
   assert.deepEqual(call.body.params, { name:'db_vendas__resumo', arguments:{ mes:'2026-09' } });
   assert.equal(call.headers['MCP-Protocol-Version'], '2025-06-18');
 });
+
+test('call: o signal de Parar chega ao fetch; sem signal continua igual', async () => {
+  const fetch = basic({ 'tools/call': b => rpcOk(b.id, { content:[{ type:'text', text:'ok' }] }) });
+  const c = new McpClient(URL_MCP, { fetch, token: async () => null });
+  await c.init();
+  const ctl = new AbortController();
+  assert.equal(await c.call('db_read_only_query', { sql:'SELECT 1' }, ctl.signal), 'ok');
+  assert.equal(fetch.calls.at(-1).init.signal, ctl.signal);
+  await c.call('db_read_only_query', { sql:'SELECT 1' });
+  assert.equal(fetch.calls.at(-1).init.signal, undefined);
+});

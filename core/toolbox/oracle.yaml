@@ -4,6 +4,7 @@
 # db_read_only_query e guarda de SELECT no front. O toolbox nao valida SQL.
 # Binds :n aparecem uma vez cada, na ordem de 'parameters'. Aliases entre aspas
 # para sairem em minusculas.
+# Sem timeout no servidor (o toolbox v1.14.0 recusa queryTimeout); o harness para de esperar em 15 s.
 kind: source
 name: cd2-db
 type: oracle
@@ -130,6 +131,29 @@ templateParameters:
     type: string
     description: "Nome exato da tabela ou view, como devolvido por db_list_tables."
     allowedValues: ["^[A-Za-z_][A-Za-z0-9_$#]*$"]
+
+---
+kind: tool
+name: db_catalog
+type: oracle-sql
+source: cd2-db
+description: Mapa do banco para o roteiro de relatórios. Uma linha por coluna das 300 tabelas e views com mais linhas estimadas do schema ${CD2_DB_SCHEMA}, até 60 colunas por tabela.
+annotations: { readOnlyHint: true }
+statement: |
+  SELECT c.TABLE_NAME AS "table_name", t.table_type AS "table_type", t.num_rows AS "num_rows",
+         c.COLUMN_NAME AS "column_name", c.DATA_TYPE AS "data_type", c.COLUMN_ID AS "ordinal"
+    FROM ALL_TAB_COLUMNS c
+    JOIN (SELECT object_name, table_type, num_rows FROM (
+            SELECT o.OBJECT_NAME AS object_name,
+                   CASE WHEN o.OBJECT_TYPE = 'VIEW' THEN 'VIEW' ELSE 'TABLE' END AS table_type,
+                   NVL(tb.NUM_ROWS, 0) AS num_rows
+              FROM ALL_OBJECTS o
+              LEFT JOIN ALL_TABLES tb ON tb.OWNER = o.OWNER AND tb.TABLE_NAME = o.OBJECT_NAME
+             WHERE o.OWNER = '${CD2_DB_SCHEMA}' AND o.OBJECT_TYPE IN ('TABLE', 'VIEW')
+             ORDER BY num_rows DESC, o.OBJECT_NAME)
+           WHERE ROWNUM <= 300) t ON t.object_name = c.TABLE_NAME
+   WHERE c.OWNER = '${CD2_DB_SCHEMA}' AND c.COLUMN_ID <= 60
+   ORDER BY t.num_rows DESC, c.TABLE_NAME, c.COLUMN_ID
 
 ---
 kind: tool

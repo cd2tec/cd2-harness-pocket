@@ -11,7 +11,7 @@ port: ${CD2_DB_PORT}
 database: ${CD2_DB_NAME}
 user: ${CD2_DB_USER}
 password: "${CD2_DB_PASSWORD}"
-queryTimeout: 60s
+queryTimeout: 15s
 
 ---
 kind: tool
@@ -117,6 +117,27 @@ templateParameters:
     type: string
     description: "Nome exato da tabela ou view, como devolvido por db_list_tables."
     allowedValues: ["^[A-Za-z_][A-Za-z0-9_$#]*$"]
+
+---
+kind: tool
+name: db_catalog
+type: mysql-sql
+source: cd2-db
+description: Mapa do banco para o roteiro de relatórios. Uma linha por coluna das 300 tabelas e views com mais linhas estimadas da base ${CD2_DB_SCHEMA}, até 60 colunas por tabela.
+annotations: { readOnlyHint: true }
+statement: |
+  SELECT c.TABLE_NAME AS table_name,
+         CASE WHEN t.TABLE_TYPE = 'VIEW' THEN 'VIEW' ELSE 'TABLE' END AS table_type,
+         t.num_rows AS num_rows,
+         c.COLUMN_NAME AS column_name, c.COLUMN_TYPE AS data_type, c.ORDINAL_POSITION AS ordinal
+    FROM information_schema.COLUMNS c
+    JOIN (SELECT TABLE_NAME, TABLE_TYPE, COALESCE(TABLE_ROWS, 0) AS num_rows
+            FROM information_schema.TABLES
+           WHERE TABLE_SCHEMA = '${CD2_DB_SCHEMA}'
+           ORDER BY COALESCE(TABLE_ROWS, 0) DESC, TABLE_NAME
+           LIMIT 300) t ON t.TABLE_NAME = c.TABLE_NAME
+   WHERE c.TABLE_SCHEMA = '${CD2_DB_SCHEMA}' AND c.ORDINAL_POSITION <= 60
+   ORDER BY t.num_rows DESC, c.TABLE_NAME, c.ORDINAL_POSITION
 
 ---
 kind: tool

@@ -11,6 +11,7 @@ const ENGINES = {
   sqlserver: { label:'SQL Server',      port:1433 }
 };
 const TOOL_DESCRIPTIONS = {
+  db_catalog:           'Lê o mapa do banco (tabelas e colunas) para o roteiro de relatórios.',
   db_connection_status: 'Verifica se o banco está acessível e se a conexão está pronta para uso.',
   db_describe_table:    'Apresenta as colunas, os tipos e a estrutura de uma tabela.',
   db_list_tables:       'Lista as tabelas e views disponíveis no banco de dados.',
@@ -40,6 +41,37 @@ function guardSql(sql){
   if(!/^(select|with)\b/i.test(s)) return bad('não começa com SELECT ou WITH');
   const m = s.match(FORBIDDEN); if(m) return bad('palavra ' + m[1].toUpperCase());
   return { ok:true, sql:s };
+}
+
+// O toolbox envolve a consulta numa subconsulta (TOP (200) no SQL Server), e o SQL Server
+// não aceita ORDER BY em subconsulta sem TOP ou OFFSET. Só o nível externo conta (OVER (ORDER BY) e
+// subconsultas não). Os outros motores passam intactos.
+// Devolve só o texto em profundidade 0 de parênteses, sem literais '...', "..." e [...].
+function topLevelSql(sql){
+  let out = '', depth = 0, i = 0;
+  while(i < sql.length){
+    const c = sql[i];
+    if(c === "'" || c === '"' || c === '['){
+      const close = c === '[' ? ']' : c;
+      i++;
+      while(i < sql.length){
+        if(sql[i] === close){ if(close !== ']' && sql[i+1] === close){ i += 2; continue; } break; }
+        i++;
+      }
+      i++; out += ' '; continue;
+    }
+    if(c === '(') depth++;
+    else if(c === ')') { if(depth > 0) depth--; }
+    else if(depth === 0) out += c;
+    i++;
+  }
+  return out;
+}
+function prepareSql(sql, motor){
+  if(motor !== 'sqlserver') return sql;
+  const top = topLevelSql(sql);
+  if(/\border\s+by\b/i.test(top) && !/\b(top|offset)\b/i.test(top)) return sql + ' OFFSET 0 ROWS';
+  return sql;
 }
 
 function parseStatus(text){
@@ -95,7 +127,7 @@ function ctlStatusLines(cs){
   ];
 }
 
-const api = { ENGINES, TOOL_DESCRIPTIONS, engineLabel, urlFor, guardSql, parseStatus, statusLines,
+const api = { ENGINES, TOOL_DESCRIPTIONS, engineLabel, urlFor, guardSql, prepareSql, parseStatus, statusLines,
   UNSAFE_PORTS, ctlUrlFor, readKeyFromHash, defaultsFor, configPayload, ctlStatusLines };
 if(typeof module !== 'undefined' && module.exports) module.exports = api; else root.CD2Toolbox = api;
 })(typeof window !== 'undefined' ? window : globalThis);

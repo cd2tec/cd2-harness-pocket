@@ -5,8 +5,12 @@
 set -eu
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-MODEL_URL="${CD2_MODEL_URL:-https://huggingface.co/pramodlohra/Qween3_4B_thinking_finetune/resolve/main/qwen3-4b-thinking-2507.Q4_K_M.gguf}"
-MODEL_FILE="${CD2_MODEL_FILE:-qwen3-4b-thinking-2507.Q4_K_M.gguf}"
+MODEL_URL="${CD2_MODEL_URL:-https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf}"
+MODEL_FILE="${CD2_MODEL_FILE:-Qwen3-4B-Instruct-2507-Q4_K_M.gguf}"
+# SHA-256 do modelo padrao. Com CD2_MODEL_URL proprio, so confere se CD2_MODEL_SHA256 vier junto.
+if [ -n "${CD2_MODEL_URL:-}" ]; then MODEL_SHA256="${CD2_MODEL_SHA256:-}"
+else MODEL_SHA256="${CD2_MODEL_SHA256:-3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597}"; fi
+MODEL_SHA256="$(printf '%s' "$MODEL_SHA256" | tr 'A-F' 'a-f')"
 FALLBACK_BIN_URL="https://huggingface.co/mozilla-ai/llamafile_0.10/resolve/main/llamafile_0.10.1"
 # MCP Toolbox for Databases: versao fixa (pen drive reprodutivel), um binario por sistema.
 TOOLBOX_VERSION="${CD2_TOOLBOX_VERSION:-1.14.0}"
@@ -59,6 +63,17 @@ fetch "$MODEL_URL" "$ROOT/models/$MODEL_FILE"
 
 SIZE="$(wc -c < "$ROOT/models/$MODEL_FILE" | tr -d ' ')"
 if [ "$SIZE" -lt 1000000000 ]; then echo "[ERRO] Modelo com tamanho suspeito ($SIZE bytes). Apague e rode de novo."; exit 1; fi
+if [ -n "$MODEL_SHA256" ]; then
+  GOT="$($SUM "$ROOT/models/$MODEL_FILE" | cut -d' ' -f1)"
+  if [ "$GOT" != "$MODEL_SHA256" ]; then echo "[ERRO] SHA-256 do modelo nao confere ($GOT). Apague models/$MODEL_FILE e rode de novo."; exit 1; fi
+  echo "SHA-256 do modelo conferido."
+fi
+# O launcher usa o primeiro .gguf que encontrar: fica so o modelo atual em models/.
+for f in "$ROOT"/models/*.gguf; do
+  [ -e "$f" ] || continue
+  [ "$(basename "$f")" = "$MODEL_FILE" ] && continue
+  echo "Removendo modelo antigo: $(basename "$f")"; rm -f "$f"
+done
 
 echo ""
 echo "== Toolbox (MCP Toolbox for Databases v$TOOLBOX_VERSION)"

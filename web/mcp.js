@@ -10,7 +10,7 @@
 (function(root){
 "use strict";
 const PROTOCOL_VERSION = '2025-06-18';
-const CLIENT_INFO = { name:'cd2-harness', version:'0.6.0' };
+const CLIENT_INFO = { name:'cd2-harness', version:'0.7.0' };
 
 function parseSse(text, id){
   for(const block of text.split(/\r?\n\r?\n/)){
@@ -37,21 +37,24 @@ class McpClient{
     this.origin = opts.origin || (root.location && root.location.origin) || '';
     this.sid = null; this.n = 0; this.version = null;
   }
-  async _send(method, params, notif, tok){
+  async _send(method, params, notif, tok, signal){
     const body = { jsonrpc:'2.0', method }; if(params) body.params = params; if(!notif) body.id = ++this.n;
     const h = { 'Content-Type':'application/json', 'Accept':'application/json, text/event-stream' };
     if(tok) h.Authorization = 'Bearer ' + tok;
     if(this.sid) h['Mcp-Session-Id'] = this.sid;
     if(this.version && method !== 'initialize') h['MCP-Protocol-Version'] = this.version;
-    const r = await this.fetch(this.url, { method:'POST', headers:h, body:JSON.stringify(body) });
+    const init = { method:'POST', headers:h, body:JSON.stringify(body) };
+    if(signal) init.signal = signal;
+    const r = await this.fetch(this.url, init);
     return { r, id: body.id };
   }
-  async rpc(method, params, notif){
+  // signal (opcional) cancela o request: Parar e o prazo do roteiro de relatórios usam.
+  async rpc(method, params, notif, signal){
     let tok = await this.token();
-    let { r, id } = await this._send(method, params, notif, tok);
+    let { r, id } = await this._send(method, params, notif, tok, signal);
     if(r.status === 401 && this.onUnauthorized){
       const fresh = await this.onUnauthorized();
-      if(fresh) ({ r, id } = await this._send(method, params, notif, fresh));
+      if(fresh) ({ r, id } = await this._send(method, params, notif, fresh, signal));
     }
     if(r.status === 401) throw new Error('O Archeo não aceitou a autenticação. Entre de novo.');
     const sid = r.headers.get('Mcp-Session-Id'); if(sid) this.sid = sid;
@@ -75,8 +78,8 @@ class McpClient{
     const r = await this.rpc('tools/list', {});
     return r.tools || [];
   }
-  async call(name, args){
-    const r = await this.rpc('tools/call', { name, arguments: args });
+  async call(name, args, signal){
+    const r = await this.rpc('tools/call', { name, arguments: args }, false, signal);
     const text = (r.content || []).map(c => c.type === 'text' ? c.text : '[' + c.type + ']').join('\n');
     return (r.isError ? 'ERRO: ' : '') + text;
   }

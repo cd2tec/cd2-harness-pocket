@@ -52,7 +52,7 @@ CD2-HARNESS/
   CHECKSUMS.sha256
   bin/llamafile          ~350 MB
   bin/llamafile.exe      ~350 MB  (mesmo arquivo, com a extensão que o Windows exige)
-  models/qwen3-4b-thinking-2507.Q4_K_M.gguf   ~2,4 GB
+  models/Qwen3-4B-Instruct-2507-Q4_K_M.gguf   ~2,5 GB
   bin/toolbox/windows-amd64/toolbox.exe   ~295 MB
   bin/toolbox/darwin-arm64/toolbox        ~156 MB
   bin/toolbox/darwin-amd64/toolbox        ~167 MB

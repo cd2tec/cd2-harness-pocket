@@ -162,6 +162,33 @@ input:disabled,select:disabled{background:var(--surface-100);color:var(--ink-mut
   footer{padding:var(--space-3) var(--space-4)}
   .topbar button{height:32px;padding:0 var(--space-4);font-size:12px}
 }
+/* ---------- respostas do roteiro de relatórios ---------- */
+.answer{background:var(--surface-raised);border:1px solid rgba(13,18,51,.12);border-radius:var(--radius-md);padding:var(--space-4);box-shadow:var(--shadow-card)}
+.answer h3{margin:0 0 var(--space-1);font:700 17px/24px var(--font-sans)}
+.answer .frase{margin:0 0 var(--space-3);color:var(--ink-muted)}
+.answer .acts{display:flex;gap:var(--space-2);margin-top:var(--space-3)}
+.viz svg.chart{width:100%;height:auto;display:block}
+.chart .bar{fill:var(--brand)} .chart .bar.neg{fill:var(--status-atencao)}
+.chart .lbl{fill:var(--ink-muted);font:500 12px var(--font-sans)} .chart .val{fill:var(--ink);font:700 12px var(--font-sans)}
+.chart .line{fill:none;stroke:var(--brand);stroke-width:2.5} .chart .pt{fill:var(--brand)} .chart .axis{stroke:var(--border)}
+.pie{display:flex;flex-wrap:wrap;gap:var(--space-4);align-items:center} .pie svg.chart{max-width:240px}
+.legend{list-style:none;margin:0;padding:0} .legend li{display:flex;align-items:center;gap:var(--space-2)} .legend i{width:12px;height:12px;border-radius:3px;flex:none}
+.kpi{display:flex;flex-direction:column} .kpi-v{font:800 40px/48px var(--font-sans);color:var(--ink-brand)} .kpi-l{color:var(--ink-muted)}
+.tbl{max-height:360px;overflow:auto} .tbl table{border-collapse:collapse;width:100%;font-size:13px}
+.tbl th{position:sticky;top:0;background:var(--surface-100);text-align:left}
+.tbl th,.tbl td{padding:4px 8px;border-bottom:1px solid rgba(13,18,51,.08)} .tbl td.n{text-align:right;font-variant-numeric:tabular-nums}
+.msg .chips{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-top:var(--space-3)}
+#printArea{display:none}
+@media print{
+  body > *:not(#printArea){display:none !important}
+  body{display:block;background:#fff}
+  #printArea{display:block;-webkit-print-color-adjust:exact;print-color-adjust:exact;color:var(--ink);font:400 12px/18px var(--font-sans)}
+  .pr-head,.pr-foot{display:flex;align-items:center;gap:12px} .pr-head .logo,.pr-foot .logo{height:22px}
+  .pr-foot{margin-top:24px;padding-top:8px;border-top:1px solid var(--border)}
+  .pr h1{font:700 20px/26px var(--font-sans);margin:16px 0 4px} .pr h2{font:700 14px/20px var(--font-sans);margin:16px 0 6px}
+  .pr pre{white-space:pre-wrap;font:11px/16px var(--font-mono)}
+  .pr .tbl{max-height:none;overflow:visible} .pr svg.chart{width:100%;height:auto;max-height:420px}
+}
 </style>
 </head>
 <body>
@@ -243,14 +270,22 @@ input:disabled,select:disabled{background:var(--surface-100);color:var(--ink-mut
   </div>
 </dialog>
 
+<div id="printArea" aria-hidden="true"></div>
 <script src="mcp.js"></script>
 <script src="oauth.js"></script>
 <script src="toolbox.js"></script>
+<script src="chart.js"></script>
+<script src="catalog.js"></script>
+<script src="ask.js"></script>
+<script src="report.js"></script>
 <script>
 "use strict";
 const $ = s => document.querySelector(s);
 const MAX_TOOL_CHARS = 4000, MAX_STEPS = 6;
+// Task 1 do plano de relatórios: o llamafile embarcado aceita (true) ou não (false) response_format com json_schema.
+const USE_SCHEMA = true;
 const st = { cfg:{}, messages:[], provider:null, tools:[], busy:false, ctl:null, dbStatus:null,
+  catalog:null, catalogPromise:null, catalogGen:0, suggestions:null,
   ctlKey:null, ctlUp:false, ctlStale:false, ctlStatus:null, ctlBusy:false };
 
 /* ---------- storage (best effort) ---------- */
@@ -321,6 +356,7 @@ async function connectTools(){
   const mode = store.get('cd2.mode') || (st.cfg.mcp && st.cfg.mcp.mode) || 'demo';
   const url = store.get('cd2.url') || (st.cfg.mcp && st.cfg.mcp.url) || '';
   const tok = store.get('cd2.tok', true) || '';
+  st.catalog = null; st.suggestions = null; st.catalogPromise = null; st.catalogGen++;
   setPill('#pMcp', '', 'ferramentas…');
   try{
     if(mode === 'toolbox'){
@@ -330,6 +366,7 @@ async function connectTools(){
       st.dbStatus = CD2Toolbox.parseStatus(await c.call('db_connection_status', {}));
       const eng = st.dbStatus ? CD2Toolbox.engineLabel(st.dbStatus.engine) : 'Banco de dados';
       setPill('#pMcp', 'ok', eng + ': ' + st.tools.length + ' ferramentas');
+      st.catalogPromise = loadCatalog(c, st.catalogGen);
     }else if(mode === 'mcp'){
       if(!url) throw new Error('Informe a URL do servidor MCP');
       const oauth = oauthFor(url);
@@ -464,6 +501,88 @@ async function runTurn(){
     st.busy = false; st.ctl = null; toggleBusy();
   }
 }
+/* ---------- roteiro de relatórios (modo Banco de dados) ---------- */
+// O mapa do banco é lido uma vez por conexão. Sem ele, a pergunta segue pelo laço de agente.
+async function loadCatalog(client, gen){
+  let cat = null, sug = null;
+  try{
+    const r = CD2Ask.parseRows(await client.call('db_catalog', {}));
+    if(r.ok && r.rows.length){ cat = CD2Catalog.buildCatalog(r.rows); sug = CD2Catalog.suggest(cat); }
+  }catch(e){}
+  if(gen !== st.catalogGen) return;
+  st.catalog = cat; st.suggestions = sug;
+  if($('#hero')) renderHero();
+}
+async function runAsk(pergunta){
+  st.busy = true; st.ctl = new AbortController(); toggleBusy();
+  const el = addMsg('assistant'), body = document.createElement('div'); body.className = 'body';
+  body.innerHTML = '<span class="spin"></span> Lendo o mapa do banco…'; el.appendChild(body); scrollDown();
+  let fallback = false;
+  try{
+    await st.catalogPromise;
+    if(st.ctl.signal.aborted){ const e = new Error('Interrompido'); e.name = 'AbortError'; throw e; }
+    const provider = st.provider, catalog = st.catalog;
+    if(!catalog || !provider){ el.remove(); fallback = true; return; }
+    body.innerHTML = '<span class="spin"></span> Montando a consulta…';
+    const s = st.dbStatus || {};
+    const r = await CD2Ask.ask({ pergunta, catalog, motor:s.engine || 'postgres', versao:String(s.db_version || '').split('\n')[0].trim(),
+      schema:s.schema || '', usuario:s.user || '',
+      callModel:CD2Ask.modelCaller({ fetch:(...a) => fetch(...a), url:'/v1/chat/completions', useSchema:USE_SCHEMA }),
+      runSql:CD2Ask.toolRunner(provider, { timeoutMs:15000 }), signal:st.ctl.signal });
+    renderAnswer(body, pergunta, r);
+  }catch(e){
+    el.remove();
+    if(e.name !== 'AbortError') addNote('Erro: ' + (e.message || e), true); else addNote('Interrompido.');
+  }finally{
+    st.busy = false; st.ctl = null; toggleBusy();
+    if(fallback){ st.messages.push({ role:'user', content:pergunta }); runTurn(); }
+  }
+}
+function sqlBox(sql){
+  const d = document.createElement('details'); d.className = 'tool';
+  d.innerHTML = '<summary>Consulta usada</summary><div class="inner"></div>';
+  d.querySelector('.inner').textContent = sql; return d;
+}
+function suggestionChips(){
+  const c = document.createElement('div'); c.className = 'chips';
+  for(const s of st.suggestions || []){ const b = document.createElement('button'); b.className = 'chip'; b.textContent = s; b.onclick = () => send(s); c.appendChild(b); }
+  return c;
+}
+function renderAnswer(body, pergunta, r){
+  body.innerHTML = '';
+  if(!r.ok){
+    const p = document.createElement('p'); p.textContent = CD2Ask.MENSAGENS[r.motivo] || CD2Ask.MENSAGENS.modelo; body.appendChild(p);
+    if(r.sql) body.appendChild(sqlBox(r.sql));
+    if(st.suggestions && st.suggestions.length) body.appendChild(suggestionChips());
+    scrollDown(); return;
+  }
+  const card = document.createElement('div'); card.className = 'answer';
+  const h = document.createElement('h3'); h.textContent = r.titulo; card.appendChild(h);
+  const f = document.createElement('p'); f.className = 'frase'; f.textContent = r.frase; card.appendChild(f);
+  const viz = document.createElement('div'); viz.className = 'viz';
+  viz.innerHTML = CD2Chart.render(r.visual, r.colunas, r.linhas, { x:r.x, y:r.y }); card.appendChild(viz);
+  if(r.aviso){ const a = document.createElement('p'); a.className = 'hint'; a.textContent = r.aviso; card.appendChild(a); }
+  card.appendChild(sqlBox(r.sql));
+  const acts = document.createElement('div'); acts.className = 'acts';
+  const bCsv = document.createElement('button'); bCsv.className = 'sm'; bCsv.textContent = 'CSV'; bCsv.onclick = () => downloadCsv(r);
+  const bPdf = document.createElement('button'); bPdf.className = 'sm primary'; bPdf.textContent = 'Imprimir/PDF'; bPdf.onclick = () => printAnswer(pergunta, r);
+  acts.appendChild(bCsv); acts.appendChild(bPdf); card.appendChild(acts);
+  body.appendChild(card); scrollDown();
+}
+function downloadCsv(r){
+  const url = URL.createObjectURL(new Blob([CD2Report.toCsv(r.colunas, r.todas)], { type:'text/csv;charset=utf-8' }));
+  const a = document.createElement('a'); a.href = url; a.download = CD2Report.fileName(new Date());
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function printAnswer(pergunta, r){
+  const s = st.dbStatus || {};
+  $('#printArea').innerHTML = CD2Report.printHtml({ pergunta, titulo:r.titulo, frase:r.frase, aviso:r.aviso,
+    visualHtml:CD2Chart.render(r.visual, r.colunas, r.linhas, { x:r.x, y:r.y }), tabelaHtml:CD2Chart.render('tabela', r.colunas, r.todas),
+    sql:r.sql, quando:new Date().toLocaleString('pt-BR'), motor:CD2Toolbox.engineLabel(s.engine), base:s.database || '',
+    contato:(st.cfg.report && st.cfg.report.contact) || '', logoSvg:$('.topbar .logo').outerHTML });
+  window.print();
+}
 function addNote(t, err){
   const d = document.createElement('div'); d.className = 'notice' + (err ? ' err' : '');
   if(err){ const tg = document.createElement('span'); tg.className = 'tag tag--atencao'; tg.textContent = 'Atenção'; d.appendChild(tg); }
@@ -478,7 +597,10 @@ function send(text){
   text = (text || $('#input').value).trim(); if(!text || st.busy) return;
   $('#input').value = ''; $('#input').style.height = 'auto';
   const hero = $('#hero'); if(hero) hero.remove();
-  addUser(text); st.messages.push({ role:'user', content:text }); runTurn();
+  addUser(text);
+  const mode = store.get('cd2.mode') || (st.cfg.mcp && st.cfg.mcp.mode) || 'demo';
+  if(mode === 'toolbox' && st.catalogPromise) runAsk(text);
+  else{ st.messages.push({ role:'user', content:text }); runTurn(); }
 }
 function renderHero(){
   const c = $('#chat'); c.innerHTML = '';
@@ -486,7 +608,8 @@ function renderHero(){
   h.innerHTML = '<span class="eyebrow">IA local · CD2 Harness Pocket</span><h1>Olá. Eu sou a IA da <em>CD2</em>.</h1><p></p><span class="eyebrow sub">Experimente perguntar</span><div class="chips"></div>';
   h.querySelector('p').textContent = st.cfg.tagline + '. Nada do que você digitar sai deste computador, a não ser consultas às ferramentas que você conectar.';
   const mode = store.get('cd2.mode') || (st.cfg.mcp && st.cfg.mcp.mode) || 'demo';
-  const sug = Array.isArray(st.cfg.suggestions) ? st.cfg.suggestions : ((st.cfg.suggestions || {})[mode] || []);
+  const sug = (mode === 'toolbox' && st.suggestions && st.suggestions.length) ? st.suggestions
+    : Array.isArray(st.cfg.suggestions) ? st.cfg.suggestions : ((st.cfg.suggestions || {})[mode] || []);
   for(const s of sug){
     const b = document.createElement('button'); b.className = 'chip'; b.textContent = s; b.onclick = () => send(s); h.querySelector('.chips').appendChild(b);
   }

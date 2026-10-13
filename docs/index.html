@@ -282,15 +282,28 @@ footer.t-blue{padding:var(--space-16) 0 var(--space-8)}
     </div>
   </section>
 
+  <section class="s" id="relatorios">
+    <div class="wrap">
+      <span class="eyebrow">Relatórios</span>
+      <h2>Da pergunta ao <em>relatório impresso.</em></h2>
+      <p class="lead">Conecte o banco e pergunte. Os números vêm do banco, nunca do modelo.</p>
+      <div class="grid2">
+        <div class="card"><h3>Pergunte</h3><p>"Faturamento por mês", "top 10 produtos". O harness sugere perguntas tiradas do próprio banco.</p></div>
+        <div class="card"><h3>Veja o gráfico</h3><p>Número, barra, linha, pizza ou tabela, com uma frase de resumo montada a partir do dado.</p></div>
+        <div class="card"><h3>Leve o relatório</h3><p>CSV para o Excel ou PDF com a marca e o contato da CD2.</p></div>
+        <div class="card"><h3>Sem travar o banco</h3><p>Só leitura, no máximo 200 linhas e 15 segundos por consulta. No SQL Server e no Oracle, o harness para de esperar, mas a consulta pode seguir no servidor.</p></div>
+      </div>
+    </div>
+  </section>
   <section class="s" id="cuidados" style="background:var(--surface-raised)">
     <div class="wrap">
       <span class="eyebrow">Cuidados</span>
       <h2>O que testar <em>antes do evento.</em></h2>
       <p class="lead">Modelo pequeno, executável incomum e máquinas que não são suas. Vale um ensaio em cada sistema.</p>
       <div class="grid2">
-        <div class="card"><span class="tag tag--atencao"><i></i>Atenção</span><h3>Velocidade</h3><p>O Qwen3 4B Thinking raciocina antes de responder. Em notebook só com CPU, espere dezenas de segundos por resposta.</p></div>
+        <div class="card"><span class="tag tag--atencao"><i></i>Atenção</span><h3>Velocidade</h3><p>O modelo padrão responde sem fase de raciocínio. Em notebook só com CPU, espere cerca de 9 segundos por pergunta.</p></div>
         <div class="card"><span class="tag tag--atencao"><i></i>Atenção</span><h3>Antivírus e SmartScreen</h3><p>O llamafile é um executável poliglota e alguns antivírus corporativos o bloqueiam. Leve um notebook seu como reserva.</p></div>
-        <div class="card"><span class="tag tag--atencao"><i></i>Atenção</span><h3>Procedência do modelo</h3><p>Confirme licença e origem do GGUF antes de distribuir pen drives com a marca da CD2, ou use o GGUF oficial da Qwen.</p></div>
+        <div class="card"><span class="tag tag--atencao"><i></i>Atenção</span><h3>Procedência do modelo</h3><p>GGUF do Qwen3 4B Instruct 2507, licença Apache 2.0, conferido por SHA-256 no preparo do pen drive.</p></div>
         <div class="card"><span class="tag tag--atencao"><i></i>Atenção</span><h3>Modelo pequeno erra</h3><p>Em números do Archeo, o dado vem da ferramenta; o texto em volta é do modelo. O aviso na tela é proposital.</p></div>
       </div>
     </div>
