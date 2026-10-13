@@ -14,7 +14,7 @@ die()  { printf '\n[ERRO] %s\n' "$*" >&2; printf 'Pressione ENTER para sair.'; r
 banner() {
   printf '\n'
   printf '  \033[38;5;179m+-----------------------------+\033[0m\n'
-  printf '  \033[38;5;179m|\033[0m   \033[1mCD2 Retail Tech\033[0m  Harness    \033[38;5;179m|\033[0m\n'
+  printf '  \033[38;5;179m|\033[0m   \033[1mCD2 Tech\033[0m  Harness           \033[38;5;179m|\033[0m\n'
   printf '  \033[38;5;179m+-----------------------------+\033[0m\n'
   printf '  IA local, sem nuvem.\n\n'
 }

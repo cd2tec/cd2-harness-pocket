@@ -32,7 +32,7 @@ if command -v shasum >/dev/null 2>&1; then SUM="shasum -a 256"; else SUM="sha256
 
 printf '\n'
 printf '  \033[38;5;179m+-----------------------------+\033[0m\n'
-printf '  \033[38;5;179m|\033[0m   \033[1mCD2 Retail Tech\033[0m  Harness    \033[38;5;179m|\033[0m\n'
+printf '  \033[38;5;179m|\033[0m   \033[1mCD2 Tech\033[0m  Harness           \033[38;5;179m|\033[0m\n'
 printf '  \033[38;5;179m+-----------------------------+\033[0m\n'
 printf '  Gravar pen drive\n\n'
 
