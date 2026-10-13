@@ -16,6 +16,22 @@ db_env_defaults() {
 # _db_env_q VALOR -> valor entre aspas simples, seguro para o sh ler de volta
 _db_env_q() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
 
+# db_yaml_dq VALOR -> valor escapado para escalar YAML entre aspas duplas (\ -> \\, " -> \").
+# O toolbox troca ${CD2_DB_PASSWORD} pelo texto cru ANTES de ler o YAML; a receita usa
+# password: "${CD2_DB_PASSWORD}", entao o valor precisa chegar escapado. So no ambiente do toolbox.
+db_yaml_dq() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'; }
+
+# db_log_scrub -> filtro (stdin -> stdout) que tira linhas com "password" (qualquer caixa) ou com a
+# senha literal, crua ou escapada. A senha vem por ENVIRON (CD2_DB_PASSWORD e CD2_DB_PASSWORD_DQ),
+# nunca pela linha de comando, e e comparada com index() (texto fixo, nao regex).
+db_log_scrub() {
+  awk 'BEGIN { p = ENVIRON["CD2_DB_PASSWORD"]; q = ENVIRON["CD2_DB_PASSWORD_DQ"] }
+       tolower($0) ~ /password/ { next }
+       p != "" && index($0, p) { next }
+       q != "" && index($0, q) { next }
+       { print }'
+}
+
 # db_env_write ARQUIVO ENGINE HOST PORT NAME USER PASSWORD SCHEMA
 db_env_write() {
   _f="$1"

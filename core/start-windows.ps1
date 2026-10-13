@@ -84,12 +84,30 @@ function Ask-DbEnv {
 }
 # remove CD2_DB_* do ambiente deste processo: o navegador aberto depois herda o ambiente
 function Clear-DbEnvVars { Get-ChildItem Env: | Where-Object { $_.Name -like 'CD2_DB_*' } | ForEach-Object { Remove-Item -Path "Env:$($_.Name)" -ErrorAction SilentlyContinue } }
+# escalar YAML entre aspas duplas: \ -> \\ e " -> \"
+function Escape-YamlDq([string]$v) { return $v.Replace('\', '\\').Replace('"', '\"') }
+# reescreve o log sem as linhas com "password" (qualquer caixa) ou com a senha literal; devolve as linhas que ficaram
+# e soma em $script:ScrubCut quantas linhas sairam
+function Get-ScrubbedLog([string]$path, [string[]]$secrets) {
+    if (-not (Test-Path $path)) { return @() }
+    $all = @(Get-Content -Encoding UTF8 $path -ErrorAction SilentlyContinue)
+    $keep = @($all | Where-Object {
+        $l = $_; if ($l -match 'password') { return $false }
+        foreach ($s in $secrets) { if ($s -and $l.Contains($s)) { return $false } }
+        return $true })
+    $script:ScrubCut += $all.Count - $keep.Count
+    try { Set-Content -Path $path -Value $keep -Encoding UTF8 -ErrorAction Stop } catch { Clear-Content -Path $path -ErrorAction SilentlyContinue }
+    return $keep
+}
 function Stop-Toolbox { if ($script:TbProc -and -not $script:TbProc.HasExited) { & taskkill.exe /PID $script:TbProc.Id /T /F 2>&1 | Out-Null } }
 function Start-Toolbox {
     $src = Join-Path $Root 'bin\toolbox\windows-amd64\toolbox.exe'
     if (-not (Test-Path $src)) { Write-Host 'bin\toolbox\windows-amd64 nao encontrado: sem modo Banco de dados neste pen drive.' -ForegroundColor DarkYellow; return $false }
     $env_ = Read-DbEnv
     $script:DbInfo = "$($env_['CD2_DB_ENGINE']) em $($env_['CD2_DB_HOST']) ($($env_['CD2_DB_NAME']))"
+    # o toolbox troca ${CD2_DB_PASSWORD} pelo texto cru antes de ler o YAML e a receita usa
+    # password: "${CD2_DB_PASSWORD}": a senha vai escapada (\ e ") so no ambiente do toolbox
+    if ($env_.ContainsKey('CD2_DB_PASSWORD')) { $env_['CD2_DB_PASSWORD'] = Escape-YamlDq $env_['CD2_DB_PASSWORD'] }
     foreach ($k in $env_.Keys) { Set-Item -Path "Env:$k" -Value $env_[$k] }
     $yaml = Join-Path $Root "core\toolbox\$($env_['CD2_DB_ENGINE']).yaml"
     $tbLog = Join-Path $LogDir 'toolbox.log'; $tbErr = Join-Path $LogDir 'toolbox.err.log'
@@ -108,8 +126,14 @@ function Start-Toolbox {
         Start-Sleep -Seconds 1
     }
     Stop-Toolbox; $script:TbProc = $null
+    # o toolbox pode citar a linha da senha num erro de YAML: limpa os logs antes de mostrar
+    [string]$pw = (Read-DbEnv)['CD2_DB_PASSWORD']; $secrets = @($pw, (Escape-YamlDq $pw)); $pw = $null
+    $script:ScrubCut = 0
+    $null = Get-ScrubbedLog $tbLog $secrets
+    $shown = Get-ScrubbedLog $tbErr $secrets; $secrets = $null
     Write-Host ''; Write-Host "[AVISO] O banco nao respondeu. Ultimas linhas do log ($tbErr):" -ForegroundColor DarkYellow
-    Get-Content $tbErr -Tail 15 -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "   $_" }
+    if ($shown) { $shown | Select-Object -Last 15 | ForEach-Object { Write-Host "   $_" } }
+    if ($script:ScrubCut -gt 0) { Write-Host "   ($script:ScrubCut linha(s) omitida(s) por citar a senha; confira usuario e senha)" }
     Write-Host 'Seguindo em Demonstracao. Para corrigir a conexao: INICIAR-CD2-Windows.bat --banco' -ForegroundColor DarkYellow
     return $false
 }

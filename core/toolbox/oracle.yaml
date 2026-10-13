@@ -11,7 +11,7 @@ host: ${CD2_DB_HOST}
 port: ${CD2_DB_PORT}
 serviceName: ${CD2_DB_NAME}
 user: ${CD2_DB_USER}
-password: ${CD2_DB_PASSWORD}
+password: "${CD2_DB_PASSWORD}"
 
 ---
 kind: tool

@@ -10,7 +10,7 @@ host: ${CD2_DB_HOST}
 port: ${CD2_DB_PORT}
 database: ${CD2_DB_NAME}
 user: ${CD2_DB_USER}
-password: ${CD2_DB_PASSWORD}
+password: "${CD2_DB_PASSWORD}"
 connectTimeout: 10
 queryParams:
   default_transaction_read_only: "on"

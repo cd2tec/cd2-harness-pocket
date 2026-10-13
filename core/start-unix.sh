@@ -109,7 +109,9 @@ start_toolbox() {
   # o db.env so e lido dentro do subshell que vira o toolbox (exec): a senha nao
   # fica no ambiente deste script nem chega ao navegador aberto depois.
   TB_LOG="$CACHE/toolbox.log"; : > "$TB_LOG"
+  # A senha vai escapada para o escalar "..." da receita (o db.env continua com ela crua).
   ( set -a; . "$DB_ENV"; set +a
+    CD2_DB_PASSWORD="$(db_yaml_dq "$CD2_DB_PASSWORD")"
     exec "$TB_RUN" --config "$ROOT/core/toolbox/$CD2_DB_ENGINE.yaml" --address 127.0.0.1 --port "$TB_PORT" \
       --allowed-hosts "127.0.0.1:$TB_PORT,localhost:$TB_PORT" \
       --allowed-origins "http://127.0.0.1:$PORT,http://localhost:$PORT" --disable-reload ) >> "$TB_LOG" 2>&1 &
@@ -121,8 +123,15 @@ start_toolbox() {
     i=$((i + 1)); sleep 1
   done
   kill "$TB_PID" 2>/dev/null; TB_PID=""
+  # o toolbox pode citar a linha da senha num erro de YAML: limpa o log antes de mostrar
+  # (se a limpeza falhar, o log e zerado em vez de ficar com a senha)
+  TB_CUT=$(awk 'END { print NR }' "$TB_LOG")
+  if ( umask 077; set -a; . "$DB_ENV"; CD2_DB_PASSWORD_DQ="$(db_yaml_dq "$CD2_DB_PASSWORD")"; set +a
+       db_log_scrub < "$TB_LOG" > "$TB_LOG.tmp" ); then cat "$TB_LOG.tmp" > "$TB_LOG"; else : > "$TB_LOG"; fi
+  rm -f "$TB_LOG.tmp"; TB_CUT=$((TB_CUT - $(awk 'END { print NR }' "$TB_LOG")))
   say ""; say "[AVISO] O banco nao respondeu. Ultimas linhas do log ($TB_LOG):"
-  tail -n 15 "$TB_LOG" | sed 's/^/   /'
+  tail -n 15 "$TB_LOG" | db_log_scrub | sed 's/^/   /'
+  [ "$TB_CUT" -gt 0 ] 2>/dev/null && say "   ($TB_CUT linha(s) omitida(s) por citar a senha; confira usuario e senha)"
   say "Seguindo em Demonstracao. Para corrigir a conexao: INICIAR --banco"
   return 1
 }

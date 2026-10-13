@@ -7,14 +7,23 @@ ENGINE="${1:?uso: check-recipe.sh postgres|oracle|mariadb|sqlserver}"
 HERE="$(cd "$(dirname "$0")" && pwd)"; ROOT="$(cd "$HERE/../.." && pwd)"
 YAML="$ROOT/core/toolbox/$ENGINE.yaml"
 set -a; . "$HERE/$ENGINE.env"; set +a
+# mesmo caminho do launcher: a receita usa password: "${CD2_DB_PASSWORD}", entao a senha vai escapada
+. "$ROOT/core/db-env.sh"; CD2_DB_PASSWORD="$(db_yaml_dq "$CD2_DB_PASSWORD")"
+# prefere o toolbox do pen drive (bin/toolbox/<plat>) ao que estiver no PATH
+case "$(uname -s)-$(uname -m)" in
+  Darwin-arm64) PLAT=darwin-arm64 ;; Darwin-*) PLAT=darwin-amd64 ;;
+  Linux-aarch64|Linux-arm64) PLAT=linux-arm64 ;; *) PLAT=linux-amd64 ;;
+esac
+TOOLBOX="$ROOT/bin/toolbox/$PLAT/toolbox"; [ -x "$TOOLBOX" ] || TOOLBOX=toolbox
 fail() { printf '[FALHOU] %s\n' "$*" >&2; exit 1; }
 # invoke TOOL JSON -> imprime so o JSON do resultado (o log do toolbox vai antes, no stdout)
-invoke() { toolbox invoke "$1" "$2" --config "$YAML" 2>&1 | sed -n '/^\[/,$p'; }
+invoke() { "$TOOLBOX" invoke "$1" "$2" --config "$YAML" 2>&1 | sed -n '/^\[/,$p'; }
 # invoke_err TOOL JSON -> imprime a ultima linha (mensagem de erro)
-invoke_err() { toolbox invoke "$1" "$2" --config "$YAML" 2>&1 | tail -n 1; }
+invoke_err() { "$TOOLBOX" invoke "$1" "$2" --config "$YAML" 2>&1 | tail -n 1; }
 keys() { jq -r '.[0] | keys | join(",")'; }  # ordenado: a ordem das colunas varia por driver
 TBL=produto; VW=v_venda; [ "$ENGINE" = oracle ] && TBL=PRODUTO && VW=V_VENDA
 
+echo "== $ENGINE: toolbox $TOOLBOX"
 echo "== $ENGINE: db_connection_status"
 S="$(invoke db_connection_status '{}')"
 [ "$(printf '%s' "$S" | keys)" = "database,db_version,engine,host,schema,user,visible_tables" ] || fail "status: colunas $(printf '%s' "$S" | keys)"
