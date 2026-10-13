@@ -182,7 +182,7 @@ input:disabled,select:disabled{background:var(--surface-100);color:var(--ink-mut
 @media print{
   body > *:not(#printArea){display:none !important}
   body{display:block;background:#fff}
-  #printArea{display:block;color:var(--ink);font:400 12px/18px var(--font-sans)}
+  #printArea{display:block;-webkit-print-color-adjust:exact;print-color-adjust:exact;color:var(--ink);font:400 12px/18px var(--font-sans)}
   .pr-head,.pr-foot{display:flex;align-items:center;gap:12px} .pr-head .logo,.pr-foot .logo{height:22px}
   .pr-foot{margin-top:24px;padding-top:8px;border-top:1px solid var(--border)}
   .pr h1{font:700 20px/26px var(--font-sans);margin:16px 0 4px} .pr h2{font:700 14px/20px var(--font-sans);margin:16px 0 6px}
@@ -520,12 +520,14 @@ async function runAsk(pergunta){
   let fallback = false;
   try{
     await st.catalogPromise;
-    if(!st.catalog){ el.remove(); fallback = true; return; }
+    if(st.ctl.signal.aborted){ const e = new Error('Interrompido'); e.name = 'AbortError'; throw e; }
+    const provider = st.provider, catalog = st.catalog;
+    if(!catalog || !provider){ el.remove(); fallback = true; return; }
     body.innerHTML = '<span class="spin"></span> Montando a consulta…';
     const s = st.dbStatus || {};
-    const r = await CD2Ask.ask({ pergunta, catalog:st.catalog, motor:s.engine || 'postgres', versao:String(s.db_version || '').split('\n')[0].trim(),
+    const r = await CD2Ask.ask({ pergunta, catalog, motor:s.engine || 'postgres', versao:String(s.db_version || '').split('\n')[0].trim(),
       callModel:CD2Ask.modelCaller({ fetch:(...a) => fetch(...a), url:'/v1/chat/completions', useSchema:USE_SCHEMA }),
-      runSql:CD2Ask.toolRunner(st.provider, { timeoutMs:15000 }), signal:st.ctl.signal });
+      runSql:CD2Ask.toolRunner(provider, { timeoutMs:15000 }), signal:st.ctl.signal });
     renderAnswer(body, pergunta, r);
   }catch(e){
     el.remove();
