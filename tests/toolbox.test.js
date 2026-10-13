@@ -91,10 +91,18 @@ test('TOOL_DESCRIPTIONS cobre as seis ferramentas', () => {
 /* ---------- cd2-ctl (controle do banco pela tela) ---------- */
 const K = 'a'.repeat(32) + '0123456789abcdef0123456789ABCDEF';
 
-test('ctlUrlFor: porta do harness + 2000, sempre 127.0.0.1, sem barra no fim', () => {
-  assert.equal(T.ctlUrlFor({ port:'8080' }), 'http://127.0.0.1:10080');
-  assert.equal(T.ctlUrlFor({ hostname:'localhost', port:'8093' }), 'http://127.0.0.1:10093');
-  assert.equal(T.ctlUrlFor({ port:'' }), 'http://127.0.0.1:2080');
+test('ctlUrlFor: porta do harness + 3000, sempre 127.0.0.1, sem barra no fim', () => {
+  assert.equal(T.ctlUrlFor({ port:'8080' }), 'http://127.0.0.1:11080');
+  assert.equal(T.ctlUrlFor({ hostname:'localhost', port:'8093' }), 'http://127.0.0.1:11093');
+  assert.equal(T.ctlUrlFor({ port:'' }), 'http://127.0.0.1:3080');
+});
+
+test('trio de portas P, P+1000, P+3000 nunca cai em porta bloqueada pelos navegadores (P de 8080 a 8100)', () => {
+  for (let p = 8080; p <= 8100; p++) {
+    for (const q of [p, p + 1000, p + 3000]) {
+      assert.ok(!T.UNSAFE_PORTS.includes(q), 'porta bloqueada: ' + q + ' (P=' + p + ')');
+    }
+  }
 });
 
 test('readKeyFromHash: só k= com 64 hexadecimais; hash vazio não é chave', () => {

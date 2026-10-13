@@ -21,7 +21,7 @@ Junto, os nomes do produto mudam: no site ele passa a ser **IA de Bolso** e no f
 | Peça nova | `cd2-ctl`, binário próprio em Go (pasta `ctl/`), um por plataforma: `windows-amd64`, `darwin-arm64`, `darwin-amd64`, `linux-amd64`. |
 | Por que Go | Mesmo código nos três sistemas, sem depender de nada instalado no computador do cliente. `sh` puro não serve HTTP com segurança e o Mac não traz `python3`. |
 | Distribuição | GitHub Actions compila a cada tag `ctl-vX.Y.Z` e anexa ao release do repositório (público). O preparo baixa a versão fixada, como faz com o toolbox. Só quem mexe em `ctl/` precisa de Go. |
-| Portas | Trio que avança junto: P (harness), P+1000 (toolbox), P+2000 (`cd2-ctl`). Padrão 8080, 9080, 10080. |
+| Portas | Trio que avança junto: P (harness), P+1000 (toolbox), P+3000 (`cd2-ctl`). Padrão 8080, 9080, 11080. P+2000 foi descartado: 10080 está na lista de portas bloqueadas pelos navegadores. |
 | Onde mora a conexão | Continua no `db.env` do cache do computador, mesmo formato e mesmas permissões da v0.5.0. |
 | Senha | Passa pelo navegador só para gravar, só em `127.0.0.1`. Nunca volta para a tela, nunca vai para log. |
 | Falha ao trocar | Rollback: nada é gravado e o toolbox anterior volta. |
@@ -32,7 +32,7 @@ Junto, os nomes do produto mudam: no site ele passa a ser **IA de Bolso** e no f
 ```
 launcher (sh / ps1)
   ├─ llamafile          127.0.0.1:P        página + modelo
-  ├─ cd2-ctl            127.0.0.1:P+2000   controle (chave da sessão)
+  ├─ cd2-ctl            127.0.0.1:P+3000   controle (chave da sessão)
   │    └─ toolbox       127.0.0.1:P+1000   MCP, ferramentas somente leitura
   └─ navegador          http://127.0.0.1:P/#k=<chave>
 ```
@@ -57,7 +57,7 @@ cd2-ctl --root <raiz do pen drive> --cache <pasta de cache> --harness-port P
 Variável de ambiente `CD2_CTL_KEY`: a chave da sessão, 64 caracteres hexadecimais (32 bytes
 aleatórios gerados pelo launcher). Sem ela, o `cd2-ctl` não sobe.
 
-O `cd2-ctl` deriva: toolbox em P+1000, controle em P+2000, binário do toolbox em
+O `cd2-ctl` deriva: toolbox em P+1000, controle em P+3000, binário do toolbox em
 `<root>/bin/toolbox/<os>-<arch>/toolbox[.exe]`, receitas em `<root>/core/toolbox/<motor>.yaml`,
 `db.env` e `toolbox.log` em `<cache>`. Ele copia o toolbox para o cache antes de executar
 (pen drive exFAT/FAT não guarda permissão de execução), como o launcher faz hoje, e no Mac tira a
@@ -65,7 +65,7 @@ quarentena (`xattr -dr com.apple.quarantine`).
 
 ### Arranque
 
-1. Escuta em `127.0.0.1:P+2000`. Se não conseguir, sai com código 2 e mensagem sem acento.
+1. Escuta em `127.0.0.1:P+3000`. Se não conseguir, sai com código 2 e mensagem sem acento.
 2. Se `db.env` existe e é válido, sobe o toolbox com ele (mesmo fluxo do item "Subir o toolbox").
 3. Se não existe, fica em estado `sem_banco` e espera a tela.
 
@@ -141,7 +141,7 @@ temporário antes de escrever o conteúdo. `DELETE /config` apaga o arquivo.
 - `Authorization: Bearer <chave>` obrigatório, comparação em tempo constante. Errado ou ausente: 401.
 - `Origin` precisa ser `http://127.0.0.1:P` ou `http://localhost:P`. Outra: 403. Ausente: aceito
   só em `GET` (para testes com curl), recusado em `POST` e `DELETE`.
-- `Host` precisa ser `127.0.0.1:P+2000` ou `localhost:P+2000` (contra DNS rebinding). Outro: 403.
+- `Host` precisa ser `127.0.0.1:P+3000` ou `localhost:P+3000` (contra DNS rebinding). Outro: 403.
 - `POST` exige `Content-Type: application/json` (força preflight no navegador). Outro: 415.
 - CORS: `Access-Control-Allow-Origin` só com a origem do harness; `Allow-Headers` com
   `Authorization, Content-Type`; `Allow-Methods` com `GET, POST, DELETE`.
@@ -174,7 +174,7 @@ também derruba o `cd2-ctl` no `cleanup`.
 
 - Saem: `db-env.sh` (o arquivo é removido), a pergunta, `--banco`, `start_toolbox`, o filtro de log
   e a variável `TB_PID`. Os wrappers deixam de repassar argumentos.
-- Portas: o laço testa P, P+1000 e P+2000 e avança o trio junto.
+- Portas: o laço testa P, P+1000 e P+3000 e avança o trio junto.
 - Chave: 32 bytes aleatórios em hexadecimal (`od -An -tx1 -N32 /dev/urandom | tr -d ' \n'` no
   Unix, `RandomNumberGenerator` no Windows). Passada ao `cd2-ctl` só pela variável `CD2_CTL_KEY`
   no ambiente dele, e à janela pela URL `http://127.0.0.1:P/#k=<chave>`.
@@ -208,7 +208,7 @@ também derruba o `cd2-ctl` no `cleanup`.
 - `cd2-ctl` fora do ar (sem binário, morreu): o bloco mostra Atenção "O controle do banco não está
   rodando. Feche e abra o harness pelo atalho INICIAR." e o formulário fica desabilitado.
 - Lógica pura nova em `web/toolbox.js` (testável com `node --test`): `ctlUrlFor(location)`
-  (porta + 2000), `readKeyFromHash(hash)`, `configPayload(form)` (trim, porta numérica, senha vazia
+  (porta + 3000), `readKeyFromHash(hash)`, `configPayload(form)` (trim, porta numérica, senha vazia
   omitida) e `defaultsFor(motor, usuario, base)`.
 
 ## 5. Site (`docs/index.html`)

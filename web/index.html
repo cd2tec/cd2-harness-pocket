@@ -352,7 +352,7 @@ async function connectTools(){
     st.dbStatus = null;
     let hint = '';
     if(e instanceof TypeError) hint = (mode === 'toolbox')
-      ? ' O toolbox não respondeu em ' + CD2Toolbox.urlFor(location) + '. O launcher deve ter avisado no terminal; Configure o banco em Ferramentas, modo MCP Nativo para Banco de dados, ou use a Demonstração.'
+      ? ' O toolbox não respondeu em ' + CD2Toolbox.urlFor(location) + '. Configure o banco em Ferramentas, modo MCP Nativo para Banco de dados, ou use a Demonstração.'
       : ' (falha de rede ou CORS: o servidor MCP precisa liberar a origem ' + location.origin + ')';
     return { ok:false, error:(e.message || String(e)) + hint };
   }
@@ -503,7 +503,7 @@ function syncCfgBoxes(){
   $('#tbBox').style.display = (mode === 'toolbox') ? '' : 'none';
   $('#archeoBox').style.display = (mode === 'mcp') ? '' : 'none';
 }
-/* ---------- controle do banco (cd2-ctl, porta do harness + 2000) ---------- */
+/* ---------- controle do banco (cd2-ctl, porta do harness + 3000) ---------- */
 const DB_FIELDS = { motor:'#dbMotor', host:'#dbHost', porta:'#dbPorta', base:'#dbBase', usuario:'#dbUsuario', senha:'#dbSenha', schema:'#dbSchema' };
 // A chave chega uma vez no endereço (#k=), vai para o sessionStorage desta aba e some do endereço.
 // Recarregar a página (hash já vazio) mantém a chave guardada.

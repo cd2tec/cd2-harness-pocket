@@ -36,13 +36,13 @@ func (f *fakeBackend) Clear() control.Status {
 
 func newH() (http.Handler, *fakeBackend) {
 	b := &fakeBackend{}
-	return Handler(Options{Key: key, HarnessPort: 8080, CtlPort: 10080}, b), b
+	return Handler(Options{Key: key, HarnessPort: 8080, CtlPort: 11080}, b), b
 }
 
 // do monta um pedido válido (Host, Origin, chave e Content-Type certos); mod estraga o que o teste quer.
 func do(h http.Handler, method, path, body string, mod func(*http.Request)) *httptest.ResponseRecorder {
-	r := httptest.NewRequest(method, "http://127.0.0.1:10080"+path, strings.NewReader(body))
-	r.Host = "127.0.0.1:10080"
+	r := httptest.NewRequest(method, "http://127.0.0.1:11080"+path, strings.NewReader(body))
+	r.Host = "127.0.0.1:11080"
 	r.Header.Set("Origin", "http://127.0.0.1:8080")
 	r.Header.Set("Authorization", "Bearer "+key)
 	if method == http.MethodPost {
@@ -133,7 +133,7 @@ func TestOriginLocalhost(t *testing.T) {
 
 func TestHost(t *testing.T) {
 	h, _ := newH()
-	for host, want := range map[string]int{"evil.example:10080": 403, "127.0.0.1:8080": 403, "127.0.0.1": 403, "localhost:10080": 200} {
+	for host, want := range map[string]int{"evil.example:11080": 403, "127.0.0.1:8080": 403, "127.0.0.1": 403, "localhost:11080": 200} {
 		w := do(h, "GET", "/status", "", func(r *http.Request) { r.Host = host })
 		if w.Code != want {
 			t.Errorf("host %q: %d, quero %d", host, w.Code, want)
@@ -239,7 +239,7 @@ func (closedBackend) Clear() control.Status {
 }
 
 func TestAposShutdown503(t *testing.T) {
-	h := Handler(Options{Key: key, HarnessPort: 8080, CtlPort: 10080}, &closedBackend{})
+	h := Handler(Options{Key: key, HarnessPort: 8080, CtlPort: 11080}, &closedBackend{})
 	if w := do(h, "POST", "/config", okBody, nil); w.Code != 503 {
 		t.Errorf("POST: %d", w.Code)
 	}

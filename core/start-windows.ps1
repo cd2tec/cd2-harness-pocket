@@ -107,11 +107,11 @@ $ModelFile = Get-ChildItem -Path (Join-Path $Root 'models') -Filter *.gguf -Erro
 if (-not $ModelFile) { Fail "Nenhum modelo .gguf em models\. Rode a preparacao do pen drive." }
 $Model = $ModelFile.FullName
 
-# trio de portas livre: P (harness), P+1000 (toolbox) e P+2000 (cd2-ctl), avancando juntas
+# trio de portas livre: P (harness), P+1000 (toolbox) e P+3000 (cd2-ctl), avancando juntas
 $Port = $PortFrom
-while ((-not (PortFree $Port) -or -not (PortFree ($Port + 1000)) -or -not (PortFree ($Port + 2000))) -and $Port -lt ($PortFrom + 20)) { $Port++ }
+while ((-not (PortFree $Port) -or -not (PortFree ($Port + 1000)) -or -not (PortFree ($Port + 3000))) -and $Port -lt ($PortFrom + 20)) { $Port++ }
 $Url = "http://127.0.0.1:$Port"
-$CtlPort = $Port + 2000
+$CtlPort = $Port + 3000
 $Cache = Join-Path $env:LOCALAPPDATA 'cd2-harness'
 New-Item -ItemType Directory -Force -Path $Cache | Out-Null
 $CtlKey = New-SessionKey

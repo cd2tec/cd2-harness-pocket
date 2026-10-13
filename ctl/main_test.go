@@ -50,7 +50,7 @@ func TestPortaDeControleOcupada(t *testing.T) {
 		t.Skip("porta efêmera baixa demais")
 	}
 	var errb bytes.Buffer
-	code := run([]string{"--root", t.TempDir(), "--cache", t.TempDir(), "--harness-port", strconv.Itoa(p - 2000)}, testKey, nil, io.Discard, &errb)
+	code := run([]string{"--root", t.TempDir(), "--cache", t.TempDir(), "--harness-port", strconv.Itoa(p - 3000)}, testKey, nil, io.Discard, &errb)
 	if code != 2 || !strings.Contains(errb.String(), "nao consegui escutar") {
 		t.Errorf("code %d, %q", code, errb.String())
 	}
@@ -69,7 +69,7 @@ func TestSobeRespondeEEncerra(t *testing.T) {
 	stop := make(chan os.Signal, 1)
 	done := make(chan int, 1)
 	go func() {
-		done <- run([]string{"--root", t.TempDir(), "--cache", t.TempDir(), "--harness-port", strconv.Itoa(p - 2000)}, testKey, stop, io.Discard, io.Discard)
+		done <- run([]string{"--root", t.TempDir(), "--cache", t.TempDir(), "--harness-port", strconv.Itoa(p - 3000)}, testKey, stop, io.Discard, io.Discard)
 	}()
 	url := fmt.Sprintf("http://127.0.0.1:%d/status", p)
 	var code int

@@ -17,7 +17,7 @@ import (
 // MaxBody é o maior corpo aceito em POST /config.
 const MaxBody = 8 << 10
 
-// Options: chave da sessão (64 hex), porta do harness (P) e porta de controle (P+2000).
+// Options: chave da sessão (64 hex), porta do harness (P) e porta de controle (P+3000).
 type Options struct {
 	Key         string
 	HarnessPort int

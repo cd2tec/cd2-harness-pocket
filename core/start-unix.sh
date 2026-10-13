@@ -38,13 +38,13 @@ if [ ! -x "$RUN_BIN" ] || ! cmp -s "$SRC_BIN" "$RUN_BIN"; then
   [ "$OS" = "Darwin" ] && xattr -dr com.apple.quarantine "$RUN_BIN" 2>/dev/null
 fi
 
-# --- trio de portas livre: P (harness), P+1000 (toolbox) e P+2000 (cd2-ctl) -----
+# --- trio de portas livre: P (harness), P+1000 (toolbox) e P+3000 (cd2-ctl) -----
 # ocupada = alguem aceitou a conexao; o curl so devolve 7 quando ninguem escuta
 busy() { curl -s --max-time 1 -o /dev/null "http://127.0.0.1:$1/" 2>/dev/null; [ "$?" -ne 7 ]; }
 PORT="$PORT_START"; tries=0
-while { busy "$PORT" || busy "$((PORT + 1000))" || busy "$((PORT + 2000))"; } && [ "$tries" -lt 20 ]; do PORT=$((PORT + 1)); tries=$((tries + 1)); done
+while { busy "$PORT" || busy "$((PORT + 1000))" || busy "$((PORT + 3000))"; } && [ "$tries" -lt 20 ]; do PORT=$((PORT + 1)); tries=$((tries + 1)); done
 URL="http://127.0.0.1:$PORT"
-CTL_PORT=$((PORT + 2000))
+CTL_PORT=$((PORT + 3000))
 # chave da sessao: 32 bytes aleatorios em hexadecimal. Vai so para o ambiente do cd2-ctl e para a
 # janela (#k=). Nao e exportada: o navegador aberto depois nao a herda pelo ambiente.
 CTL_KEY="$(od -An -tx1 -N32 /dev/urandom | tr -d ' \n')"

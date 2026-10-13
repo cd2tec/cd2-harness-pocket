@@ -19,7 +19,7 @@ esac
 TB="$ROOT/bin/toolbox/$PLAT/toolbox"
 [ -x "$TB" ] || fail "sem $TB (rode o preparo ou copie de um pen drive preparado)"
 command -v jq >/dev/null 2>&1 || fail "precisa do jq"
-HP="${CD2_E2E_PORT:-18080}"; TP=$((HP + 1000)); CP=$((HP + 2000))
+HP="${CD2_E2E_PORT:-18080}"; TP=$((HP + 1000)); CP=$((HP + 3000))
 GOOD_PW="cd2 s3nh@'x"               # senha do postgres de tests/toolbox/docker-compose.yml
 BAD_PW="errada \"e2e\" \\ \$x'y"    # aspas, barra e cifrao: tem de sumir da resposta e do log
 BAD_DQ="$(printf '%s' "$BAD_PW" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')"

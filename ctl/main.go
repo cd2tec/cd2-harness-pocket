@@ -1,4 +1,4 @@
-// cd2-ctl: controle do banco de dados do CD2 Harness Pocket. Escuta só em 127.0.0.1:P+2000,
+// cd2-ctl: controle do banco de dados do CD2 Harness Pocket. Escuta só em 127.0.0.1:P+3000,
 // é o único dono do MCP Toolbox (127.0.0.1:P+1000) e grava a conexão no db.env do cache.
 //
 // Uso: CD2_CTL_KEY=<64 hex> cd2-ctl --root <pen drive> --cache <pasta> --harness-port P
@@ -51,7 +51,7 @@ func run(args []string, key string, stop <-chan os.Signal, stdout, stderr io.Wri
 	fs.SetOutput(stderr)
 	root := fs.String("root", "", "raiz do pen drive")
 	cache := fs.String("cache", "", "pasta de cache deste computador (db.env e toolbox.log)")
-	hport := fs.Int("harness-port", 0, "porta do harness (P); toolbox em P+1000, controle em P+2000")
+	hport := fs.Int("harness-port", 0, "porta do harness (P); toolbox em P+1000, controle em P+3000")
 	showVersion := fs.Bool("version", false, "mostra a versao e sai")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -64,7 +64,7 @@ func run(args []string, key string, stop <-chan os.Signal, stdout, stderr io.Wri
 		fmt.Fprintln(stderr, "cd2-ctl: CD2_CTL_KEY ausente ou invalida (64 caracteres hexadecimais)")
 		return 2
 	}
-	if *root == "" || *cache == "" || *hport < 1 || *hport+2000 > 65535 {
+	if *root == "" || *cache == "" || *hport < 1 || *hport+3000 > 65535 {
 		fmt.Fprintln(stderr, "uso: CD2_CTL_KEY=<chave> cd2-ctl --root <pen drive> --cache <pasta> --harness-port P")
 		return 2
 	}
@@ -72,7 +72,7 @@ func run(args []string, key string, stop <-chan os.Signal, stdout, stderr io.Wri
 		fmt.Fprintf(stderr, "cd2-ctl: nao consegui criar %s: %v\n", *cache, err)
 		return 2
 	}
-	ctlPort, tbPort := *hport+2000, *hport+1000
+	ctlPort, tbPort := *hport+3000, *hport+1000
 	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", ctlPort))
 	if err != nil {
 		fmt.Fprintf(stderr, "cd2-ctl: nao consegui escutar em 127.0.0.1:%d: %v\n", ctlPort, err)
