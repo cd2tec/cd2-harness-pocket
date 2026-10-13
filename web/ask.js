@@ -16,14 +16,16 @@ const MENSAGENS = {
 };
 // Textos de timeout por motor (PostgreSQL, MariaDB/MySQL, driver Go, Oracle) e o do próprio front.
 const TIMEOUT_RE = /statement timeout|max_statement_time|maximum statement execution time|context deadline exceeded|query timeout|invalid connection|ORA-01013|tempo esgotado/i;
-const MEDIA_RE = /medi[ao]|avg|average|ticket|percent|pct|taxa|margem|rate/i;
+const MEDIA_RE = /(^|[^a-z])(media|medio|avg|average|ticket|percent|percentual|pct|taxa|margem|rate|ratio|indice)([^a-z]|$)/;
+const semAcento = s => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const TEMPO_NOME_RE = /^(mes|month|ano|year|dia|day|data|date|periodo|semana|week|trimestre)/i;
-const TEMPO_VALOR_RE = /^\d{4}-\d{2}(-\d{2})?([ T].*)?$|^\d{1,2}\/\d{4}$|^(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)[a-z]*[\/ -]?\d{2,4}$/i;
+const TEMPO_VALOR_RE = /^\d{4}-\d{2}(-\d{2})?([ T].*)?$|^\d{1,2}\/\d{4}$|^\d{1,2}\/\d{1,2}\/\d{4}$|^(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)[a-z]*[\/ -]?\d{2,4}$/i;
 
 function parseRows(text){
   const s = String(text == null ? '' : text);
-  if(s.startsWith('ERRO: ')) return { ok:false, error:s.slice(6) || 'erro sem mensagem' };
   const t = s.trim();
+  if(t.startsWith('ERRO: ')) return { ok:false, error:t.slice(6) || 'erro sem mensagem' };
   if(!t || t === 'null') return { ok:true, rows:[] };
   const obj = v => v && typeof v === 'object' && !Array.isArray(v);
   const bad = { ok:false, error:'Resposta inesperada do banco: ' + t.slice(0, 200) };
@@ -47,9 +49,9 @@ function parseModelJson(text){
     const a = s.indexOf('{'), b = s.lastIndexOf('}');
     if(a >= 0 && b > a){ try{ o = JSON.parse(s.slice(a, b + 1)); }catch(e2){ o = null; } }
   }
-  if(!o || typeof o !== 'object' || typeof o.sql !== 'string' || !o.sql.trim() || !VISUALS.includes(o.visual)) return null;
+  if(!o || typeof o !== 'object' || typeof o.visual !== 'string' || typeof o.sql !== 'string' || !o.sql.trim() || !VISUALS.includes(semAcento(o.visual))) return null;
   const str = v => typeof v === 'string' ? v.trim() : '';
-  return { sql:o.sql.trim(), visual:o.visual, x:str(o.x), y:str(o.y), titulo:str(o.titulo) };
+  return { sql:o.sql.trim(), visual:semAcento(o.visual), x:str(o.x), y:str(o.y), titulo:str(o.titulo) };
 }
 function isTimeout(msg){ return TIMEOUT_RE.test(String(msg == null ? '' : msg)); }
 
@@ -65,10 +67,29 @@ function isTimeCol(linhas, c){
   if(vs.every(v => TEMPO_VALOR_RE.test(String(v)))) return true;
   return TEMPO_NOME_RE.test(c) && vs.every(v => Chart.num(v) != null);
 }
+// Chave ordenável de um rótulo de tempo (ISO, dd/mm/aaaa, mm/aaaa, 'jan/2026', número) ou null.
+function timeKey(v){
+  const t = String(v).trim();
+  if(/^\d{4}-\d{2}/.test(t)) return t;
+  let m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(m) return m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+  m = t.match(/^(\d{1,2})\/(\d{4})$/);
+  if(m) return m[2] + '-' + m[1].padStart(2, '0');
+  m = semAcento(t).match(/^([a-z]{3,})[\/ -](\d{2}|\d{4})$/);
+  if(m){
+    const i = MESES.indexOf(m[1].slice(0, 3));
+    if(i >= 0) return (m[2].length === 2 ? '20' + m[2] : m[2]) + '-' + String(i + 1).padStart(2, '0');
+  }
+  return null;
+}
 function byTime(linhas, x){
   const out = linhas.slice();
   if(out.every(r => Chart.num(r[x]) != null)) return out.sort((a, b) => Chart.num(a[x]) - Chart.num(b[x]));
-  if(out.every(r => /^\d{4}-\d{2}/.test(String(r[x])))) return out.sort((a, b) => String(a[x]).localeCompare(String(b[x])));
+  const ks = out.map(r => timeKey(r[x]));
+  if(ks.every(k => k != null)){
+    const idx = out.map((r, i) => i).sort((i, j) => ks[i].localeCompare(ks[j]) || i - j);
+    return idx.map(i => out[i]);
+  }
   return out;
 }
 // O pedido do modelo é ajustado pelo dado que voltou (regras da seção 3, passo 5, da spec).
@@ -100,7 +121,7 @@ function frase(r){
   if(r.visual === 'linha') return 'De ' + labs[0] + ' a ' + labs[labs.length - 1] + '. Maior valor em ' + labs[iMax] + ': ' + Chart.fmt(vals[iMax]) + '.';
   const n = T.length + (T.length === 1 ? ' categoria.' : ' categorias.');
   const maior = 'Maior: ' + labs[iMax] + ', ' + Chart.fmt(vals[iMax]) + '. ';
-  if(MEDIA_RE.test(r.y)) return maior + n;
+  if(MEDIA_RE.test(semAcento(r.y))) return maior + n;
   const tot = T.reduce((a, l) => a + (Chart.num(l[r.y]) || 0), 0);
   return maior + 'Total: ' + Chart.fmt(tot) + ' em ' + n;
 }

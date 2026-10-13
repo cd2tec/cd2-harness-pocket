@@ -106,3 +106,30 @@ test('frase com nulo: rótulo (vazio) e valor tratado como zero', () => {
   const b = [{ d:null, v:'7' }, { d:'B', v:null }];
   assert.equal(A.frase({ visual:'barra', x:'d', y:'v', linhas:b, todas:b }), 'Maior: (vazio), 7. Total: 7 em 2 categorias.');
 });
+
+test('pickVisual: linha com datas brasileiras fica linha e ordena pelo tempo', () => {
+  const t = (xs) => A.pickVisual({ visual:'linha', x:'d', y:'v' }, ['d', 'v'], xs.map((d, i) => ({ d, v:i + 1 })));
+  for(const [entrada, esperado] of [
+    [['15/02/2026', '15/01/2026'], ['15/01/2026', '15/02/2026']],
+    [['02/2026', '01/2026'], ['01/2026', '02/2026']],
+    [['fev/2026', 'jan/2026'], ['jan/2026', 'fev/2026']],
+    [['mar/26', 'jan/26'], ['jan/26', 'mar/26']]]){
+    const r = t(entrada); assert.equal(r.visual, 'linha', entrada.join()); assert.deepEqual(r.linhas.map(l => l.d), esperado);
+  }
+});
+
+test('frase: MEDIA_RE casa só palavras inteiras', () => {
+  const b = [{ d:'A', operate_total:5 }, { d:'B', operate_total:3 }];
+  assert.equal(A.frase({ visual:'barra', x:'d', y:'operate_total', linhas:b, todas:b }), 'Maior: A, 5. Total: 8 em 2 categorias.');
+  const c = [{ d:'A', taxa_conversao:5 }, { d:'B', taxa_conversao:3 }];
+  assert.equal(A.frase({ visual:'barra', x:'d', y:'taxa_conversao', linhas:c, todas:c }), 'Maior: A, 5. 2 categorias.');
+});
+
+test('parseModelJson: visual sem diferenciar caixa e acento', () => {
+  assert.equal(A.parseModelJson('{"sql":"SELECT 1","visual":"Barra"}').visual, 'barra');
+  assert.equal(A.parseModelJson('{"sql":"SELECT 1","visual":"Número"}').visual, 'numero');
+});
+
+test('parseRows: ERRO com espaços antes', () => {
+  assert.deepEqual(A.parseRows('  ERRO: x'), { ok:false, error:'x' });
+});
