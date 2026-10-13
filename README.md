@@ -201,4 +201,4 @@ Este código é Apache 2.0 (ver `LICENSE`). O harness baixa, mas não redistribu
 - **llamafile** (Mozilla.ai, Apache 2.0), de https://github.com/mozilla-ai/llamafile
 - **MCP Toolbox for Databases** (Google, Apache 2.0), de https://github.com/googleapis/mcp-toolbox
 - **cd2-ctl** (código deste repositório, Apache 2.0, pasta `ctl/`), compilado pelo GitHub Actions e baixado do release `ctl-v<versão>` deste repositório
-- **Modelo GGUF** (configurável em `CD2_MODEL_URL`): confira licença e origem antes de distribuir os pen drives sob a marca da CD2.
+- **Modelo GGUF** (configurável em `CD2_MODEL_URL`, sempre junto com `CD2_MODEL_FILE`, o nome do arquivo em `models/`): confira licença e origem antes de distribuir os pen drives sob a marca da CD2.

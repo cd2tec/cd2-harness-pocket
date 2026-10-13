@@ -10,6 +10,7 @@ MODEL_FILE="${CD2_MODEL_FILE:-Qwen3-4B-Instruct-2507-Q4_K_M.gguf}"
 # SHA-256 do modelo padrao. Com CD2_MODEL_URL proprio, so confere se CD2_MODEL_SHA256 vier junto.
 if [ -n "${CD2_MODEL_URL:-}" ]; then MODEL_SHA256="${CD2_MODEL_SHA256:-}"
 else MODEL_SHA256="${CD2_MODEL_SHA256:-3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597}"; fi
+MODEL_SHA256="$(printf '%s' "$MODEL_SHA256" | tr 'A-F' 'a-f')"
 FALLBACK_BIN_URL="https://huggingface.co/mozilla-ai/llamafile_0.10/resolve/main/llamafile_0.10.1"
 # MCP Toolbox for Databases: versao fixa (pen drive reprodutivel), um binario por sistema.
 TOOLBOX_VERSION="${CD2_TOOLBOX_VERSION:-1.14.0}"
