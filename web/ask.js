@@ -177,6 +177,18 @@ function buildMessages(o){
   return [{ role:'system', content:sys }, { role:'user', content:user }];
 }
 
+// A consulta precisa ler ao menos uma tabela listada (nome inteiro, schema na frente vale). Sem isso,
+// um SELECT 1500 AS total mostraria um número inventado pelo modelo. Literais '...' não contam.
+function readsListedTable(sql, tabelas){
+  const s = String(sql).replace(/'(?:[^']|'')*'/g, ' ');
+  const esc = n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return tabelas.some(t => new RegExp('(^|[^A-Za-z0-9_$#])' + esc(t.name) + '([^A-Za-z0-9_$#]|$)', 'i').test(s));
+}
+// Título do modelo com número que não está na pergunta não vale: o número viria do modelo.
+function safeTitle(titulo, pergunta){
+  const q = new Set(String(pergunta).match(/\d+/g) || []);
+  return titulo && (String(titulo).match(/\d+/g) || []).every(n => q.has(n)) ? titulo : pergunta;
+}
 async function ask(o){
   const tabelas = Cat.rankTables(o.catalog, o.pergunta);
   if(!tabelas.length) return { ok:false, motivo:'sem_tabelas' };
@@ -190,6 +202,7 @@ async function ask(o){
     if(!req){ falha = 'modelo'; anterior = { sql:'', erro:'A resposta não era o objeto JSON pedido, com sql e um visual da lista.' }; continue; }
     const g = Tb.guardSql(req.sql);
     if(!g.ok){ falha = 'sql'; ultimoSql = req.sql; anterior = { sql:req.sql, erro:g.error }; continue; }
+    if(!readsListedTable(g.sql, tabelas)){ falha = 'sql'; ultimoSql = g.sql; anterior = { sql:g.sql, erro:'A consulta precisa ler uma das tabelas listadas.' }; continue; }
     const sql = Tb.prepareSql(g.sql, o.motor);
     ultimoSql = sql;
     const r = await o.runSql(sql, o.signal);
@@ -202,7 +215,7 @@ async function ask(o){
     if(!r.rows.length) return { ok:false, motivo:'vazio', sql };
     const colunas = Object.keys(r.rows[0]);
     const v = pickVisual(req, colunas, r.rows);
-    const out = { ok:true, visual:v.visual, x:v.x, y:v.y, titulo:req.titulo || o.pergunta,
+    const out = { ok:true, visual:v.visual, x:v.x, y:v.y, titulo:safeTitle(req.titulo, o.pergunta),
       frase:frase({ visual:v.visual, x:v.x, y:v.y, linhas:v.linhas, todas:r.rows }), colunas, linhas:v.linhas, todas:r.rows, sql };
     if(v.aviso) out.aviso = v.aviso;
     return out;

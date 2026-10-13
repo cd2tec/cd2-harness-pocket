@@ -306,3 +306,24 @@ test('ask: repassa schema e usuário ao prompt', async () => {
   await A.ask(base({ motor:'oracle', schema:'CONSINCO', usuario:'LEITURA', callModel, runSql:fila([{ ok:true, rows:LINHAS }]) }));
   assert.match(callModel.calls[0][0][0].content, /- CONSINCO\.venda \(/);
 });
+
+test('ask: SQL que não lê nenhuma tabela listada não vai ao banco e gasta a nova tentativa', async () => {
+  const runSql = fila([{ ok:true, rows:LINHAS }]);
+  const callModel = fila([J({ sql:'SELECT 1500 AS total', visual:'numero', x:'', y:'total', titulo:'t' }), BARRA]);
+  const r = await A.ask(base({ callModel, runSql }));
+  assert.equal(r.ok, true); assert.equal(runSql.calls.length, 1);
+  assert.match(callModel.calls[1][0][1].content, /precisa ler uma das tabelas listadas/);
+  const r2 = await A.ask(base({ callModel:fila([J({ sql:"SELECT 'venda' AS x, 1500 AS total", visual:'numero', titulo:'t' }), J({ sql:'SELECT 1500 AS total FROM vendas_fake', visual:'numero', titulo:'t' })]), runSql:fila([]) }));
+  assert.equal(r2.ok, false); assert.equal(r2.motivo, 'sql');
+  const ok = fila([{ ok:true, rows:LINHAS }]);
+  await A.ask(base({ callModel:fila([J({ sql:'SELECT loja, SUM(valor) AS total FROM public."VENDA" GROUP BY loja', visual:'barra', x:'loja', y:'total', titulo:'t' })]), runSql:ok }));
+  assert.equal(ok.calls.length, 1);
+});
+
+test('ask: título com número que não está na pergunta vira a própria pergunta', async () => {
+  const t = async (titulo, pergunta) => (await A.ask(base({ pergunta, callModel:fila([J({ sql:'SELECT loja, SUM(valor) AS total FROM venda GROUP BY loja', visual:'barra', x:'loja', y:'total', titulo })]), runSql:fila([{ ok:true, rows:LINHAS }]) }))).titulo;
+  assert.equal(await t('Vendas de 2025 por loja', 'vendas por loja'), 'vendas por loja');
+  assert.equal(await t('Vendas por loja: 1.500', 'vendas por loja'), 'vendas por loja');
+  assert.equal(await t('Vendas de 2026 por loja', 'vendas de 2026 por loja'), 'Vendas de 2026 por loja');
+  assert.equal(await t('Vendas por loja', 'vendas por loja'), 'Vendas por loja');
+});
