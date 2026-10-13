@@ -150,6 +150,19 @@ select{width:100%;height:44px;background:var(--surface-raised);color:var(--ink);
 input:disabled,select:disabled{background:var(--surface-100);color:var(--ink-muted);cursor:not-allowed}
 .lnk{font:600 13px/20px var(--font-sans);color:var(--ink-brand)}
 #tbLog{margin:var(--space-3) 0 0}
+/* boas-vindas: abre toda vez que o harness inicia */
+.welcome{max-height:calc(100vh - 32px);overflow-y:auto}
+.welcome p{margin:0 0 var(--space-4);font:400 15px/24px var(--font-sans);color:var(--ink)}
+.welcome__warn{margin:var(--space-6) 0;padding:var(--space-4);border-radius:var(--radius-md);background:var(--surface-100);border:1px solid var(--border)}
+.welcome__warn .tag{margin-bottom:var(--space-2)}
+.welcome__warn p{margin:0}
+.welcome__sub{margin-top:var(--space-6)}
+.welcome__social{list-style:none;margin:var(--space-3) 0 0;padding:0;display:flex;flex-wrap:wrap;gap:var(--space-2)}
+.welcome__social a{display:inline-flex;align-items:center;height:32px;padding:0 var(--space-4);border-radius:var(--radius-pill);border:1px solid var(--border);color:var(--ink);text-decoration:none;font:600 13px/16px var(--font-sans);transition:border-color .15s,color .15s}
+.welcome__social a:hover{border-color:var(--brand);color:var(--ink-brand)}
+.welcome .row{margin-top:var(--space-6)}
+.lnk-btn{all:unset;cursor:pointer;color:var(--ink-brand);font-weight:600;text-decoration:underline;text-underline-offset:2px}
+.lnk-btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 
 @media (max-width:1360px){ .product span{display:none} }
 @media (max-width:640px){
@@ -215,7 +228,7 @@ input:disabled,select:disabled{background:var(--surface-100);color:var(--ink-mut
     <button class="primary" id="bSend">Enviar</button>
     <button id="bStop" style="display:none">Parar</button>
   </div>
-  <div class="note" id="note">Modelo pequeno rodando localmente: pode errar. Confira números importantes.</div>
+  <div class="note" id="note">Modelo pequeno rodando localmente: pode errar. Confira números importantes. <button type="button" class="lnk-btn" id="bAbout">Sobre este projeto</button></div>
 </footer>
 
 <dialog id="dlg">
@@ -267,6 +280,27 @@ input:disabled,select:disabled{background:var(--surface-100);color:var(--ink-mut
     <span class="status" id="cfgStatus"></span>
     <button id="cfgClose">Fechar</button>
     <button class="primary" id="cfgSave">Salvar e conectar</button>
+  </div>
+</dialog>
+
+<dialog id="welcome" class="welcome" aria-labelledby="wTitle">
+  <span class="eyebrow">Boas-vindas</span>
+  <h2 id="wTitle">Que bom ter você por aqui.</h2>
+  <p>Esta é a IA da CD2 rodando inteirinha no seu computador. Sem nuvem, sem instalar nada, direto do pen drive.</p>
+  <div class="welcome__warn">
+    <span class="tag tag--melhoria">Experimental</span>
+    <p>Um combinado honesto antes de começar: é um modelo pequeno, e ele erra... às vezes com bastante confiança. Por isso não é indicado para uso comercial nem para decisão importante sem alguém conferir.</p>
+  </div>
+  <p>Montamos este conjunto para mostrar, na prática, como uma IA específica, pequena e perto do seu dado já consegue ser útil. Se isso acender uma ideia aí, a CD2 pode ajudar no seu projeto de IA.</p>
+  <span class="eyebrow welcome__sub">Siga a CD2</span>
+  <ul class="welcome__social">
+    <li><a href="https://br.linkedin.com/company/cd2tech" target="_blank" rel="noopener">LinkedIn</a></li>
+    <li><a href="https://www.instagram.com/cd2tech/" target="_blank" rel="noopener">Instagram</a></li>
+    <li><a href="https://github.com/cd2tec" target="_blank" rel="noopener">GitHub</a></li>
+    <li><a href="https://wa.me/19982355172" target="_blank" rel="noopener">Falar com a CD2</a></li>
+  </ul>
+  <div class="row">
+    <button class="primary" id="wOk" autofocus>Entendi, vamos lá</button>
   </div>
 </dialog>
 
@@ -798,7 +832,9 @@ async function pingModel(){
   }
   setPill('#pModel', 'err', 'modelo offline'); return false;
 }
+function openWelcome(){ const w = $('#welcome'); w.showModal(); w.scrollTop = 0; }
 async function boot(){
+  openWelcome();
   loadCtlKey();
   try{ st.cfg = await (await fetch('config.json', { cache:'no-store' })).json(); }catch(e){ st.cfg = {}; }
   st.cfg.mcp = st.cfg.mcp || { mode:'demo', name:'MCP', url:'' };
@@ -815,6 +851,8 @@ $('#bNew').onclick = newChat;
 $('#bCfg').onclick = openCfg;
 $('#cfgClose').onclick = () => $('#dlg').close();
 $('#cfgSave').onclick = saveCfg;
+$('#wOk').onclick = () => { $('#welcome').close(); $('#input').focus(); };
+$('#bAbout').onclick = openWelcome;
 document.querySelectorAll('input[name=mode]').forEach(r => r.onchange = syncCfgBoxes);
 $('#bLogin').onclick = loginArcheo;
 $('#bLogout').onclick = logoutArcheo;

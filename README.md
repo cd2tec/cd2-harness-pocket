@@ -11,7 +11,11 @@
 
 Plugou, clicou, conversou. O harness abre uma janela com a identidade da CD2 e conversa com um modelo Qwen3 4B rodando no próprio computador, sem instalar nada e sem mandar dados para a nuvem. Quando houver rede, conecta a um MCP do Archeo para consultar dados reais.
 
-[Site do projeto](https://cd2tec.github.io/cd2-harness-pocket/) · [Passo a passo do pen drive](docs/criar-pendrive.md) · [Baixar ZIP](https://github.com/cd2tec/cd2-harness-pocket/archive/refs/heads/main.zip)
+[Site do projeto](https://cd2tec.github.io/cd2-harness-pocket/) · [Passo a passo do pen drive](docs/criar-pendrive.md) · [Baixar ZIP](https://github.com/cd2tec/cd2-harness-pocket/archive/refs/heads/main.zip) · [Dar uma estrela](https://github.com/cd2tec/cd2-harness-pocket)
+
+> **Experimental.** É um modelo pequeno, roda no seu computador e erra. Não é indicado para uso comercial. Montamos este conjunto para mostrar na prática como uma IA específica, pequena e perto do seu dado, já consegue ser útil. Pode baixar, gravar, testar e passar adiante. Se acender uma ideia aí, a [CD2](https://cd2.com.br) pode ajudar no seu projeto de IA.
+>
+> Siga a CD2: [LinkedIn](https://br.linkedin.com/company/cd2tech) · [Instagram](https://www.instagram.com/cd2tech/) · [GitHub](https://github.com/cd2tec) · [Falar com a CD2](https://wa.me/19982355172)
 
 ## O que tem aqui
 
@@ -51,7 +55,7 @@ Ele lista os pen drives, pede confirmação (digite `APAGAR`), formata em exFAT,
 
 Se preferir fazer na mão: formate em exFAT, copie esta pasta para o pen drive e rode o preparo (`core\prepare-windows.bat` no Windows, `sh core/prepare-unix.sh` no Mac/Linux). O preparo retoma downloads interrompidos e pula o que já estiver completo. Ele grava `CHECKSUMS.sha256`; guarde uma cópia fora do pen drive.
 
-No evento **não precisa de internet**. Só o modo Archeo MCP precisa.
+Depois de gravado, o pen drive **não precisa de internet**. Só o modo Archeo MCP precisa.
 
 ## 2. Usar
 
@@ -100,7 +104,7 @@ Como funciona por baixo (spec 041 do Archeo): OAuth 2.1 com Authorization Code +
   - `API_CORS_ORIGINS`: CORS do FastAPI para `/.well-known/*`, `/api/oauth/*` e `/api/mcp`. Ex.: `["http://127.0.0.1:8080","http://localhost:8080"]`
   - `DATABASE_MCP_BROWSER_ORIGINS`: allowlist do gateway `/api/mcp` contra DNS rebinding. Sem ela a resposta é `403 ORIGIN_REJECTED`, e o harness mostra "o Archeo recusou a origem".
 - Erros que a tela explica: origem recusada (falta a env acima), "sem permissão" (a pessoa não é membro do workspace) e falha de rede ou CORS (falta a primeira env).
-- Para deixar o Archeo como padrão no stand, edite `web/config.json` (`mcp.mode` = `"mcp"` e `mcp.url`). Cada pessoa ainda precisa entrar com a própria conta.
+- Para deixar o Archeo como padrão no pen drive, edite `web/config.json` (`mcp.mode` = `"mcp"` e `mcp.url`). Cada pessoa ainda precisa entrar com a própria conta.
 
 Sem internet ou sem MCP, o modo **Demonstração** funciona offline com dados fictícios, sempre rotulados como tal na resposta da ferramenta.
 
@@ -144,6 +148,7 @@ Regras de texto que valem para qualquer mudança: português do Brasil, frases c
 
 ## 6. Limitações e cuidados
 
+- **Experimental, não comercial.** É um conjunto para experimentar e mostrar o que uma IA local e específica consegue fazer. Não é indicado para uso comercial nem para decisões importantes sem conferência humana. A interface mostra esse aviso toda vez que abre.
 - **Velocidade.** O modelo padrão é o Qwen3 4B Instruct 2507, sem fase de raciocínio. No modo Banco de dados cada pergunta custa uma chamada ao modelo (duas no pior caso). Em notebook só com CPU, espere cerca de 9 segundos por pergunta, medido na avaliação em `tests/eval/`.
 - **Procedência do modelo.** GGUF do Qwen3-4B-Instruct-2507 quantizado pela Unsloth, licença Apache 2.0 da Qwen, conferido por SHA-256 no preparo. A Qwen não publica o GGUF oficial deste modelo.
 - **Antivírus e SmartScreen.** O llamafile é um executável "poliglota" (APE) e alguns antivírus corporativos o bloqueiam. Teste nos notebooks em que vai rodar e leve o seu como reserva.
@@ -153,20 +158,20 @@ Regras de texto que valem para qualquer mudança: português do Brasil, frases c
 - **Oracle.** Driver Go puro: sem wallet, Kerberos ou TNS. **SQL Server** em Docker para teste é amd64; no Apple Silicon ligue Rosetta.
 - **Modelo pequeno erra.** O aviso na tela é proposital. Em números do Archeo, o dado vem da ferramenta; o texto em volta é do modelo.
 
-## 7. Checklist antes do evento
+## 7. Checklist antes de distribuir
 
 - [ ] Preparo rodado e `CHECKSUMS.sha256` guardado
 - [ ] Testado em Windows (Intel/AMD), Mac (Apple Silicon) e, se aplicável, Linux, em máquina "limpa"
 - [ ] Testado com antivírus ligado
-- [ ] Origens do pen drive liberadas no Archeo (`API_CORS_ORIGINS` e `DATABASE_MCP_BROWSER_ORIGINS`) e login testado com a conta que vai ao evento
+- [ ] Origens do pen drive liberadas no Archeo (`API_CORS_ORIGINS` e `DATABASE_MCP_BROWSER_ORIGINS`) e login testado com a conta que vai ser usada
 - [ ] Conta de leitura do banco criada e testada pela tela Ferramentas num notebook que não é o seu
 - [ ] `node --test` verde na raiz do repo
 - [ ] `report.contact` preenchido em `web/config.json`
 - [ ] `sh tests/eval/rodar.sh` com PORTÃO PASSOU no modelo que vai para o pen drive
-- [ ] Relatório impresso testado (Imprimir/PDF) num notebook do evento
+- [ ] Relatório impresso testado (Imprimir/PDF) num notebook que não é o seu
 - [ ] Preparo rodado no Windows (o script do Windows não foi testado nesta versão)
 - [ ] Pen drive com cópia reserva (e um segundo pen drive igual)
-- [ ] Um notebook seu com tudo já funcionando no stand
+- [ ] Se for apresentar ao vivo, um notebook seu com tudo já funcionando como reserva
 
 ## 8. Atualizar e distribuir
 
@@ -203,3 +208,11 @@ Este código é Apache 2.0 (ver `LICENSE`). O harness baixa, mas não redistribu
 - **MCP Toolbox for Databases** (Google, Apache 2.0), de https://github.com/googleapis/mcp-toolbox
 - **cd2-ctl** (código deste repositório, Apache 2.0, pasta `ctl/`), compilado pelo GitHub Actions e baixado do release `ctl-v<versão>` deste repositório
 - **Modelo GGUF** (configurável em `CD2_MODEL_URL`, sempre junto com `CD2_MODEL_FILE`, o nome do arquivo em `models/`): confira licença e origem antes de distribuir os pen drives sob a marca da CD2.
+
+## Para você que é dev
+
+O código é aberto, sob Apache 2.0: launchers, interface, o `cd2-ctl` com a guarda de leitura do banco e os scripts do pen drive. Fuça à vontade.
+
+- **Gostou?** [Deixe uma estrela no repositório](https://github.com/cd2tec/cd2-harness-pocket). É o jeito mais simples de dizer que vale continuar.
+- **Siga a CD2 no GitHub:** [github.com/cd2tec](https://github.com/cd2tec), onde moram este e os outros projetos abertos da CD2.
+- **Achou um bug ou teve uma ideia?** [Abra uma issue](https://github.com/cd2tec/cd2-harness-pocket/issues) ou mande um pull request.
