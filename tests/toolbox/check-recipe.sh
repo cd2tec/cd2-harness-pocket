@@ -7,8 +7,9 @@ ENGINE="${1:?uso: check-recipe.sh postgres|oracle|mariadb|sqlserver}"
 HERE="$(cd "$(dirname "$0")" && pwd)"; ROOT="$(cd "$HERE/../.." && pwd)"
 YAML="$ROOT/core/toolbox/$ENGINE.yaml"
 set -a; . "$HERE/$ENGINE.env"; set +a
-# mesmo caminho do launcher: a receita usa password: "${CD2_DB_PASSWORD}", entao a senha vai escapada
-. "$ROOT/core/db-env.sh"; CD2_DB_PASSWORD="$(db_yaml_dq "$CD2_DB_PASSWORD")"
+# mesmo caminho do cd2-ctl: a receita usa password: "${CD2_DB_PASSWORD}", entao a senha vai
+# escapada para YAML entre aspas duplas (\ vira \\, " vira \")
+CD2_DB_PASSWORD="$(printf '%s' "$CD2_DB_PASSWORD" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')"
 # prefere o toolbox do pen drive (bin/toolbox/<plat>) ao que estiver no PATH
 case "$(uname -s)-$(uname -m)" in
   Darwin-arm64) PLAT=darwin-arm64 ;; Darwin-*) PLAT=darwin-amd64 ;;
