@@ -18,6 +18,9 @@ export CD2_EVAL_TOOLBOX_URL="http://127.0.0.1:$TBPORT/mcp"
 LOG="${TMPDIR:-/tmp}/cd2-eval"; mkdir -p "$LOG"
 COMPOSE="docker compose -p cd2eval -f $HERE/docker-compose.yml"
 
+TB=''; LL=''
+trap 'kill $TB $LL 2>/dev/null; $COMPOSE down >/dev/null 2>&1' EXIT
+trap 'exit 130' INT TERM
 $COMPOSE up -d --wait || exit 1
 set -a; . "$HERE/erp.env"; set +a
 "$ROOT/bin/toolbox/$PLAT/toolbox" --config "$ROOT/core/toolbox/postgres.yaml" --address 127.0.0.1 --port "$TBPORT" \
@@ -25,8 +28,7 @@ set -a; . "$HERE/erp.env"; set +a
 TB=$!
 "$ROOT/bin/llamafile" -m "$MODEL" --server --host 127.0.0.1 --port "$PORT" --jinja -c 8192 $NGL > "$LOG/llama.log" 2>&1 &
 LL=$!
-trap 'kill $TB $LL 2>/dev/null; $COMPOSE down >/dev/null 2>&1' EXIT INT TERM
-i=0; until curl -sf "http://127.0.0.1:$PORT/health" >/dev/null; do i=$((i+1)); [ $i -gt 180 ] && { echo "llamafile nao subiu (log em $LOG/llama.log)"; exit 1; }; sleep 1; done
+i=0; until curl -sf "http://127.0.0.1:$PORT/health" >/dev/null; do i=$((i+1)); kill -0 $LL 2>/dev/null || { echo "llamafile morreu (log em $LOG/llama.log)"; exit 1; }; [ $i -gt 180 ] && { echo "llamafile nao subiu (log em $LOG/llama.log)"; exit 1; }; sleep 1; done
 i=0; until curl -s -o /dev/null "http://127.0.0.1:$TBPORT/"; do i=$((i+1)); [ $i -gt 30 ] && { echo "toolbox nao subiu (log em $LOG/toolbox.log)"; exit 1; }; sleep 1; done
 echo "Modelo: $(basename "$MODEL")  ${NGL:-GPU}"
 node "$HERE/run-eval.mjs"

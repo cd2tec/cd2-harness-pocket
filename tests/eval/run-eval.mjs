@@ -10,11 +10,11 @@ const Tb = require('../../web/toolbox.js');
 const { sameResult } = require('./compare.js');
 const perguntas = require('./perguntas.json');
 
-const MODEL_URL = process.env.CD2_EVAL_MODEL_URL || 'http://127.0.0.1:8080/v1/chat/completions';
-const TOOLBOX_URL = process.env.CD2_EVAL_TOOLBOX_URL || 'http://127.0.0.1:9080/mcp';
+const MODEL_URL = process.env.CD2_EVAL_MODEL_URL || 'http://127.0.0.1:18080/v1/chat/completions';
+const TOOLBOX_URL = process.env.CD2_EVAL_TOOLBOX_URL || 'http://127.0.0.1:19080/mcp';
 const META = Number(process.env.CD2_EVAL_META || 70);
 
-const client = new McpClient(TOOLBOX_URL, { fetch:(...a) => fetch(...a), origin:'http://127.0.0.1:8080' });
+const client = new McpClient(TOOLBOX_URL, { fetch:(...a) => fetch(...a), origin:new URL(MODEL_URL).origin });
 await client.init();
 const status = Tb.parseStatus(await client.call('db_connection_status', {}));
 const cat = Ask.parseRows(await client.call('db_catalog', {}));
@@ -35,8 +35,8 @@ for(const [i, p] of perguntas.entries()){
   if(r.ok && p.visual.includes(r.visual)) visuais++;
   console.log((ok ? '[OK]   ' : '[ERRO] ') + s.toFixed(1).padStart(5) + 's  ' + (r.ok ? r.visual : r.motivo).padEnd(11) + p.pergunta + (ok || !r.sql ? '' : '\n         SQL: ' + r.sql));
 }
-const pct = Math.round(acertos / perguntas.length * 100);
+const exato = acertos / perguntas.length * 100, pct = Math.round(exato);
 console.log('\nAcerto: ' + acertos + '/' + perguntas.length + ' (' + pct + '%). Visual aceitável: ' + visuais + '/' + perguntas.length
   + '. Tempo médio: ' + (tempo / perguntas.length).toFixed(1) + 's.');
-console.log('PORTÃO (' + META + '%): ' + (pct >= META ? 'PASSOU' : 'NÃO PASSOU'));
-process.exit(pct >= META ? 0 : 1);
+console.log('PORTÃO (' + META + '%): ' + (exato >= META ? 'PASSOU' : 'NÃO PASSOU'));
+process.exit(exato >= META ? 0 : 1);

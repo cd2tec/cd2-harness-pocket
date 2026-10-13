@@ -17,3 +17,7 @@ test('sameResult: recusa número diferente, linha a mais e resultado ausente', (
   assert.equal(sameResult([{ total:10 }], [{ total:10 }, { total:10 }]), false);
   assert.equal(sameResult([{ total:10 }], undefined), false);
 });
+test('sameResult: rótulo de texto trocado com números certos é recusado; caixa e acento são livres', () => {
+  assert.equal(sameResult([{ loja:'A', total:10 }, { loja:'B', total:20 }], [{ loja:'A', total:20 }, { loja:'B', total:10 }]), false);
+  assert.equal(sameResult([{ loja:'Loja Açaí', total:10 }], [{ nome:'  loja acai ', total:10 }]), true);
+});
