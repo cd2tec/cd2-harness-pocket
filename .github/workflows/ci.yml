@@ -1,0 +1,29 @@
+# Testes do cd2-ctl (Go) e do front (node --test) em todo pull request e push na main.
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: ctl/go.mod
+          cache: false
+      - name: go vet e go test (ctl/)
+        working-directory: ctl
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet ./...
+          GOOS=windows go vet ./...
+          go test ./...
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: node --test
+        run: node --test

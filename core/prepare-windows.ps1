@@ -11,6 +11,10 @@ $FallbackBin = 'https://huggingface.co/mozilla-ai/llamafile_0.10/resolve/main/ll
 $ToolboxVersion   = if ($env:CD2_TOOLBOX_VERSION)   { $env:CD2_TOOLBOX_VERSION }   else { '1.14.0' }
 $ToolboxPlatforms = if ($env:CD2_TOOLBOX_PLATFORMS) { $env:CD2_TOOLBOX_PLATFORMS -split ' ' } else { @('windows-amd64', 'darwin-arm64', 'darwin-amd64', 'linux-amd64') }
 $ToolboxBase = "https://storage.googleapis.com/mcp-toolbox-for-databases/v$ToolboxVersion"
+# cd2-ctl (controle do banco pela tela): versao fixa, baixada do release deste repositorio.
+# CD2_CTL_LOCAL=1 pula o download e usa o binario que ja estiver em bin\ctl (antes do 1o release).
+$CtlVersion = if ($env:CD2_CTL_VERSION) { $env:CD2_CTL_VERSION } else { '0.6.0' }
+$CtlBase = "https://github.com/cd2tec/cd2-harness-pocket/releases/download/ctl-v$CtlVersion"
 
 New-Item -ItemType Directory -Force -Path (Join-Path $Root 'bin'), (Join-Path $Root 'models') | Out-Null
 $curl = Join-Path $env:SystemRoot 'System32\curl.exe'
@@ -77,6 +81,45 @@ foreach ($plat in $ToolboxPlatforms) {
 }
 
 Write-Host ''
+Write-Host "== Controle do banco (cd2-ctl v$CtlVersion)"
+$ctlSums = $null
+if ($env:CD2_CTL_LOCAL -eq '1') {
+    Write-Host 'CD2_CTL_LOCAL=1: usando o cd2-ctl que ja esta em bin\ctl.'
+} else {
+    try {
+        $ctlSums = (Invoke-WebRequest -UseBasicParsing -Uri "$CtlBase/SHA256SUMS" -Headers @{ 'User-Agent' = 'cd2-harness' }).Content
+        if ($ctlSums -is [byte[]]) { $ctlSums = [Text.Encoding]::ASCII.GetString($ctlSums) }
+    } catch {
+        Write-Host "[AVISO] Release ctl-v$CtlVersion indisponivel; vou usar o cd2-ctl local, se existir."
+        $ctlSums = $null
+    }
+}
+$ctlFiles = @()
+foreach ($plat in $ToolboxPlatforms) {
+    $os, $arch = $plat -split '-', 2
+    $ext = if ($os -eq 'windows') { '.exe' } else { '' }
+    $dir = Join-Path $Root "bin\ctl\$plat"
+    New-Item -ItemType Directory -Force -Path $dir | Out-Null
+    $dest = Join-Path $dir "cd2-ctl$ext"
+    $asset = "cd2-ctl-$plat$ext"
+    if ($ctlSums) {
+        Write-Host "Origem: $CtlBase/$asset"
+        Fetch "$CtlBase/$asset" $dest
+        $want = $null
+        foreach ($l in ($ctlSums -split "`n")) {
+            if ($l -match '^([0-9a-fA-F]{64})\s+\*?(\S+)\s*$' -and $Matches[2] -eq $asset) { $want = $Matches[1].ToLower() }
+        }
+        $got = (Get-FileHash -Algorithm SHA256 $dest).Hash.ToLower()
+        if (-not $want -or $want -ne $got) { Remove-Item -Force $dest; throw "cd2-ctl $plat nao confere com o SHA256SUMS do release. Rode de novo." }
+    } elseif ((Test-Path $dest) -and (Get-Item $dest).Length -gt 0) {
+        Write-Host "Usando o cd2-ctl local: bin/ctl/$plat/cd2-ctl$ext"
+    } else {
+        throw "Sem cd2-ctl para $plat. Publique a tag ctl-v$CtlVersion ou compile o cd2-ctl (sh ctl/build.sh) e rode com CD2_CTL_LOCAL=1."
+    }
+    $ctlFiles += @{ Path = $dest; Rel = "bin/ctl/$plat/cd2-ctl$ext" }
+}
+
+Write-Host ''
 Write-Host '== Checksums (anote para conferir depois)'
 # Mesmo formato do Mac/Linux (caminhos relativos com /), para o mesmo arquivo valer nos tres sistemas.
 $lines = @(
@@ -84,6 +127,7 @@ $lines = @(
     "$((Get-FileHash -Algorithm SHA256 $model).Hash.ToLower())  models/$ModelFile"
 )
 foreach ($f in $toolboxFiles) { $lines += "$((Get-FileHash -Algorithm SHA256 $f.Path).Hash.ToLower())  $($f.Rel)" }
+foreach ($f in $ctlFiles) { $lines += "$((Get-FileHash -Algorithm SHA256 $f.Path).Hash.ToLower())  $($f.Rel)" }
 $lines | ForEach-Object { Write-Host $_ }
 [IO.File]::WriteAllText((Join-Path $Root 'CHECKSUMS.sha256'), (($lines -join "`n") + "`n"))
 Write-Host ''

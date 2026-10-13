@@ -1,0 +1,38 @@
+# Release do cd2-ctl: a tag ctl-vX.Y.Z compila as quatro plataformas e anexa os binários e o
+# SHA256SUMS ao release. O preparo do pen drive baixa a versão fixada em CTL_VERSION.
+name: ctl release
+on:
+  push:
+    tags: ['ctl-v*']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: ctl/go.mod
+          cache: false
+      - name: Testes
+        working-directory: ctl
+        run: go test ./...
+      - name: Compilar
+        working-directory: ctl
+        run: |
+          VERSION="${GITHUB_REF_NAME#ctl-v}"
+          case "$VERSION" in ''|*[!0-9.]*) echo "tag invalida: $GITHUB_REF_NAME"; exit 1 ;; esac
+          mkdir -p ../dist
+          for p in windows-amd64 darwin-arm64 darwin-amd64 linux-amd64; do
+            os="${p%-*}"; arch="${p#*-}"; ext=""; [ "$os" = windows ] && ext=".exe"
+            CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "-s -w -X main.version=$VERSION" -o "../dist/cd2-ctl-$p$ext" .
+          done
+          cd ../dist && sha256sum cd2-ctl-* > SHA256SUMS && cat SHA256SUMS
+      - name: Publicar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" \
+            --notes "cd2-ctl ${GITHUB_REF_NAME#ctl-v}: controle do banco de dados do Harness Pocket." \
+            -R "$GITHUB_REPOSITORY"
