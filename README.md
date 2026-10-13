@@ -24,6 +24,7 @@ CD2-HARNESS/
   core/                       <- scripts de preparo, de gravação e de inicialização
   bin/    (criado no preparo) <- llamafile
   bin/toolbox/ (criado no preparo) <- MCP Toolbox, um por sistema
+  bin/ctl/ (criado no preparo) <- cd2-ctl, o controle do banco, um por sistema
   core/toolbox/               <- receitas SQL por motor
   models/ (criado no preparo) <- modelo .gguf
 
@@ -33,6 +34,7 @@ Só no repositório (não vão para o pen drive):
   gravar-pendrive-linux.sh    <- idem, no Linux
   docs/criar-pendrive.md      <- o passo a passo completo
   docs/index.html             <- o site do projeto (GitHub Pages)
+  ctl/                        <- código do cd2-ctl (Go), compilado pelo GitHub Actions
 ```
 
 ## 1. Criar o pen drive (uma vez, com internet)
@@ -65,7 +67,7 @@ Windows e Mac modernos **não executam nada automaticamente** ao plugar o pen dr
 
 ## 3. Conectar a um banco de dados
 
-O pen drive leva o [MCP Toolbox for Databases](https://github.com/googleapis/mcp-toolbox) (v1.14.0, um binário por sistema em `bin/toolbox/`). Na primeira vez que o harness abre num computador, o launcher pergunta no terminal: motor, host, porta, base (ou service name no Oracle), usuário, senha e schema. Depois disso não pergunta mais. Para trocar de banco: `INICIAR-CD2-Windows.bat --banco`, `sh core/start-unix.sh --banco` ou `sh iniciar-cd2-linux.sh --banco`. A opção `0` segue sem banco, em Demonstração.
+O pen drive leva o [MCP Toolbox for Databases](https://github.com/googleapis/mcp-toolbox) (v1.14.0, um binário por sistema em `bin/toolbox/`) e o `cd2-ctl`, um controle pequeno feito aqui (código em `ctl/`, um binário por sistema em `bin/ctl/`). A conexão é feita pela tela: botão **Ferramentas**, modo **MCP Nativo para Banco de dados**, preencha motor, host, porta, base (ou service name no Oracle), usuário, senha e schema, e clique em **Salvar e conectar**. O toolbox reinicia sozinho com a conexão nova. Se ela falhar, a anterior continua valendo e a tela mostra o motivo e o fim do log. **Desconectar do banco** apaga a conexão deste computador.
 
 | Motor | Porta padrão | Schema padrão | Conta de leitura recomendada |
 |---|---|---|---|
@@ -76,11 +78,13 @@ O pen drive leva o [MCP Toolbox for Databases](https://github.com/googleapis/mcp
 
 A IA ganha seis ferramentas somente leitura: `db_connection_status`, `db_list_tables`, `db_describe_table`, `db_search_columns`, `db_sample_table` (até 20 linhas) e `db_read_only_query` (SELECT avulso, até 200 linhas). O botão **Ferramentas** mostra a conexão ativa e a lista.
 
-- **A conexão fica no computador, não no pen drive.** Arquivo `db.env` em `~/Library/Caches/cd2-harness` (Mac), `${XDG_CACHE_HOME:-~/.cache}/cd2-harness` (Linux) ou `%LOCALAPPDATA%\cd2-harness` (Windows), legível só pelo usuário. A senha não passa pelo navegador: o launcher entrega a conexão só ao processo do toolbox e não a guarda no próprio ambiente.
+- **A conexão fica no computador, não no pen drive.** Arquivo `db.env` em `~/Library/Caches/cd2-harness` (Mac), `${XDG_CACHE_HOME:-~/.cache}/cd2-harness` (Linux) ou `%LOCALAPPDATA%\cd2-harness` (Windows), legível só pelo usuário. O formato é o mesmo da v0.5.0: quem já tinha uma conexão continua conectado.
+- **A senha passa pelo navegador só para ser gravada**, sempre em `127.0.0.1`, protegida pela chave da sessão. Ela nunca volta para a tela (o campo mostra "Senha salva") e nunca vai para log: o `cd2-ctl` tira do `toolbox.log` toda linha que cita a senha ou a palavra password.
+- **Chave da sessão.** A cada abertura o launcher sorteia 32 bytes, entrega ao `cd2-ctl` pelo ambiente e à janela pelo endereço (`#k=`). A página guarda a chave só naquela aba e limpa o endereço. Sem a chave certa, o `cd2-ctl` responde 401; ele também recusa outra origem, outro `Host` e corpo acima de 8 KB. Risco aceito: a chave aparece na linha de comando do navegador, visível para outros usuários do mesmo computador. O pen drive é pensado para notebook de uma pessoa, e a chave muda a cada abertura.
 - **Use uma conta de leitura.** O toolbox não valida SQL. O harness recusa qualquer coisa que não seja um único SELECT (no front e no próprio toolbox, com lista de palavras e funções proibidas por motor), e no PostgreSQL a sessão do toolbox já abre com `default_transaction_read_only=on`. Mesmo assim, a garantia de verdade é a permissão da conta.
-- O toolbox escuta só em `127.0.0.1`, na porta do harness mais 1000 (8080 e 9080 por padrão). Se uma das duas estiver ocupada, o launcher avança as duas juntas.
-- Se o banco não responder em 15 segundos (senha errada, firewall), o launcher mostra o fim do log e segue em Demonstração.
-- O launcher precisa da variante certa em `bin/toolbox/` (`windows-amd64`, `darwin-arm64`, `darwin-amd64`, `linux-amd64`). O preparo baixa as quatro; `CD2_TOOLBOX_PLATFORMS` limita.
+- **Portas.** O launcher usa um trio que avança junto: P para o harness, P+1000 para o toolbox e P+3000 para o `cd2-ctl` (8080, 9080 e 11080 por padrão). Todos escutam só em `127.0.0.1`.
+- Se o banco não responder em 15 segundos (senha errada, firewall), a tela mostra Atenção com o motivo e as últimas linhas do log, já filtradas.
+- É preciso a variante certa em `bin/toolbox/` e `bin/ctl/` (`windows-amd64`, `darwin-arm64`, `darwin-amd64`, `linux-amd64`). O preparo baixa as quatro; `CD2_TOOLBOX_PLATFORMS` limita as duas pastas. Sem o `cd2-ctl` da plataforma, o launcher avisa e segue sem banco (Demonstração e Archeo continuam).
 
 ## 3b. Conectar ao Archeo MCP
 
@@ -139,7 +143,7 @@ Regras de texto que valem para qualquer mudança: português do Brasil, frases c
 - [ ] Testado em Windows (Intel/AMD), Mac (Apple Silicon) e, se aplicável, Linux, em máquina "limpa"
 - [ ] Testado com antivírus ligado
 - [ ] Origens do pen drive liberadas no Archeo (`API_CORS_ORIGINS` e `DATABASE_MCP_BROWSER_ORIGINS`) e login testado com a conta que vai ao evento
-- [ ] Conta de leitura do banco criada e testada com `INICIAR --banco` num notebook que não é o seu
+- [ ] Conta de leitura do banco criada e testada pela tela Ferramentas num notebook que não é o seu
 - [ ] `node --test` verde na raiz do repo
 - [ ] Pen drive com cópia reserva (e um segundo pen drive igual)
 - [ ] Um notebook seu com tudo já funcionando no stand
@@ -151,13 +155,21 @@ O repositório guarda só o código (launchers, interface, scripts). O **llamafi
 Fluxo de uma atualização:
 
 1. Ajuste o código e/ou `web/config.json` e suba a mudança aqui (suba o número em `VERSION`).
-2. Num pen drive já preparado, copie por cima só o que mudou. Normalmente basta a pasta `web/` e a pasta `core/`; `bin/` (incluindo `bin/toolbox/`) e `models/` ficam.
+2. Num pen drive já preparado, copie por cima só o que mudou. Normalmente basta a pasta `web/` e a pasta `core/`; `bin/` (incluindo `bin/toolbox/` e `bin/ctl/`) e `models/` ficam. Se o `cd2-ctl` mudou de versão, rode o preparo de novo: ele baixa só o que mudou.
 3. Para um pen drive novo: rode o gravador (`GRAVAR-PENDRIVE-*`), que formata, baixa do cache e confere. Ver [docs/criar-pendrive.md](docs/criar-pendrive.md).
 4. Duplicar em série: com um pen drive aprovado, copie a pasta inteira (incluindo `bin/` e `models/`) para os demais, sem rodar o preparo de novo, e compare o `CHECKSUMS.sha256`.
 
 O site do projeto é o `docs/index.html`, publicado pelo GitHub Pages a partir da pasta `/docs` do branch `main` (Settings > Pages > Deploy from a branch). O `docs/.nojekyll` faz o Pages servir os arquivos como estão.
 
 Fim de linha: `.bat` e `.ps1` usam CRLF e `.sh`/`.command` usam LF (definido em `.gitattributes`). Se editar no Windows, não troque isso, ou o launcher do Mac/Linux quebra.
+
+### Para quem mexe no `cd2-ctl`
+
+Só quem altera a pasta `ctl/` precisa de Go (1.23 ou mais novo; no Mac, `brew install go`). O resto do projeto continua sem build.
+
+- Testes: `cd ctl && go test ./...` e, com o Postgres do Docker no ar (`docker compose -f tests/toolbox/docker-compose.yml up -d postgres`), `sh tests/ctl/e2e.sh`. A CI (`.github/workflows/ci.yml`) roda `go test` e `node --test` em todo pull request e push na `main`.
+- Teste local sem release: `sh ctl/build.sh` compila para `bin/ctl/<plataforma>/`, e `CD2_CTL_LOCAL=1 sh core/prepare-unix.sh` usa esse binário em vez de baixar.
+- Publicar uma versão: suba `CTL_VERSION` em `core/prepare-unix.sh` e `core/prepare-windows.ps1`, faça o merge e crie a tag, por exemplo `git tag ctl-v0.6.1 && git push origin ctl-v0.6.1`. O workflow `.github/workflows/ctl-release.yml` compila as quatro plataformas e anexa `cd2-ctl-<os>-<arch>` e `SHA256SUMS` ao release; o preparo confere o checksum antes de usar. `CD2_CTL_VERSION` escolhe outra versão no preparo, nunca "latest".
 
 ## 9. Licenças e origem dos componentes
 
@@ -166,4 +178,5 @@ Este código é Apache 2.0 (ver `LICENSE`). O harness baixa, mas não redistribu
 - **Manrope** (The Manrope Project Authors, SIL Open Font License 1.1), embutida em subconjunto em `web/fonts/` e `docs/assets/fonts/`
 - **llamafile** (Mozilla.ai, Apache 2.0), de https://github.com/mozilla-ai/llamafile
 - **MCP Toolbox for Databases** (Google, Apache 2.0), de https://github.com/googleapis/mcp-toolbox
+- **cd2-ctl** (código deste repositório, Apache 2.0, pasta `ctl/`), compilado pelo GitHub Actions e baixado do release `ctl-v<versão>` deste repositório
 - **Modelo GGUF** (configurável em `CD2_MODEL_URL`): confira licença e origem antes de distribuir os pen drives sob a marca da CD2.
