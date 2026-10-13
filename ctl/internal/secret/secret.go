@@ -19,9 +19,16 @@ func YamlDQ(s string) string { return dq.Replace(s) }
 // inteiro é descartado até a próxima quebra: cortar no meio poderia partir a senha em dois.
 const maxLine = 64 << 10
 
-// Scrubber repassa a saída do toolbox para out linha a linha, descartando toda linha que
-// contém a senha (crua ou escapada para YAML, comparação literal) ou a palavra password em
-// qualquer caixa. Seguro para uso concorrente.
+// Scrubber repassa a saida do toolbox para out linha a linha, descartando toda linha que
+// contem a senha (crua ou escapada para YAML, comparacao literal) ou a palavra password em
+// qualquer caixa.
+//
+// Write e protegido por mutex, mas o buffer de linha e UM so: use um Scrubber por fluxo de
+// bytes. Para um processo filho, passe o mesmo Scrubber em Stdout e Stderr (cmd.Stdout,
+// cmd.Stderr = s, s), assim o os/exec usa um pipe unico com uma goroutine de copia e as
+// linhas nao se misturam. Nunca alimente dois fluxos independentes no mesmo Scrubber: pedacos
+// sem quebra de linha de um fluxo se juntariam aos do outro e a senha poderia vazar em
+// fragmentos.
 type Scrubber struct {
 	mu      sync.Mutex
 	out     io.Writer
@@ -94,7 +101,7 @@ func (s *Scrubber) Write(p []byte) (int, error) {
 		err := s.emit(line)
 		s.buf = s.buf[:0]
 		if err != nil {
-			return 0, err
+			return len(p) - len(rest), err
 		}
 	}
 	return len(p), nil
