@@ -76,7 +76,7 @@ O pen drive leva o [MCP Toolbox for Databases](https://github.com/googleapis/mcp
 | MariaDB / MySQL | 3306 | nome da base | `GRANT SELECT ON base.* TO ...` |
 | SQL Server | 1433 | `dbo` | membro só de `db_datareader` |
 
-A IA ganha seis ferramentas somente leitura: `db_connection_status`, `db_list_tables`, `db_describe_table`, `db_search_columns`, `db_sample_table` (até 20 linhas) e `db_read_only_query` (SELECT avulso, até 200 linhas). O botão **Ferramentas** mostra a conexão ativa e a lista.
+A IA ganha sete ferramentas somente leitura: `db_connection_status`, `db_catalog` (o mapa do banco para os relatórios), `db_list_tables`, `db_describe_table`, `db_search_columns`, `db_sample_table` (até 20 linhas) e `db_read_only_query` (SELECT avulso, até 200 linhas). O botão **Ferramentas** mostra a conexão ativa e a lista.
 
 - **A conexão fica no computador, não no pen drive.** Arquivo `db.env` em `~/Library/Caches/cd2-harness` (Mac), `${XDG_CACHE_HOME:-~/.cache}/cd2-harness` (Linux) ou `%LOCALAPPDATA%\cd2-harness` (Windows), legível só pelo usuário. O formato é o mesmo da v0.5.0: quem já tinha uma conexão continua conectado.
 - **A senha passa pelo navegador só para ser gravada**, sempre em `127.0.0.1`, protegida pela chave da sessão. Ela nunca volta para a tela (o campo mostra "Senha salva") e nunca vai para log: o `cd2-ctl` tira do `toolbox.log` toda linha que cita a senha ou a palavra password.
@@ -85,6 +85,7 @@ A IA ganha seis ferramentas somente leitura: `db_connection_status`, `db_list_ta
 - **Portas.** O launcher usa um trio que avança junto: P para o harness, P+1000 para o toolbox e P+3000 para o `cd2-ctl` (8080, 9080 e 11080 por padrão). Todos escutam só em `127.0.0.1`.
 - Se o banco não responder em 15 segundos (senha errada, firewall), a tela mostra Atenção com o motivo e as últimas linhas do log, já filtradas.
 - É preciso a variante certa em `bin/toolbox/` e `bin/ctl/` (`windows-amd64`, `darwin-arm64`, `darwin-amd64`, `linux-amd64`). O preparo baixa as quatro; `CD2_TOOLBOX_PLATFORMS` limita as duas pastas. Sem o `cd2-ctl` da plataforma, o launcher avisa e segue sem banco (Demonstração e Archeo continuam).
+- **Tempo máximo de 15 segundos por consulta.** PostgreSQL corta no servidor (`statement_timeout`), MariaDB/MySQL pelo `queryTimeout` da receita. No SQL Server e no Oracle, o harness para de esperar aos 15 s, mas a consulta pode continuar no servidor: crie a conta de leitura com limite de recurso (Resource Governor no SQL Server, perfil com `CPU_PER_CALL` no Oracle).
 
 ## 3b. Conectar ao Archeo MCP
 
@@ -103,6 +104,19 @@ Como funciona por baixo (spec 041 do Archeo): OAuth 2.1 com Authorization Code +
 
 Sem internet ou sem MCP, o modo **Demonstração** funciona offline com dados fictícios, sempre rotulados como tal na resposta da ferramenta.
 
+## 3c. Relatórios e gráficos
+
+No modo Banco de dados, cada pergunta vira uma consulta, um gráfico e um relatório. Ao conectar, o harness lê o mapa do banco uma vez e sugere quatro perguntas tiradas do próprio esquema do cliente.
+
+- **Pergunte do jeito que falaria:** "faturamento por mês", "top 10 produtos por valor", "quantos clientes por estado".
+- **O que aparece:** título, uma frase de resumo e o visual (número, barra, linha, pizza ou tabela), com a consulta usada num bloco recolhível.
+- **Os números vêm do banco, não do modelo.** O modelo escolhe a consulta e o tipo de gráfico, mas nunca vê o resultado. A frase de resumo é montada pelo harness a partir do dado.
+- **Quando não dá:** o harness diz que não achou tabelas, que não conseguiu montar a consulta, que a consulta demorou demais ou que veio vazia. Nunca inventa.
+- **Levar embora:** **CSV** baixa os dados (abre no Excel com acentos e decimais certos). **Imprimir/PDF** gera o relatório com logo e contato da CD2 no rodapé.
+- **Contato no relatório:** preencha `report.contact` em `web/config.json` (site, e-mail, telefone).
+
+Para medir a qualidade num banco de teste com cara de ERP: `sh tests/eval/rodar.sh` (precisa de Docker). O portão para levar a cliente é 70% de acerto com o llamafile só em CPU. Na avaliação atual o modelo padrão acerta 65% das perguntas do banco de teste, abaixo da meta de 70%; veja `tests/eval/`.
+
 ## 4. Personalizar
 
 - `web/config.json`: nome, frase de efeito, prompt de sistema, sugestões da tela inicial.
@@ -110,6 +124,7 @@ Sem internet ou sem MCP, o modo **Demonstração** funciona offline com dados fi
 - Outro modelo: coloque outro `.gguf` em `models/` e deixe só um arquivo lá. O launcher usa o primeiro que encontrar.
 - Contexto maior: variável `CD2_CTX` (padrão 8192; mais contexto consome mais RAM).
 - `web/config.json`: `mcp.mode` aceita `toolbox` (padrão), `demo` e `mcp`; `suggestions` pode ser uma lista única ou uma por modo.
+- `web/config.json`: `report.contact` é o contato que sai no rodapé do relatório impresso.
 
 ## 5. Identidade visual
 
@@ -128,8 +143,8 @@ Regras de texto que valem para qualquer mudança: português do Brasil, frases c
 
 ## 6. Limitações e cuidados
 
-- **Velocidade.** O Qwen3 4B Thinking "pensa" antes de responder. Em notebook só com CPU, espere poucos tokens por segundo e respostas que levam dezenas de segundos. O raciocínio aparece num bloco recolhível. Para demonstração ao vivo, considere um modelo Instruct (sem fase de raciocínio) e deixe o Thinking para quem quiser ver "a IA pensando".
-- **Procedência do modelo.** O arquivo vem de um repositório pessoal (`pramodlohra`) que se apresenta como fine-tune do Qwen3-4B-Thinking-2507, com README mínimo. Antes de distribuir sob a marca da CD2, confirme licença e origem, ou use o GGUF oficial da Qwen.
+- **Velocidade.** O modelo padrão é o Qwen3 4B Instruct 2507, sem fase de raciocínio. No modo Banco de dados cada pergunta custa uma chamada ao modelo (duas no pior caso). Em notebook só com CPU, espere cerca de 8 segundos por pergunta, medido na avaliação em `tests/eval/`.
+- **Procedência do modelo.** GGUF do Qwen3-4B-Instruct-2507 quantizado pela Unsloth, licença Apache 2.0 da Qwen, conferido por SHA-256 no preparo. A Qwen não publica o GGUF oficial deste modelo.
 - **Antivírus e SmartScreen.** O llamafile é um executável "poliglota" (APE) e alguns antivírus corporativos o bloqueiam. Teste nos notebooks em que vai rodar e leve o seu como reserva.
 - **Mac.** Em Apple Silicon o llamafile precisa das Xcode Command Line Tools na primeira execução. Se o macOS reclamar de "desenvolvedor não verificado", libere em Ajustes do Sistema > Privacidade e Segurança.
 - **Linux.** Se der erro de `run-detectors`/WINE, é `binfmt_misc`; a doc do llamafile traz o registro do `ape`.
@@ -145,6 +160,10 @@ Regras de texto que valem para qualquer mudança: português do Brasil, frases c
 - [ ] Origens do pen drive liberadas no Archeo (`API_CORS_ORIGINS` e `DATABASE_MCP_BROWSER_ORIGINS`) e login testado com a conta que vai ao evento
 - [ ] Conta de leitura do banco criada e testada pela tela Ferramentas num notebook que não é o seu
 - [ ] `node --test` verde na raiz do repo
+- [ ] `report.contact` preenchido em `web/config.json`
+- [ ] `sh tests/eval/rodar.sh` com PORTÃO PASSOU no modelo que vai para o pen drive
+- [ ] Relatório impresso testado (Imprimir/PDF) num notebook do evento
+- [ ] Preparo rodado no Windows (o script do Windows não foi testado nesta versão)
 - [ ] Pen drive com cópia reserva (e um segundo pen drive igual)
 - [ ] Um notebook seu com tudo já funcionando no stand
 
