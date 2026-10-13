@@ -100,3 +100,47 @@ test('humanize', () => {
   assert.equal(C.humanize('cd_prod'), 'cd prod');
   assert.equal(C.humanize('id'), 'id');
 });
+
+test('tokens: plurais em português', () => {
+  assert.deepEqual(C.tokens('itens'), ['item']);
+  assert.deepEqual(C.tokens('cupons'), ['cupom']);
+  assert.deepEqual(C.tokens('meses'), ['mes']);
+  assert.deepEqual(C.tokens('promoções'), ['promocao']);
+  assert.deepEqual(C.tokens('totais'), ['total']);
+});
+
+test('rankTables: cupons emitidos acha cupom_fiscal', () => {
+  const cat = C.buildCatalog([{ table_name:'cupom_fiscal', table_type:'TABLE', num_rows:10, column_name:'valor', data_type:'numeric', ordinal:1 },
+    { table_name:'loja', table_type:'TABLE', num_rows:2, column_name:'nome', data_type:'text', ordinal:1 }]);
+  assert.equal(C.rankTables(cat, 'cupons emitidos')[0].name, 'cupom_fiscal');
+});
+
+test('rankTables: stop words com s final são filtradas depois do stem', () => {
+  const cat = C.buildCatalog([{ table_name:'menos', table_type:'TABLE', num_rows:10, column_name:'x', data_type:'int', ordinal:1 }]);
+  assert.deepEqual(C.rankTables(cat, 'menos vendas'), []);
+});
+
+test('humanize não faz stem nem separa prefixos', () => {
+  assert.equal(C.humanize('status_pedidos'), 'status pedidos');
+  assert.equal(C.humanize('itens'), 'itens');
+  assert.equal(C.humanize('ValorTotal'), 'valor total');
+});
+
+test('tokens: prefixos e palavras inteiras', () => {
+  assert.deepEqual(C.tokens('codigo'), ['codigo']);
+  assert.deepEqual(C.tokens('nrocupom'), ['nro', 'cupom']);
+  assert.deepEqual(C.tokens('totvenda'), ['tot', 'venda']);
+  assert.deepEqual(C.tokens('idade'), ['idade']);
+});
+
+test('tokens: sufixo id só em palavras com 6+ letras', () => {
+  assert.deepEqual(C.tokens('valid'), ['valid']);
+  assert.deepEqual(C.tokens('pedidoid'), ['pedido', 'id']);
+});
+
+test('kindOf: texto antes de número, serial é número', () => {
+  assert.equal(C.kindOf('enum'), 'texto');
+  assert.equal(C.kindOf("enum('a','b')"), 'texto');
+  assert.equal(C.kindOf('serial'), 'numero');
+  assert.equal(C.kindOf('bigserial'), 'numero');
+});

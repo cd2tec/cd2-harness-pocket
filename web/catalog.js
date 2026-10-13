@@ -5,10 +5,11 @@
 "use strict";
 const MAX_COLS_TABLE = 60;
 // Prefixos comuns de coluna em ERP. Separados só quando o resto tem 3 letras ou mais.
-const PREFIXES = ['vlr', 'qtd', 'dt', 'cod', 'cd', 'tot', 'nr', 'ds', 'nm'];
+const PREFIXES = ['vlr', 'qtd', 'dt', 'cod', 'cd', 'tot', 'nro', 'nr', 'ds', 'nm'];
 const STOP = new Set(['de','da','do','das','dos','por','e','o','a','os','as','em','no','na','nos','nas','qual','quai','quanto',
   'quantos','quanta','quantas','mostre','mostra','me','um','uma','com','para','pelo','pela','cada','todo','todos','the','of','by',
-  'per','what','how','many','show','list','liste','foram','tem','temo','ha','sao','que','mai','menos','maior','menor','meu','minha']);
+  'per','what','how','many','show','list','liste','foram','tem','temo','ha','sao','que','mai','menos','maior','menor','meu','minha'].map(stem));
+const WHOLE = new Set(['codigo','total','totais','numero','nome','descricao']);
 const SYN = [
   ['venda','sale','pedido','order','cupom','movimento','mov','vend','vendido','vendida','faturamento','fatura','receita'],
   ['produto','product','item','sku','mercadoria','prod','artigo'],
@@ -22,15 +23,24 @@ const SYN = [
 ];
 const NOISE = new Set(['log','tmp','temp','aux','bkp','backup','audit','auditoria','old','hist']);
 
-function stem(t){ return t.length > 3 && t.endsWith('s') ? t.slice(0, -1) : t; }
+function stem(t){
+  if(t.length <= 3) return t;
+  if(t.endsWith('ns')) return t.slice(0, -2) + 'm';
+  if(t.endsWith('oes') || t.endsWith('aes')) return t.slice(0, -3) + 'ao';
+  if(t.endsWith('eses')) return t.slice(0, -2);
+  if(t.endsWith('ais')) return t.slice(0, -3) + 'al';
+  if(t.endsWith('eis')) return t.slice(0, -3) + 'el';
+  return t.endsWith('s') ? t.slice(0, -1) : t;
+}
 function tokens(s){
   const base = String(s == null ? '' : s).replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
   const out = [];
   for(let t of base){
+    if(WHOLE.has(t)){ out.push(stem(t)); continue; }
     let p;
     while((p = PREFIXES.find(x => t.length >= x.length + 3 && t.startsWith(x)))){ out.push(p); t = t.slice(p.length); }
-    if(t.length > 4 && t.endsWith('id')){ out.push(stem(t.slice(0, -2)), 'id'); continue; }
+    if(t.length >= 6 && t.endsWith('id')){ out.push(stem(t.slice(0, -2)), 'id'); continue; }
     out.push(stem(t));
   }
   return out;
@@ -49,8 +59,8 @@ function kindOf(type){
   if(/interval/.test(t)) return 'outro';
   if(/date|time/.test(t)) return 'data';
   if(/^(bit|bool)/.test(t)) return 'outro';
-  if(/int|num|dec|float|double|real|money/.test(t)) return 'numero';
   if(/char|text|clob|string|enum/.test(t)) return 'texto';
+  if(/int|num|dec|float|double|real|money|serial/.test(t)) return 'numero';
   return 'outro';
 }
 function lowerKeys(r){ const o = {}; for(const k in r) o[k.toLowerCase()] = r[k]; return o; }
@@ -100,7 +110,12 @@ function rankTables(catalog, pergunta, opts){
   return scored.slice(0, max).map(({ t, score, hitCols }) => ({ name:t.name, type:t.type, rows:t.rows, score, columns:pickColumns(t.columns, hitCols, maxCols) }));
 }
 
-function humanize(name){ const t = tokens(name).filter(x => x !== 'id'); return t.length ? t.join(' ') : String(name == null ? '' : name).toLowerCase(); }
+function humanize(name){
+  const raw = String(name == null ? '' : name);
+  const t = raw.replace(/([a-z0-9])([A-Z])/g, '$1 $2').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .split(/[^a-z0-9]+/).filter(x => x && x !== 'id');
+  return t.length ? t.join(' ') : raw.toLowerCase();
+}
 function isKey(c){ return c.tokens.includes('id') || ['cod', 'cd', 'nr'].includes(c.tokens[0]); }
 function suggest(catalog){
   const tables = ((catalog && catalog.tables) || []).filter(t => t.type === 'TABLE' && !t.tokens.some(x => NOISE.has(x)))
