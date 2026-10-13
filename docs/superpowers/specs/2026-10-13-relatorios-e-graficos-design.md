@@ -128,13 +128,19 @@ roteiro (a mesma do passo 4). Se a nova tentativa também falhar, ou se o modelo
 **Passo 4, execução.** `runSql` chama `db_read_only_query`. Erro de SQL: se a nova tentativa ainda não foi usada, uma nova chamada ao modelo
 com a mesma mensagem mais o SQL anterior e o texto do erro. Segundo erro:
 `{ ok:false, motivo:'sql', sql }`. Timeout: `{ ok:false, motivo:'timeout', sql }`, sem nova
-tentativa. Resultado vazio: `{ ok:false, motivo:'vazio', sql }`.
+tentativa; no SQL Server e no Oracle, quando quem parou foi o prazo do front, `motivo:'timeout_front'`.
+Resultado vazio, ou só com nulos: `{ ok:false, motivo:'vazio', sql }`. Antes de ir ao banco, o SQL
+precisa ler ao menos uma tabela listada; se não ler, gasta a nova tentativa. Parar aborta o request ao
+toolbox (fetch com signal), e o prazo de 15 s também.
 
 **Passo 5, visual pelo resultado.** O pedido do modelo é ajustado pelo dado:
-- `x` ou `y` não existem nas colunas do resultado: `tabela`;
-- uma linha com uma coluna numérica: `numero`;
+- `x` vazio ou fora do resultado, com uma só coluna de texto: ela vira `x`; `y` vazio ou fora, com uma
+  só coluna numérica de medida (fora tempo e chave): ela vira `y`; sem inferência possível: `tabela`;
+- uma linha com uma coluna numérica: `numero`; `numero` pedido com uma coluna de texto junto: `barra`
+  de uma barra, para o rótulo aparecer; `numero` escolhe a medida, não a coluna de tempo nem a chave;
 - `pizza` com mais de 6 categorias ou com valor negativo: `barra`;
 - `linha` sem `x` do tipo data (ou texto com cara de data/mês): `barra`;
+- `barra` no tempo com mais de 20 pontos: `linha`, sem corte;
 - `barra` com mais de 20 categorias: as 20 maiores, com `aviso` dizendo quantas ficaram de fora;
 - `y` não numérico: `tabela`.
 
@@ -144,12 +150,16 @@ tentativa. Resultado vazio: `{ ok:false, motivo:'vazio', sql }`.
 - `linha`: "De jan/2026 a set/2026. Maior valor em mar/2026: 8.120."
 - `tabela`: "12 linhas."
 
+O título vem do modelo, mas se trouxer número que não está na pergunta, vira a própria pergunta.
+
 Números formatados em pt-BR (`Intl.NumberFormat`). Sem símbolo de moeda: o harness não sabe se a
 coluna é dinheiro.
 
 **Mensagens na tela** por `motivo`, em português simples, sempre com as sugestões ao lado:
 `sem_tabelas` "Não achei tabelas sobre isso neste banco."; `sql` "Não consegui montar essa
 consulta."; `timeout` "A consulta demorou demais e foi cancelada para proteger o banco.";
+`timeout_front` "A consulta passou de 15 segundos e o harness parou de esperar. Ela pode continuar
+rodando no servidor.";
 `vazio` "A consulta não trouxe nenhuma linha."; `modelo` "O modelo não respondeu." O SQL tentado
 fica num bloco recolhível.
 
