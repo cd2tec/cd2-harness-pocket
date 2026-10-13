@@ -28,7 +28,7 @@ for(const [i, p] of perguntas.entries()){
   const ref = await runSql(p.sql);
   if(!ref.ok) throw new Error('SQL de referência da pergunta ' + (i + 1) + ' falhou: ' + ref.error);
   const t0 = Date.now();
-  const r = await Ask.ask({ pergunta:p.pergunta, catalog, motor:status.engine, versao:String(status.db_version || '').split('\n')[0].trim(), callModel, runSql });
+  const r = await Ask.ask({ pergunta:p.pergunta, catalog, motor:status.engine, versao:String(status.db_version || '').split('\n')[0].trim(), schema:status.schema, usuario:status.user, callModel, runSql });
   const s = (Date.now() - t0) / 1000; tempo += s;
   const ok = r.ok && sameResult(ref.rows, r.todas);
   if(ok) acertos++;

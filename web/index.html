@@ -526,6 +526,7 @@ async function runAsk(pergunta){
     body.innerHTML = '<span class="spin"></span> Montando a consulta…';
     const s = st.dbStatus || {};
     const r = await CD2Ask.ask({ pergunta, catalog, motor:s.engine || 'postgres', versao:String(s.db_version || '').split('\n')[0].trim(),
+      schema:s.schema || '', usuario:s.user || '',
       callModel:CD2Ask.modelCaller({ fetch:(...a) => fetch(...a), url:'/v1/chat/completions', useSchema:USE_SCHEMA }),
       runSql:CD2Ask.toolRunner(provider, { timeoutMs:15000 }), signal:st.ctl.signal });
     renderAnswer(body, pergunta, r);

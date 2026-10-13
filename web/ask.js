@@ -144,14 +144,22 @@ function exemplos(motor){
     'Pergunta: 10 clientes que mais compraram -> ' + JSON.stringify({ sql:d.top('SELECT c.nome AS cliente, SUM(p.valor) AS total FROM pedido p JOIN cliente c ON c.id = p.cliente_id GROUP BY c.nome', 'ORDER BY total DESC'), visual:'barra', x:'cliente', y:'total', titulo:'Clientes que mais compraram' })
   ].join('\n');
 }
+// Prefixo de schema para os nomes de tabela, só quando o schema configurado não é o padrão da conta:
+// PostgreSQL public, SQL Server dbo, Oracle o próprio usuário; MariaDB nunca (schema é a base).
+function schemaPrefix(motor, schema, usuario){
+  const s = String(schema == null ? '' : schema).trim();
+  if(!s || motor === 'mariadb') return '';
+  const padrao = { postgres:'public', sqlserver:'dbo', oracle:String(usuario == null ? '' : usuario).trim() }[motor] || 'public';
+  return s.toLowerCase() === padrao.toLowerCase() ? '' : s + '.';
+}
 function buildMessages(o){
-  const d = DIALETO[o.motor] || DIALETO.postgres;
-  const tabs = o.tabelas.map(t => '- ' + t.name + ' (' + (t.type === 'VIEW' ? 'view, ' : '') + 'cerca de ' + t.rows + ' linhas): '
+  const d = DIALETO[o.motor] || DIALETO.postgres, pre = schemaPrefix(o.motor, o.schema, o.usuario);
+  const tabs = o.tabelas.map(t => '- ' + pre + t.name + ' (' + (t.type === 'VIEW' ? 'view, ' : '') + 'cerca de ' + t.rows + ' linhas): '
     + t.columns.map(c => c.name + ' ' + c.type).join(', ')).join('\n');
   const sys = [
     'Você transforma uma pergunta em uma consulta SQL de leitura e diz como mostrar o resultado.',
     'Banco: ' + d.nome + (o.versao ? '. Versão: ' + o.versao : '') + '.',
-    'Tabelas disponíveis (use só estas tabelas e colunas, com os nomes exatamente como estão):',
+    'Tabelas disponíveis (use só estas tabelas e colunas, com os nomes exatamente como estão' + (pre ? ', com o schema na frente' : '') + '):',
     tabs,
     'Regras:',
     '- Um único SELECT (ou WITH), sem ponto e vírgula.',
@@ -175,7 +183,7 @@ async function ask(o){
   let anterior = null, falha = 'modelo', ultimoSql = '';
   for(let tentativa = 0; tentativa < 2; tentativa++){
     let texto;
-    try{ texto = await o.callModel(buildMessages({ pergunta:o.pergunta, tabelas, motor:o.motor, versao:o.versao, anterior }), o.signal); }
+    try{ texto = await o.callModel(buildMessages({ pergunta:o.pergunta, tabelas, motor:o.motor, versao:o.versao, schema:o.schema, usuario:o.usuario, anterior }), o.signal); }
     catch(e){ if(e && e.name === 'AbortError') throw e; return { ok:false, motivo:'modelo' }; }
     checkAbort(o.signal);
     const req = parseModelJson(texto);

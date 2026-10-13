@@ -285,3 +285,24 @@ test('ask: prazo do front no SQL Server e no Oracle é timeout_front; no Postgre
   assert.equal((await A.ask(base({ motor:'oracle', callModel:fila([BARRA]), runSql:fila([{ ok:false, timeout:true, error:'ORA-01013' }]) }))).motivo, 'timeout');
   assert.match(A.MENSAGENS.timeout_front, /pode continuar rodando no servidor/);
 });
+
+test('buildMessages: qualifica a tabela com o schema quando ele não é o padrão do motor', () => {
+  const tabelas = Cat.rankTables(CAT2, 'vendas');
+  const sys = o => A.buildMessages(Object.assign({ pergunta:'p', tabelas }, o))[0].content;
+  assert.match(sys({ motor:'postgres', schema:'erp' }), /- erp\.venda \(/);
+  assert.match(sys({ motor:'postgres', schema:'erp' }), /schema na frente/);
+  assert.match(sys({ motor:'postgres', schema:'public' }), /- venda \(/);
+  assert.match(sys({ motor:'postgres' }), /- venda \(/);
+  assert.doesNotMatch(sys({ motor:'postgres', schema:'public' }), /schema na frente/);
+  assert.match(sys({ motor:'sqlserver', schema:'vendas' }), /- vendas\.venda \(/);
+  assert.match(sys({ motor:'sqlserver', schema:'DBO' }), /- venda \(/);
+  assert.match(sys({ motor:'mariadb', schema:'loja_db' }), /- venda \(/);
+  assert.match(sys({ motor:'oracle', schema:'CONSINCO', usuario:'LEITURA' }), /- CONSINCO\.venda \(/);
+  assert.match(sys({ motor:'oracle', schema:'CONSINCO', usuario:'consinco' }), /- venda \(/);
+});
+
+test('ask: repassa schema e usuário ao prompt', async () => {
+  const callModel = fila([BARRA]);
+  await A.ask(base({ motor:'oracle', schema:'CONSINCO', usuario:'LEITURA', callModel, runSql:fila([{ ok:true, rows:LINHAS }]) }));
+  assert.match(callModel.calls[0][0][0].content, /- CONSINCO\.venda \(/);
+});
