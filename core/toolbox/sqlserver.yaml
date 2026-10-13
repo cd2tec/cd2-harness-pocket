@@ -3,6 +3,7 @@
 # Somente leitura em tres camadas: conta de leitura (db_datareader),
 # excludedValues em db_read_only_query e guarda de SELECT no front. O toolbox
 # nao valida SQL. SQL de catalogo herdado do servidor do ZeusManager.
+# Sem timeout no servidor (o toolbox v1.14.0 recusa queryTimeout); o harness para de esperar em 15 s.
 kind: source
 name: cd2-db
 type: mssql

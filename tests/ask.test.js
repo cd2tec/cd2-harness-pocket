@@ -274,3 +274,14 @@ test('ask: Parar depois de a consulta voltar não mostra resposta', async () => 
   await assert.rejects(A.ask(base({ callModel, runSql:rs, signal:ctl2.signal })), { name:'AbortError' });
   assert.equal(rs.calls.length, 0);
 });
+
+test('ask: prazo do front no SQL Server e no Oracle é timeout_front; no PostgreSQL segue timeout', async () => {
+  const front = { ok:false, timeout:true, error:'tempo esgotado', front:true };
+  for(const motor of ['sqlserver', 'oracle']){
+    const r = await A.ask(base({ motor, callModel:fila([BARRA]), runSql:fila([front]) }));
+    assert.equal(r.motivo, 'timeout_front', motor); assert.ok(r.sql);
+  }
+  assert.equal((await A.ask(base({ motor:'postgres', callModel:fila([BARRA]), runSql:fila([front]) }))).motivo, 'timeout');
+  assert.equal((await A.ask(base({ motor:'oracle', callModel:fila([BARRA]), runSql:fila([{ ok:false, timeout:true, error:'ORA-01013' }]) }))).motivo, 'timeout');
+  assert.match(A.MENSAGENS.timeout_front, /pode continuar rodando no servidor/);
+});

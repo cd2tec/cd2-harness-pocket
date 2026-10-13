@@ -13,6 +13,7 @@ const MENSAGENS = {
   sem_tabelas:'Não achei tabelas sobre isso neste banco.',
   sql:'Não consegui montar essa consulta.',
   timeout:'A consulta demorou demais e foi cancelada para proteger o banco.',
+  timeout_front:'A consulta passou de 15 segundos e o harness parou de esperar. Ela pode continuar rodando no servidor.',
   vazio:'A consulta não trouxe nenhuma linha.',
   modelo:'O modelo não respondeu.'
 };
@@ -186,7 +187,8 @@ async function ask(o){
     const r = await o.runSql(sql, o.signal);
     checkAbort(o.signal);
     if(!r.ok){
-      if(r.timeout) return { ok:false, motivo:'timeout', sql };
+      // SQL Server e Oracle não têm limite de tempo no servidor: só o front parou de esperar.
+      if(r.timeout) return { ok:false, motivo:(r.front && (o.motor === 'sqlserver' || o.motor === 'oracle')) ? 'timeout_front' : 'timeout', sql };
       falha = 'sql'; anterior = { sql, erro:r.error }; continue;
     }
     if(!r.rows.length) return { ok:false, motivo:'vazio', sql };
