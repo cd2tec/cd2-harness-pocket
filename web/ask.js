@@ -19,7 +19,7 @@ const MENSAGENS = {
 };
 // Textos de timeout por motor (PostgreSQL, MariaDB/MySQL, driver Go, Oracle) e o do próprio front.
 const TIMEOUT_RE = /statement timeout|max_statement_time|maximum statement execution time|context deadline exceeded|query timeout|invalid connection|ORA-01013|tempo esgotado/i;
-const MEDIA_RE = /(^|[^a-z])(media|medio|avg|average|ticket|percent|percentual|pct|taxa|margem|rate|ratio|indice)([^a-z]|$)/;
+const MEDIA_RE = /(^|[^a-z])(media|medio|avg|average|ticket|percent|percentual|pct|taxa|margem|rate|ratio|indice|preco|price|unitario|saldo|estoque)([^a-z]|$)/;
 const semAcento = s => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const TEMPO_NOME_RE = /^(mes|month|ano|year|dia|day|data|date|periodo|semana|week|trimestre)/i;
@@ -95,22 +95,43 @@ function byTime(linhas, x){
   }
   return out;
 }
+// Coluna com cara de chave: alguma palavra do nome começa com id, cod, cd, nr ou nro, ou termina em id.
+function isKeyName(c){
+  return semAcento(String(c).replace(/([a-z0-9])([A-Z])/g, '$1 $2')).split(/[^a-z0-9]+/).filter(Boolean)
+    .some(t => /^(id|cod|cd|nr|nro)/.test(t) || t.endsWith('id'));
+}
+const isMeasure = c => !TEMPO_NOME_RE.test(c) && !isKeyName(c);
+// Uma coluna numérica para y: só quando a escolha é única (medidas antes de tempo e chave).
+function onlyNum(numCols, x){
+  const cands = numCols.filter(c => c !== x), pref = cands.filter(isMeasure), pool = pref.length ? pref : cands;
+  return pool.length === 1 ? pool[0] : null;
+}
 // O pedido do modelo é ajustado pelo dado que voltou (regras da seção 3, passo 5, da spec).
 function pickVisual(req, colunas, linhas){
   const tabela = () => ({ visual:'tabela', x:null, y:null, linhas, aviso:null });
-  const x = findCol(colunas, req.x), y = findCol(colunas, req.y);
   const numCols = colunas.filter(c => isNumCol(linhas, c));
+  const txtCols = colunas.filter(c => !numCols.includes(c) && linhas.some(r => r[c] != null && r[c] !== ''));
+  let x = findCol(colunas, req.x), y = findCol(colunas, req.y);
+  if(!x){ const t = txtCols.filter(c => c !== y); if(t.length === 1) x = t[0]; }
+  if(!y) y = onlyNum(numCols, x);
   if(linhas.length === 1 && colunas.length === 1 && numCols.length === 1) return { visual:'numero', x:null, y:numCols[0], linhas, aviso:null };
   let v = req.visual;
-  if(v === 'numero') return (linhas.length === 1 && numCols.length) ? { visual:'numero', x:null, y:(y && numCols.includes(y)) ? y : numCols[0], linhas, aviso:null } : tabela();
+  if(v === 'numero'){
+    if(linhas.length !== 1 || !numCols.length) return tabela();
+    const yn = (y && numCols.includes(y)) ? y : (numCols.find(isMeasure) || numCols[0]);
+    // Um rótulo de texto junto: barra de uma barra, para a resposta mostrar de quem é o número.
+    if(txtCols.length === 1) return { visual:'barra', x:txtCols[0], y:yn, linhas, aviso:null };
+    return { visual:'numero', x:null, y:yn, linhas, aviso:null };
+  }
   if(v === 'tabela' || !x || !y || !numCols.includes(y)) return tabela();
   if(v === 'pizza' && (linhas.length > 6 || linhas.some(r => (Chart.num(r[y]) || 0) < 0))) v = 'barra';
   const tempo = isTimeCol(linhas, x);
   if(v === 'linha' && !tempo) v = 'barra';
+  if(v === 'barra' && tempo && linhas.length > 20) v = 'linha';
   let out = (v === 'linha' || (v === 'barra' && tempo)) ? byTime(linhas, x)
     : linhas.slice().sort((a, b) => (Chart.num(b[y]) || 0) - (Chart.num(a[y]) || 0));
   let aviso = null;
-  if(v === 'barra' && out.length > 20){ aviso = 'Mostrando os 20 maiores de ' + out.length + '.'; out = byValue(out, y).slice(0, 20); if(tempo) out = byTime(out, x); }
+  if(v === 'barra' && out.length > 20){ aviso = 'Mostrando os 20 maiores de ' + out.length + '.'; out = byValue(out, y).slice(0, 20); }
   return { visual:v, x, y, linhas:out, aviso };
 }
 function byValue(linhas, y){ return linhas.slice().sort((a, b) => (Chart.num(b[y]) || 0) - (Chart.num(a[y]) || 0)); }
@@ -129,7 +150,7 @@ function frase(r){
   return maior + 'Total: ' + Chart.fmt(tot) + ' em ' + n;
 }
 
-const SCHEMA = { type:'object', properties:{ sql:{ type:'string' }, visual:{ type:'string', enum:VISUALS }, x:{ type:'string' }, y:{ type:'string' }, titulo:{ type:'string' } }, required:['sql', 'visual', 'titulo'] };
+const SCHEMA = { type:'object', properties:{ sql:{ type:'string' }, visual:{ type:'string', enum:VISUALS }, x:{ type:'string' }, y:{ type:'string' }, titulo:{ type:'string' } }, required:['sql', 'visual', 'x', 'y', 'titulo'] };
 const DIALETO = {
   postgres:  { nome:'PostgreSQL', mes:c => "to_char(" + c + ", 'YYYY-MM')", top:(s, o) => s + ' ' + o + ' LIMIT 10' },
   mariadb:   { nome:'MariaDB/MySQL (crases em nomes reservados)', mes:c => "DATE_FORMAT(" + c + ", '%Y-%m')", top:(s, o) => s + ' ' + o + ' LIMIT 10' },
@@ -212,7 +233,7 @@ async function ask(o){
       if(r.timeout) return { ok:false, motivo:(r.front && (o.motor === 'sqlserver' || o.motor === 'oracle')) ? 'timeout_front' : 'timeout', sql };
       falha = 'sql'; anterior = { sql, erro:r.error }; continue;
     }
-    if(!r.rows.length) return { ok:false, motivo:'vazio', sql };
+    if(!r.rows.length || r.rows.every(l => Object.values(l).every(v => v == null || v === ''))) return { ok:false, motivo:'vazio', sql };
     const colunas = Object.keys(r.rows[0]);
     const v = pickVisual(req, colunas, r.rows);
     const out = { ok:true, visual:v.visual, x:v.x, y:v.y, titulo:safeTitle(req.titulo, o.pergunta),

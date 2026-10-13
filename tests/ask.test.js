@@ -39,7 +39,9 @@ const L = (n, f) => Array.from({ length:n }, (_, i) => f(i));
 
 test('pickVisual: x ou y fora do resultado, ou y não numérico, vira tabela', () => {
   const linhas = [{ loja:'A', total:1 }, { loja:'B', total:2 }];
-  assert.equal(A.pickVisual({ visual:'barra', x:'nada', y:'total' }, ['loja', 'total'], linhas).visual, 'tabela');
+  // x fora do resultado com uma só coluna de texto: a coluna é inferida (melhoria (a) da revisão final)
+  assert.deepEqual(['visual', 'x'].map(k => A.pickVisual({ visual:'barra', x:'nada', y:'total' }, ['loja', 'total'], linhas)[k]), ['barra', 'loja']);
+  assert.equal(A.pickVisual({ visual:'barra', x:'nada', y:'total' }, ['loja', 'uf', 'total'], linhas.map(l => Object.assign({ uf:'SP' }, l))).visual, 'tabela');
   assert.equal(A.pickVisual({ visual:'barra', x:'total', y:'loja' }, ['loja', 'total'], linhas).visual, 'tabela');
   assert.equal(A.pickVisual({ visual:'tabela', x:'loja', y:'total' }, ['loja', 'total'], linhas).visual, 'tabela');
 });
@@ -56,8 +58,9 @@ test('pickVisual: y numérico em texto é número', () => {
 
 test('pickVisual: uma linha de uma coluna numérica vira número; número com várias linhas vira tabela', () => {
   assert.deepEqual(A.pickVisual({ visual:'barra', x:'', y:'' }, ['n'], [{ n:'42' }]).visual, 'numero');
+  // uma linha com rótulo de texto vira barra de uma barra, para o rótulo aparecer (achado 5 da revisão final)
   const r = A.pickVisual({ visual:'numero', x:'', y:'total' }, ['loja', 'total'], [{ loja:'A', total:3 }]);
-  assert.deepEqual([r.visual, r.y], ['numero', 'total']);
+  assert.deepEqual([r.visual, r.x, r.y], ['barra', 'loja', 'total']);
   assert.equal(A.pickVisual({ visual:'numero', x:'', y:'n' }, ['n'], [{ n:1 }, { n:2 }]).visual, 'tabela');
 });
 
@@ -326,4 +329,51 @@ test('ask: título com número que não está na pergunta vira a própria pergun
   assert.equal(await t('Vendas por loja: 1.500', 'vendas por loja'), 'vendas por loja');
   assert.equal(await t('Vendas de 2026 por loja', 'vendas de 2026 por loja'), 'Vendas de 2026 por loja');
   assert.equal(await t('Vendas por loja', 'vendas por loja'), 'Vendas por loja');
+});
+
+test('pickVisual: número escolhe a coluna de medida, não a de tempo nem a de código', () => {
+  const r = A.pickVisual({ visual:'numero', x:'', y:'' }, ['ano', 'total'], [{ ano:2026, total:55.5 }]);
+  assert.deepEqual([r.visual, r.y], ['numero', 'total']);
+  const k = A.pickVisual({ visual:'numero', x:'', y:'loja' }, ['cd_loja', 'nr_cupom', 'valor'], [{ cd_loja:3, nr_cupom:10, valor:9.9 }]);
+  assert.deepEqual([k.visual, k.y], ['numero', 'valor']);
+  const f = A.pickVisual({ visual:'numero', x:'', y:'' }, ['mes', 'cd_loja'], [{ mes:3, cd_loja:2 }]);
+  assert.deepEqual([f.visual, f.y], ['numero', 'mes']);
+});
+
+test('pickVisual: número pedido com uma coluna de texto vira barra com o rótulo', () => {
+  const r = A.pickVisual({ visual:'numero', x:'', y:'' }, ['loja', 'total'], [{ loja:'Loja Centro', total:123 }]);
+  assert.deepEqual([r.visual, r.x, r.y], ['barra', 'loja', 'total']);
+});
+
+test('pickVisual: infere x e y quando vêm vazios ou fora do resultado', () => {
+  const linhas = [{ QUANTIDADE:'10', TIPOESPECIE:'A' }, { QUANTIDADE:'5', TIPOESPECIE:'B' }];
+  const r = A.pickVisual({ visual:'pizza', x:'', y:'quantidade' }, ['QUANTIDADE', 'TIPOESPECIE'], linhas);
+  assert.deepEqual([r.visual, r.x, r.y], ['pizza', 'TIPOESPECIE', 'QUANTIDADE']);
+  const y = A.pickVisual({ visual:'barra', x:'loja', y:'' }, ['loja', 'cd_loja', 'total'], [{ loja:'A', cd_loja:1, total:3 }, { loja:'B', cd_loja:2, total:5 }]);
+  assert.deepEqual([y.visual, y.y], ['barra', 'total']);
+  const amb = A.pickVisual({ visual:'barra', x:'loja', y:'nada' }, ['loja', 'total', 'qtd'], [{ loja:'A', total:3, qtd:1 }, { loja:'B', total:5, qtd:2 }]);
+  assert.equal(amb.visual, 'tabela');
+});
+
+test('pickVisual: barra no tempo com mais de 20 pontos vira linha, sem cortar', () => {
+  const r = A.pickVisual({ visual:'barra', x:'mes', y:'v' }, ['mes', 'v'], L(24, i => ({ mes:(2024 + Math.floor(i / 12)) + '-' + String(i % 12 + 1).padStart(2, '0'), v:i })));
+  assert.equal(r.visual, 'linha'); assert.equal(r.linhas.length, 24); assert.equal(r.aviso, null);
+});
+
+test('SCHEMA exige x e y', () => {
+  assert.deepEqual(A.SCHEMA.required.slice().sort(), ['sql', 'titulo', 'visual', 'x', 'y']);
+});
+
+test('frase: sem Total para preço, unitário, saldo e estoque', () => {
+  for(const y of ['preco_medio', 'preco', 'vlr_unitario', 'saldo', 'estoque_atual', 'price']){
+    const b = [{ d:'A', [y]:5 }, { d:'B', [y]:3 }];
+    assert.equal(A.frase({ visual:'barra', x:'d', y, linhas:b, todas:b }), 'Maior: A, 5. 2 categorias.', y);
+  }
+});
+
+test('ask: resultado só com nulos é motivo vazio', async () => {
+  const r = await A.ask(base({ callModel:fila([BARRA]), runSql:fila([{ ok:true, rows:[{ loja:null, total:null }] }]) }));
+  assert.deepEqual(r, { ok:false, motivo:'vazio', sql:'SELECT loja, SUM(valor) AS total FROM venda GROUP BY loja' });
+  const r2 = await A.ask(base({ callModel:fila([BARRA]), runSql:fila([{ ok:true, rows:[{ loja:'', total:null }, { loja:null, total:'' }] }]) }));
+  assert.equal(r2.motivo, 'vazio');
 });
