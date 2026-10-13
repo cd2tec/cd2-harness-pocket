@@ -99,7 +99,7 @@ function Start-Ctl {
 Clear-Host
 Write-Host ""
 Write-Host "  +-----------------------------+" -ForegroundColor DarkYellow
-Write-Host "  |   CD2 Retail Tech  Harness  |" -ForegroundColor Yellow
+Write-Host "  |   CD2 Tech  Harness         |" -ForegroundColor Yellow
 Write-Host "  +-----------------------------+" -ForegroundColor DarkYellow
 Write-Host "  IA local, sem nuvem." -ForegroundColor Gray
 Write-Host ""

@@ -22,7 +22,7 @@ function Die($msg) { Write-Host "`n[ERRO] $msg" -ForegroundColor Red; Pause-Exit
 
 Write-Host ''
 Write-Host '  +-----------------------------+'
-Write-Host '  |   CD2 Retail Tech  Harness    |'
+Write-Host '  |   CD2 Tech  Harness           |'
 Write-Host '  +-----------------------------+'
 Write-Host '  Gravar pen drive'
 Write-Host ''
