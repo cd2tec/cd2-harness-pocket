@@ -143,6 +143,7 @@ footer.t-blue{padding:var(--space-16) 0 var(--space-8)}
 .social a{color:var(--ink);text-decoration:none;font:600 15px/24px var(--font-sans)}
 .social a:hover{color:var(--ink-brand)}
 .card--wide{grid-column:1 / -1}
+.req__title{margin:var(--space-12) 0 var(--space-4);font:700 22px/28px var(--font-sans)}
 .foot__bar{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);margin-top:var(--space-12);padding-top:var(--space-6);border-top:1px solid rgba(255,255,255,.45);font:500 11px/16px var(--font-sans);letter-spacing:2.4px;text-transform:uppercase}
 .foot__bar a{color:var(--ink)}
 .foot__bar svg{height:20px;width:auto}
@@ -315,6 +316,22 @@ footer.t-blue{padding:var(--space-16) 0 var(--space-8)}
         <div class="card"><span class="tag tag--atencao"><i></i>Atenção</span><h3>Procedência do modelo</h3><p>GGUF do Qwen3 4B Instruct 2507, licença Apache 2.0, conferido por SHA-256 no preparo do pen drive.</p></div>
         <div class="card"><span class="tag tag--atencao"><i></i>Atenção</span><h3>Modelo pequeno erra</h3><p>Em números do Archeo, o dado vem da ferramenta; o texto em volta é do modelo. O aviso na tela é proposital.</p></div>
       </div>
+      <h3 class="req__title" id="requisitos">Configuração recomendada</h3>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th></th><th>Mínimo</th><th>Recomendado</th></tr></thead>
+          <tbody>
+            <tr><td><b>Memória RAM</b></td><td>8 GB</td><td>16 GB</td></tr>
+            <tr><td><b>Processador</b></td><td>64 bits: Intel/AMD de 2015 para cá (com AVX2) ou Mac M1 em diante</td><td>8 núcleos ou mais, ou Apple Silicon</td></tr>
+            <tr><td><b>Placa de vídeo</b></td><td>Não precisa</td><td>Com GPU ou Apple Silicon fica bem mais rápido</td></tr>
+            <tr><td><b>Sistema</b></td><td>Windows 10/11, macOS ou Linux, 64 bits</td><td>Igual</td></tr>
+            <tr><td><b>Porta USB</b></td><td>USB 3</td><td>USB 3</td></tr>
+            <tr><td><b>Espaço no computador</b></td><td>Uns 600 MB no Mac e no Linux</td><td>Igual</td></tr>
+            <tr><td><b>Navegador</b></td><td>Edge ou Chrome</td><td>Igual</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note">O modelo ocupa uns 2,4 GB de memória e o contexto mais uns 1,2 GB; com motor e navegador, o harness usa de 4 a 5 GB. Em 8 GB funciona, mas apertado. Só com CPU, espere uns 9 segundos por pergunta. É estimativa, ainda não medida numa máquina de 8 GB.</p>
     </div>
   </section>
   <section class="s" id="dev">

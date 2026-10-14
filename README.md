@@ -41,6 +41,21 @@ Só no repositório (não vão para o pen drive):
   ctl/                        <- código do cd2-ctl (Go), compilado pelo GitHub Actions
 ```
 
+## Configuração recomendada
+
+| | Mínimo | Recomendado |
+|---|---|---|
+| Memória RAM | 8 GB | 16 GB |
+| Processador | 64 bits: Intel/AMD de 2015 para cá (com AVX2) ou Mac M1 em diante | 8 núcleos ou mais, ou Apple Silicon |
+| Placa de vídeo | Não precisa | Com GPU ou Apple Silicon fica bem mais rápido; o launcher tenta usar sozinho |
+| Sistema | Windows 10/11, macOS ou Linux, sempre 64 bits | |
+| Porta USB | USB 3 | USB 3 |
+| Espaço no computador | Uns 600 MB livres no Mac e no Linux (cópia do motor em cache) | |
+| Navegador | Edge ou Chrome, para abrir como janela de aplicativo | |
+| Internet | Só no modo Archeo MCP | |
+
+De onde vêm os números: o modelo ocupa uns 2,4 GB de memória e o contexto padrão (8.192 tokens) mais uns 1,2 GB; somando motor, toolbox e a janela do navegador, o harness usa de 4 a 5 GB. Em 8 GB funciona, mas apertado se houver outras coisas abertas. Em notebook só com CPU, espere uns 9 segundos por pergunta. É estimativa a partir do tamanho do modelo e da avaliação em `tests/eval/`; ainda não foi medido numa máquina de 8 GB nem num processador sem AVX2.
+
 ## 1. Criar o pen drive (uma vez, com internet)
 
 Plugue um pen drive de 16 GB (USB 3) e rode o gravador do seu sistema:
