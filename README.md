@@ -142,7 +142,7 @@ Interface, site e README seguem o **Design System CD2 Tech** (Manual de Marca CD
 | Tipografia | Manrope (400 a 800), embutida em `web/fonts/` e `docs/assets/fonts/` em WOFF2 com subconjunto latino. Funciona offline. Licença SIL OFL 1.1, gravada nos próprios arquivos. |
 | Logo | `cd2-logo-horizontal` colorida sobre a barra superior branca (fixa no topo, no padrão dos sites da CD2 em cd2tec.github.io); símbolo como avatar da IA e favicon, o mesmo do site do Archeo. Arquivos em `docs/assets/logos/`. |
 | Componentes | Botões em pílula (primário, secundário), StatusTag para o estado do modelo e das ferramentas (Concluído = pronto, Em melhoria = Demonstração, Atenção = offline ou erro), SectionHeader com eyebrow e régua de 240px, blocos de conexão no site. |
-| Movimento | Só transições de 150 ms em cor. O indicador de carregamento é uma barra que desliza; nada gira, pulsa ou salta, e ele para com "reduzir movimento". |
+| Movimento | Só transições de 150 ms em cor. O indicador de carregamento é uma barra que desliza; nada gira, pulsa ou salta, e ele para com "reduzir movimento". A exceção é o terminal: enquanto o modelo carrega, um robô em pixel art leva blocos do pen drive até um cérebro que enche com o progresso real da leitura (`core/robo-unix.sh` e `core/robo-windows.ps1`, quadros em `core/robo.txt`). Sem cor (`NO_COLOR`) ou com `CD2_SIMPLES=1`, vira texto. |
 
 Regras de texto que valem para qualquer mudança: português do Brasil, frases curtas, sem emoji e sem travessão. A tagline de mercado "Para operações que não podem parar." é a única que vai para fora.
 

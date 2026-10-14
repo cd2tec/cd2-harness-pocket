@@ -58,6 +58,7 @@ cleanup() {
   [ -n "$PID" ] && kill "$PID" 2>/dev/null; PID=""
   [ -n "$CTL_PID" ] && kill "$CTL_PID" 2>/dev/null; CTL_PID=""
   [ -t 0 ] && stty echo 2>/dev/null
+  command -v robo_restaura >/dev/null 2>&1 && robo_restaura
   return 0
 }
 trap cleanup EXIT
@@ -73,28 +74,20 @@ start_server() {  # $@ = flags extras (GPU)
   PID=$!
 }
 
-wait_ready() {  # espera ate 240s; retorna 1 se o processo morrer
-  i=0
-  while [ "$i" -lt 240 ]; do
-    kill -0 "$PID" 2>/dev/null || return 1
-    curl -sf --max-time 2 "$URL/health" >/dev/null 2>&1 && return 0
-    i=$((i + 1)); sleep 1
-  done
-  return 1
-}
-
+# robo de carregamento: le o modelo em pedacos (progresso real) e anima enquanto o servidor sobe
+. "$ROOT/core/robo-unix.sh"
+robo_init
 say "Carregando o modelo: $(basename "$MODEL")"
-say "(na primeira vez pode levar de 20 a 90 segundos)"
+robo_ler "$MODEL" || say "[AVISO] Nao consegui ler o modelo antes de subir o servidor; seguindo assim mesmo."
 start_server -ngl 999
-if ! wait_ready; then
-  say "Aceleracao por GPU indisponivel, tentando so com CPU..."
+if ! robo_esperar "$URL" "$PID" 240; then
+  robo_aviso "Aceleracao por GPU indisponivel, tentando so com CPU..."
   kill "$PID" 2>/dev/null; sleep 1
   start_server --gpu disable -ngl 0
-  wait_ready || { tail -n 25 "$LOG"; die "O servidor nao iniciou. Log completo: $LOG"; }
+  robo_esperar "$URL" "$PID" 240 || { robo_fim erro "O modelo nao subiu."; tail -n 25 "$LOG"; die "O servidor nao iniciou. Log completo: $LOG"; }
 fi
-
+robo_fim ok "Pronto: $URL"
 say ""
-say "Pronto: $URL"
 
 # --- controle do banco (cd2-ctl): sobe, troca e derruba o MCP Toolbox pela tela Ferramentas ---
 case "$(uname -m)" in arm64|aarch64) ARCH=arm64 ;; *) ARCH=amd64 ;; esac

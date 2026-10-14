@@ -71,7 +71,7 @@ Os scripts de gravação (`GRAVAR-*`, `gravar-*` e `core/make-usb-*`) e a pasta 
 
 1. Tire e plugue de novo o pen drive.
 2. Abra pelo launcher do seu sistema (`INICIAR-CD2-...`).
-3. Espere a janela abrir e mande uma pergunta qualquer. Na primeira vez, o modelo leva de 20 a 90 segundos para carregar.
+3. Espere a janela abrir e mande uma pergunta qualquer. Na primeira vez, o modelo leva de 20 a 90 segundos para carregar; o robô no terminal mostra quanto do modelo já foi lido do pen drive.
 4. Se for usar banco: Ferramentas, modo MCP Nativo para Banco de dados, preencha a conexão e clique em Salvar e conectar. A lista com motor, versão e tabelas tem de aparecer.
 5. Feche e ejete com segurança.
 
