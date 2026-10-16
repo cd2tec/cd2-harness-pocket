@@ -449,3 +449,12 @@ test('buildMessages: view sem contagem de linhas não aparece como 0 linhas', ()
   assert.match(sys, /- view_resumo_venda \(view\): total numeric/);
   assert.match(sys, /- venda \(cerca de 0 linhas\): valor numeric/);
 });
+
+test('buildMessages: ligação por referência mostra as duas colunas', () => {
+  const cat = Cat.buildCatalog([
+    { table_name:'sales_orders', num_rows:10, column_name:'id', data_type:'int' }, { table_name:'sales_orders', num_rows:10, column_name:'total_amount', data_type:'numeric' },
+    { table_name:'order_lines', num_rows:30, column_name:'order_id', data_type:'int' }, { table_name:'order_lines', num_rows:30, column_name:'line_total', data_type:'numeric' }
+  ]);
+  const sys = A.buildMessages({ pergunta:'p', tabelas:Cat.rankTables(cat, 'total das orders'), motor:'postgres' })[0].content;
+  assert.match(sys, /- order_lines\.order_id = sales_orders\.id/);
+});

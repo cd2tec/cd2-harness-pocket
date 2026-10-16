@@ -219,5 +219,30 @@ test('links: id ou codigo sozinho, presente em toda tabela, não vira ligação'
     { table_name:'cliente', column_name:'id', data_type:'int' }, { table_name:'cliente', column_name:'codigo', data_type:'int' },
     { table_name:'fornecedor', column_name:'codigo', data_type:'int' }, { table_name:'fornecedor', column_name:'cliente_id', data_type:'int' }
   ]);
-  assert.deepEqual(C.links(cat.tables).map(x => x.col), ['cliente_id']);
+  assert.deepEqual(C.links(cat.tables).map(x => x.a + '.' + x.col + ' = ' + x.b + '.' + x.colB), [
+    'pedido.cliente_id = fornecedor.cliente_id', 'pedido.cliente_id = cliente.id', 'fornecedor.cliente_id = cliente.id']);
+});
+
+test('links: <entidade>_id e id_<entidade> apontam para o id da tabela da entidade, no singular ou plural', () => {
+  const cat = C.buildCatalog([
+    { table_name:'sales_orders', column_name:'id', data_type:'int' }, { table_name:'sales_orders', column_name:'store_id', data_type:'int' },
+    { table_name:'order_lines', column_name:'order_id', data_type:'int' }, { table_name:'order_lines', column_name:'product_id', data_type:'int' },
+    { table_name:'stores', column_name:'id', data_type:'int' }, { table_name:'products', column_name:'id', data_type:'int' },
+    { table_name:'products', column_name:'category_id', data_type:'int' }, { table_name:'categories', column_name:'id', data_type:'int' },
+    { table_name:'vendas', column_name:'id_cliente', data_type:'int' }, { table_name:'clientes', column_name:'id', data_type:'int' }
+  ]);
+  const l = C.links(cat.tables).map(x => x.a + '.' + x.col + ' = ' + x.b + '.' + x.colB);
+  for(const e of ['sales_orders.store_id = stores.id', 'order_lines.order_id = sales_orders.id', 'order_lines.product_id = products.id',
+    'products.category_id = categories.id', 'vendas.id_cliente = clientes.id'])
+    assert.ok(l.includes(e), e + ' | ' + l.join('; '));
+  assert.ok(!l.some(x => /\.id = \w+\.id$/.test(x)), 'id com id não liga: ' + l.join('; '));
+});
+
+test('itemPairs: order_lines é itens de sales_orders pela referência order_id', () => {
+  const cat = C.buildCatalog([
+    { table_name:'sales_orders', column_name:'id', data_type:'int' }, { table_name:'sales_orders', column_name:'total_amount', data_type:'numeric' },
+    { table_name:'order_lines', column_name:'order_id', data_type:'int' }, { table_name:'order_lines', column_name:'line_total', data_type:'numeric' },
+    { table_name:'customers', column_name:'id', data_type:'int' }
+  ]);
+  assert.deepEqual(C.itemPairs(cat.tables), [{ cab:'sales_orders', itens:'order_lines', col:'order_id' }]);
 });

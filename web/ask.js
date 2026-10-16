@@ -187,7 +187,7 @@ function buildMessages(o){
     'Banco: ' + d.nome + (o.versao ? '. Versão: ' + o.versao : '') + '.',
     'Tabelas disponíveis (use só estas tabelas e colunas, com os nomes exatamente como estão' + (pre ? ', com o schema na frente' : '') + '):',
     tabs,
-    lig.length ? 'Como as tabelas se ligam (use estes JOIN):\n' + lig.map(l => '- ' + pre + limpo(l.a) + '.' + limpo(l.col) + ' = ' + pre + limpo(l.b) + '.' + limpo(l.col)).join('\n') : '',
+    lig.length ? 'Como as tabelas se ligam (use estes JOIN):\n' + lig.map(l => '- ' + pre + limpo(l.a) + '.' + limpo(l.col) + ' = ' + pre + limpo(l.b) + '.' + limpo(l.colB || l.col)).join('\n') : '',
     'Regras:',
     o.motor === 'sqlserver' ? '- Um único SELECT, sem WITH e sem ponto e vírgula. Use subconsulta no lugar de WITH.' : '- Um único SELECT (ou WITH), sem ponto e vírgula.',
     '- Agregue no banco com GROUP BY e devolva no máximo 50 linhas.',

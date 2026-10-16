@@ -126,31 +126,53 @@ function humanize(name){
 }
 // Chave: palavra que começa com id, cod, cd, nr ou nro, ou que termina em id.
 function isKey(c){ return c.tokens.some(t => /^(id|cod|cd|nr|nro)/.test(t) || t.endsWith('id')); }
-// Ligações entre as tabelas candidatas: a mesma coluna-chave (cd_prod, nr_cupom, cliente_id) em duas
-// tabelas. Muito ERP antigo não declara chave estrangeira, então o nome é a pista. id ou codigo sozinho
-// existe em quase toda tabela e ligaria coisas sem relação.
+// Ligações entre as tabelas candidatas. Dois jeitos de ligar, os dois comuns em ERP:
+// 1. a mesma coluna-chave nas duas tabelas (cd_prod e cd_prod, nr_cupom e nr_cupom). Muito ERP
+//    antigo não declara chave estrangeira, então o nome é a pista. id ou codigo sozinho existe em
+//    quase toda tabela e ligaria coisas sem relação;
+// 2. <entidade>_id, id_<entidade> ou entidadeId apontando para a tabela da entidade, no singular ou
+//    no plural, que tem a coluna id (customer_id -> customers.id, id_cliente -> clientes.id).
 const GENERICA = new Set(['id', 'cod', 'codigo']);
+const NOME_ITEM = new Set(['item', 'line', 'linha', 'detalhe']);
 const colTokens = c => c.tokens || tokens(c.name);
 const isLinkKey = c => { const n = String(c.name).toLowerCase(); return !GENERICA.has(n) && isKey({ tokens:colTokens(c) }); };
+const raiz = w => String(w).toLowerCase().replace(/ies$/, 'y').replace(/s$/, '');
+const ultimaPalavra = n => { const p = String(n).replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean); return p[p.length - 1] || ''; };
+function entidadeRef(nome){
+  const n = String(nome), m = n.match(/^(.+?)_id$/i) || n.match(/^id_(.+)$/i) || n.match(/^(.*[a-z])Id$/);
+  return m ? raiz(ultimaPalavra(m[1])) : '';
+}
 function links(tabs){
-  const out = [];
+  const out = [], visto = new Set();
+  const add = (a, col, b, colB) => { const k = a + '.' + col + '=' + b + '.' + colB; if(!visto.has(k)){ visto.add(k); out.push({ a, b, col, colB }); } };
   for(let i = 0; i < tabs.length; i++) for(let j = i + 1; j < tabs.length; j++)
     for(const c of tabs[i].columns) if(isLinkKey(c) && tabs[j].columns.some(d => String(d.name).toLowerCase() === String(c.name).toLowerCase()))
-      out.push({ a:tabs[i].name, b:tabs[j].name, col:c.name });
+      add(tabs[i].name, c.name, tabs[j].name, c.name);
+  for(const a of tabs) for(const c of a.columns){
+    const e = entidadeRef(c.name);
+    if(!e) continue;
+    for(const b of tabs){
+      if(b === a || raiz(ultimaPalavra(b.name)) !== e) continue;
+      const id = b.columns.find(d => String(d.name).toLowerCase() === 'id');
+      if(id) add(a.name, c.name, b.name, id.name);
+    }
+  }
   return out;
 }
-// Cabeçalho e itens: a tabela de itens tem 'item' no nome e todas as palavras do cabeçalho
-// (mov_venda e mov_venda_item, pedido e itens_pedido), e as duas se ligam por uma chave.
+// Cabeçalho e itens: a tabela de itens tem item, line, linha ou detalhe no nome e se liga ao
+// cabeçalho, e o cabeçalho tem todas as palavras dela no nome (mov_venda e mov_venda_item) ou é
+// apontado por uma referência <entidade>_id dos itens (order_lines.order_id -> sales_orders.id).
 function itemPairs(tabs){
   const out = [];
   for(const t of tabs){
     const tt = tokens(t.name);
-    if(!tt.includes('item')) continue;
+    if(!tt.some(x => NOME_ITEM.has(x))) continue;
     for(const h of tabs){
       const ht = tokens(h.name);
-      if(h === t || !ht.length || ht.includes('item') || !ht.every(x => tt.includes(x))) continue;
-      const l = links([h, t])[0];
-      if(l) out.push({ cab:h.name, itens:t.name, col:l.col });
+      if(h === t || !ht.length || ht.some(x => NOME_ITEM.has(x))) continue;
+      const contido = ht.every(x => tt.includes(x));
+      const l = links([h, t]).find(x => contido || (x.a === t.name && x.b === h.name && x.colB !== x.col));
+      if(l) out.push({ cab:h.name, itens:t.name, col:l.a === t.name ? l.col : l.colB });
     }
   }
   return out;
@@ -172,6 +194,6 @@ function suggest(catalog){
   return out;
 }
 
-const api = { tokens, questionTokens, kindOf, buildCatalog, rankTables, suggest, humanize, links, itemPairs };
+const api = { tokens, questionTokens, kindOf, buildCatalog, rankTables, suggest, humanize, links, itemPairs, isKey, NOME_ITEM };
 if(typeof module !== 'undefined' && module.exports) module.exports = api; else root.CD2Catalog = api;
 })(typeof window !== 'undefined' ? window : globalThis);
