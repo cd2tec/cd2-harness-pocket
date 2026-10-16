@@ -26,7 +26,7 @@ Daí ele faz, nesta ordem:
 
 1. **Monta uma cópia local** da IA de Bolso e baixa o llamafile e o modelo para uma pasta de cache do seu computador. Se a conexão cair, rode de novo: o download retoma de onde parou, e o que já estiver completo é pulado.
 2. **Formata** o pen drive em exFAT com tabela MBR e nome `CD2`. É o formato que Windows, Mac e Linux leem e que aceita arquivo acima de 4 GB (FAT32 não aceita).
-3. **Copia** a pasta `CD2-HARNESS` inteira para o pen drive, com `bin/` e `models/` já preenchidos.
+3. **Copia** tudo direto para a raiz do pen drive, com `bin/` e `models/` já preenchidos. Como o pen drive acabou de ser formatado, não precisa de subpasta: quem abre o pen drive já vê o `INICIAR`.
 4. **Confere** os checksums lendo direto do pen drive, guarda uma cópia do `CHECKSUMS.sha256` fora dele e ejeta.
 
 No fim, a mensagem "Pronto. Pode tirar o pen drive." Para gravar o próximo, plugue e rode de novo. Leva só o tempo da cópia.
@@ -44,7 +44,7 @@ As cópias do checksum ficam na mesma pasta, uma por gravação, com data e hora
 ## O que deve aparecer no pen drive
 
 ```
-CD2-HARNESS/
+CD2/   (a raiz do pen drive)
   INICIAR-CD2-Windows.bat
   INICIAR-CD2-Mac.command
   iniciar-cd2-linux.sh
@@ -75,7 +75,7 @@ Os scripts de gravação (`GRAVAR-*`, `gravar-*` e `core/make-usb-*`) e a pasta 
 4. Se for usar banco: Configurações, modo MCP Nativo para Banco de dados, preencha a conexão e clique em Salvar e conectar. A lista com motor, versão e tabelas tem de aparecer.
 5. Feche e ejete com segurança.
 
-Se passou, está aprovado. Grave os outros com o mesmo script ou copie a pasta `CD2-HARNESS` inteira de um pen drive para outro já formatado em exFAT, e compare o `CHECKSUMS.sha256` no final.
+Se passou, está aprovado. Grave os outros com o mesmo script ou copie todo o conteúdo da raiz de um pen drive para a raiz de outro já formatado em exFAT, e compare o `CHECKSUMS.sha256` no final.
 
 ## Se der problema
 
@@ -100,7 +100,7 @@ Serve para entender o que o script faz, ou para quando ele não puder rodar.
 
    Confira o `N` com `diskutil list external physical` antes. Esse comando apaga o disco inteiro.
 
-2. Copiar a pasta do repositório para o pen drive como `CD2-HARNESS`, sem a pasta `.git`.
+2. Copiar o conteúdo da pasta do repositório para a raiz do pen drive, sem a pasta `.git` (e sem `docs/`, `ctl/`, `tests/` e os `GRAVAR-*`, que só servem no repositório).
 3. Rodar o preparo uma vez, com internet: `sh core/prepare-unix.sh` no Mac/Linux ou duplo clique em `core\prepare-windows.bat` no Windows. Se o pen drive for lento, prepare numa pasta do disco e copie depois.
 4. Conferir: `bin/llamafile` e `bin/llamafile.exe` com uns 350 MB cada, modelo com uns 2,4 GB, os quatro `bin/toolbox/*/toolbox` e os quatro `bin/ctl/*/cd2-ctl` (ou só os da variável `CD2_TOOLBOX_PLATFORMS`) e `CHECKSUMS.sha256` gerado. Guardar uma cópia do checksum fora do pen drive.
 5. No Mac, apagar os arquivos `._*` que o Finder deixa em exFAT:

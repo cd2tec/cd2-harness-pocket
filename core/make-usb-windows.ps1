@@ -5,7 +5,8 @@
 #   1. monta uma copia local do harness e baixa motor + modelo (ficam em cache em
 #      %LOCALAPPDATA%\cd2-harness; o segundo pen drive nao baixa nada de novo)
 #   2. APAGA o pen drive escolhido e formata em exFAT (MBR), nome CD2
-#   3. copia a pasta CD2-HARNESS para o pen drive
+#   3. copia os arquivos para a raiz do pen drive (ele acabou de ser formatado,
+#      entao nao precisa de subpasta)
 #   4. confere os checksums direto no pen drive e ejeta
 #
 # Variaveis opcionais: CD2_USB_DISK (numero do disco) pula a pergunta de qual disco;
@@ -14,7 +15,7 @@ $ErrorActionPreference = 'Stop'
 $Root  = Split-Path -Parent $PSScriptRoot
 $Label = if ($env:CD2_USB_LABEL) { $env:CD2_USB_LABEL } else { 'CD2' }
 $Cache = Join-Path $env:LOCALAPPDATA 'cd2-harness\usb'
-$Stage = Join-Path $Cache 'CD2-HARNESS'
+$Stage = Join-Path $Cache 'CD2-HARNESS'   # copia local no cache (nome antigo, para nao baixar tudo de novo); no pen drive vai para a raiz
 $MinBytes = 4000000000
 
 function Pause-Exit($code) { Write-Host ''; Read-Host 'Pressione ENTER para fechar' | Out-Null; exit $code }
@@ -88,11 +89,11 @@ for ($i = 0; $i -lt 20 -and -not $letter; $i++) {
     $letter = (Get-Partition -DiskNumber $disk.Number | Where-Object { $_.DriveLetter } | Select-Object -First 1).DriveLetter
 }
 if (-not $letter) { Die 'Formatei, mas a particao nao recebeu letra. Atribua uma letra no Gerenciamento de Disco e rode de novo.' }
-$Dest = "${letter}:\CD2-HARNESS"
+$Dest = "${letter}:\"
 
 # --- 3. copiar ------------------------------------------------------------------
 Write-Host ''
-Write-Host "== 3/4 Copiando para $Dest (uns 3 GB; pode levar alguns minutos)"
+Write-Host "== 3/4 Copiando para a raiz de $Dest (uns 3 GB; pode levar alguns minutos)"
 & robocopy $Stage $Dest /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP | Out-Null
 if ($LASTEXITCODE -ge 8) { Die "A copia falhou (robocopy codigo $LASTEXITCODE)." }
 

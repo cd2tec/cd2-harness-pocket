@@ -6,7 +6,8 @@
 #   1. monta uma copia local do harness e baixa motor + modelo (ficam em cache; o
 #      segundo pen drive nao baixa nada de novo)
 #   2. APAGA o pen drive escolhido e formata em exFAT (MBR), nome CD2
-#   3. copia a pasta CD2-HARNESS para o pen drive
+#   3. copia os arquivos para a raiz do pen drive (ele acabou de ser formatado,
+#      entao nao precisa de subpasta)
 #   4. confere os checksums direto no pen drive e ejeta
 #
 # Variaveis opcionais: CD2_USB_DISK (ex.: /dev/disk5 ou /dev/sdb) pula a pergunta de
@@ -27,7 +28,7 @@ case "$OS" in
   Linux)  CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/cd2-harness/usb" ;;
   *) die "Sistema nao suportado: $OS. No Windows use GRAVAR-PENDRIVE-Windows.bat." ;;
 esac
-STAGE="$CACHE/CD2-HARNESS"
+STAGE="$CACHE/CD2-HARNESS"   # copia local no cache (o nome antigo fica para nao baixar tudo de novo); no pen drive vai para a raiz
 if command -v shasum >/dev/null 2>&1; then SUM="shasum -a 256"; else SUM="sha256sum"; fi
 
 printf '\n'
@@ -137,22 +138,21 @@ fi
 
 # --- 3. copiar ------------------------------------------------------------------
 say ""
-say "== 3/4 Copiando para $MNT/CD2-HARNESS (uns 3 GB; pode levar alguns minutos)"
-mkdir -p "$MNT/CD2-HARNESS"
-if [ "$OS" = "Darwin" ]; then cp -RX "$STAGE"/. "$MNT/CD2-HARNESS/"; else cp -R "$STAGE"/. "$MNT/CD2-HARNESS/"; fi
-find "$MNT/CD2-HARNESS" \( -name '._*' -o -name '.DS_Store' \) -delete 2>/dev/null || true
+say "== 3/4 Copiando para a raiz de $MNT (uns 3 GB; pode levar alguns minutos)"
+if [ "$OS" = "Darwin" ]; then cp -RX "$STAGE"/. "$MNT/"; else cp -R "$STAGE"/. "$MNT/"; fi
+find "$MNT" \( -name '._*' -o -name '.DS_Store' \) -delete 2>/dev/null || true
 sync
 
 # --- 4. conferir e ejetar -------------------------------------------------------
 say ""
 say "== 4/4 Conferindo os checksums direto no pen drive"
-( cd "$MNT/CD2-HARNESS" && $SUM -c CHECKSUMS.sha256 ) || die "Checksum diferente no pen drive. Nao use este pen drive; grave de novo."
+( cd "$MNT" && $SUM -c CHECKSUMS.sha256 ) || die "Checksum diferente no pen drive. Nao use este pen drive; grave de novo."
 mkdir -p "$CACHE"
 KEEP="$CACHE/CHECKSUMS-$(date +%Y%m%d-%H%M%S).sha256"
-cp "$MNT/CD2-HARNESS/CHECKSUMS.sha256" "$KEEP"
+cp "$MNT/CHECKSUMS.sha256" "$KEEP"
 say ""
 say "Conteudo gravado:"
-( cd "$MNT/CD2-HARNESS" && ls -lh bin bin/toolbox/* bin/ctl/* models CHECKSUMS.sha256 | sed 's/^/  /' )
+( cd "$MNT" && ls -lh bin bin/toolbox/* bin/ctl/* models CHECKSUMS.sha256 | sed 's/^/  /' )
 sync
 if [ "$OS" = "Darwin" ]; then
   diskutil eject "$DISK" >/dev/null && say "Ejetado." || say "Nao consegui ejetar sozinha; ejete pelo Finder antes de tirar."

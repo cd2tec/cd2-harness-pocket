@@ -37,7 +37,7 @@ No Mac, o passo 4 é dar dois cliques em `GRAVAR-PENDRIVE-Mac.command`; no Linux
 ## O que tem aqui
 
 ```
-CD2-HARNESS/
+raiz do pen drive (CD2)/
   INICIAR-CD2-Windows.bat     <- duplo clique no Windows
   INICIAR-CD2-Mac.command     <- duplo clique no Mac
   iniciar-cd2-linux.sh        <- no Linux: sh iniciar-cd2-linux.sh
