@@ -479,3 +479,9 @@ test('modelCaller: schema, nome e limite de tokens próprios; padrão continua o
   assert.equal(corpo.max_tokens, 1024); assert.equal(corpo.response_format.json_schema.name, 'consulta');
   assert.deepEqual(corpo.response_format.json_schema.schema, A.SCHEMA);
 });
+
+test('buildMessages: cadastro e parâmetro mostram só o papel, sem colunas úteis', () => {
+  const tabelas = [{ name:'ge_pessoa', type:'TABLE', rows:4, columns:[{ name:'DTANASCFUND', type:'DATE' }], perfil:{ papel:'cadastro', colunas:{ data:'DTANASCFUND' } } }];
+  const sys = A.buildMessages({ pergunta:'p', tabelas, motor:'oracle' })[0].content;
+  assert.match(sys, /- ge_pessoa \(cerca de 4 linhas; cadastro\): DTANASCFUND DATE/);
+});

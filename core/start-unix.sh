@@ -89,7 +89,7 @@ fi
 robo_fim ok "Pronto: $URL"
 say ""
 
-# --- controle do banco (cd2-ctl): sobe, troca e derruba o MCP Toolbox pela tela Ferramentas ---
+# --- controle do banco (cd2-ctl): sobe, troca e derruba o MCP Toolbox pela tela Configuracoes ---
 case "$(uname -m)" in arm64|aarch64) ARCH=arm64 ;; *) ARCH=amd64 ;; esac
 if [ "$OS" = "Darwin" ]; then PLAT="darwin-$ARCH"; else PLAT="linux-$ARCH"; fi
 CTL_SRC="$ROOT/bin/ctl/$PLAT/cd2-ctl"
@@ -117,7 +117,7 @@ start_ctl() {
   say "Seguindo sem banco de dados (Demonstracao e Archeo continuam)."
   return 1
 }
-start_ctl && say "Controle do banco em 127.0.0.1:$CTL_PORT. Configure o banco pela tela Ferramentas."
+start_ctl && say "Controle do banco em 127.0.0.1:$CTL_PORT. Configure o banco pela tela Configuracoes."
 APP_URL="$URL/#k=$CTL_KEY"
 
 # --- abrir como janela de aplicativo quando houver Chrome/Edge ---------------

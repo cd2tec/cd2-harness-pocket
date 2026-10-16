@@ -183,6 +183,8 @@ function buildMessages(o){
   const papel = t => {
     const p = t.perfil;
     if(!p || !p.papel || p.papel === 'indefinida') return '';
+    // Colunas úteis só fazem sentido em movimento e itens; num cadastro, uma data de nascimento induziria o modelo.
+    if(p.papel !== 'movimento' && p.papel !== 'itens') return '; ' + p.papel;
     const c = p.colunas || {};
     return '; ' + p.papel + (c.data ? '; data: ' + limpo(c.data) : '') + (c.valor ? '; valor: ' + limpo(c.valor) : '') + (c.quantidade ? '; quantidade: ' + limpo(c.quantidade) : '');
   };

@@ -24,6 +24,9 @@ const CONTEUDO = new Set(['valor', 'value', 'conteudo', 'content']);
 const NOME_PARAMETRO = new Set(['param', 'parametro', 'config', 'cfg', 'setting', 'configuracao']);
 
 const tem = (c, set) => c.tokens.some(t => set.has(t));
+// Começo de palavra colada (VLRUNITARIOECF, DTANASCFUND): o separador não parte o resto do nome.
+const comeca = (c, prefixos) => c.tokens.some(t => prefixos.some(p => t.startsWith(p)));
+const ATRIBUTO_INICIO = ['nasc', 'valid', 'admiss', 'demiss', 'expir', 'vigen', 'fundac', 'birth'];
 // Nome e descrição colados no começo de uma palavra composta (NOMERAZAO, DESCCOMPLETA); desconto não é descrição.
 const temDescricao = c => tem(c, DESCRICAO) || c.tokens.some(t => /^(nome|desc|razao)/.test(t) && !/^descont/.test(t));
 const preenchidos = v => v.filter(x => x != null && x !== '');
@@ -35,9 +38,9 @@ function sinaisColuna(c, vals){
   const varia = !vals || vals.length < 2 || distintos > 1;
   const chave = Cat.isKey(c);
   const valor = c.kind === 'numero' && !chave && tem(c, VALOR);
-  const unitario = valor && tem(c, UNITARIO) && !tem(c, TOTAL);
+  const unitario = valor && (tem(c, UNITARIO) || comeca(c, ['unit'])) && !tem(c, TOTAL);
   return {
-    dataMov: c.kind === 'data' && !tem(c, AUDITORIA) && !tem(c, ATRIBUTO) && varia,
+    dataMov: c.kind === 'data' && !tem(c, AUDITORIA) && !tem(c, ATRIBUTO) && !comeca(c, ATRIBUTO_INICIO) && varia,
     dataAud: c.kind === 'data' && tem(c, AUDITORIA),
     valorTotal: valor && !unitario,
     unitario,

@@ -239,3 +239,17 @@ test('perfil: cadastro com data que varia, mas sem valor nem quantidade, continu
   ]));
   assert.deepEqual(papeis(c), { GE_PESSOA:'cadastro', MRL_CLIENTECARTAO:'cadastro' });
 });
+
+test('perfil: unitário e data de atributo também colados no começo da palavra (VLRUNITARIOECF, DTANASCFUND)', () => {
+  const c = cat([
+    ['MFL_DFITEM','TABLE',10,[['SEQNF','NUMBER'],['QUANTIDADE','NUMBER'],['VLRUNITARIOECF','NUMBER'],['VLRITEM','NUMBER']]],
+    ['GE_PESSOA','TABLE',4,[['SEQPESSOA','NUMBER'],['DTANASCFUND','DATE'],['VLRALUGUEL','NUMBER']]]
+  ]);
+  P.analisarCatalogo(c, new Map([
+    ['MFL_DFITEM', gera(4, i => ({ SEQNF:i, QUANTIDADE:1 + i, VLRUNITARIOECF:2 + i, VLRITEM:3 + i }))],
+    ['GE_PESSOA', gera(4, i => ({ SEQPESSOA:i, DTANASCFUND:'1990-0' + (i + 1) + '-01', VLRALUGUEL:100 + i }))]
+  ]));
+  assert.equal(perfil(c, 'MFL_DFITEM').colunas.valor, 'VLRITEM');
+  assert.notEqual(perfil(c, 'GE_PESSOA').papel, 'movimento');
+  assert.equal(perfil(c, 'GE_PESSOA').colunas.data, undefined);
+});

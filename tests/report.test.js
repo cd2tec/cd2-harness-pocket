@@ -44,3 +44,49 @@ test('toCsv nao deixa fórmula escapar por espaço, tabulação, CR ou número s
     assert.equal(linha, esperado, 'entrada ' + JSON.stringify(entrada));
   }
 });
+
+// Relatório "o que o harness entende do banco": tabelas agrupadas pelo papel do perfil.
+const TABS = [
+  { name:'tab_preco', type:'TABLE', rows:169067, perfil:{ papel:'cadastro', colunas:{} } },
+  { name:'view_resumo_venda', type:'VIEW', rows:0, perfil:{ papel:'movimento', colunas:{ data:'dta_movimento', valor:'vlr_total_venda' }, descricao:'Resumo de cada venda <PDV>.' } },
+  { name:'aux_tmp', type:'TABLE', rows:5000, perfil:{ papel:'vazia', colunas:{} } },
+  { name:'cfg', type:'TABLE', rows:3, perfil:{ papel:'parametro', colunas:{} } },
+  { name:'mov_item', type:'TABLE', rows:900, perfil:{ papel:'itens', colunas:{ quantidade:'qtd', valor:'vlr_it' } } }
+];
+const BASE = { motor:'SQL Server', base:'ZeusManager', schema:'dbo', quando:'16/10/2026 10:00', contato:'cd2.com.br', logoSvg:'<svg id="lg"></svg>' };
+
+test('perfilHtml: resumo, grupos na ordem dos papéis, colunas úteis, view, linhas e descrição escapada', () => {
+  const h = R.perfilHtml(Object.assign({ tabelas:TABS }, BASE));
+  for(const s of ['ZeusManager', 'dbo', 'SQL Server', '16/10/2026 10:00', '<svg id="lg"></svg>', 'cd2.com.br']) assert.ok(h.includes(s), s);
+  assert.match(h, /5 tabelas/);
+  const ordem = ['Movimento', 'Itens de movimento', 'Cadastro', 'Parâmetro', 'Vazias'].map(t => h.indexOf('<h2>' + t));
+  assert.ok(ordem.every((p, i) => p > 0 && (i === 0 || p > ordem[i - 1])), JSON.stringify(ordem));
+  assert.match(h, /view_resumo_venda[\s\S]*view[\s\S]*data: dta_movimento; valor: vlr_total_venda/);
+  assert.match(h, /Resumo de cada venda &lt;PDV&gt;\./);
+  assert.match(h, /cerca de 169\.067 linhas/);
+  assert.doesNotMatch(h, /<h2>Indefinida/);
+  assert.match(h.slice(h.indexOf('<h2>Vazias')), /aux_tmp/);
+});
+
+test('perfilHtml: aviso enquanto o modelo descreve; sem aviso quando terminou; nome escapado', () => {
+  assert.match(R.perfilHtml(Object.assign({ tabelas:TABS, progresso:{ feitos:87, total:232 } }, BASE)), /87 de 232 tabelas descritas até agora/);
+  assert.doesNotMatch(R.perfilHtml(Object.assign({ tabelas:TABS, progresso:{ feitos:232, total:232 } }, BASE)), /descritas até agora/);
+  const h = R.perfilHtml(Object.assign({ tabelas:[{ name:'<script>x', type:'TABLE', rows:1, perfil:{ papel:'cadastro', colunas:{} } }] }, BASE));
+  assert.ok(h.includes('&lt;script&gt;x')); assert.ok(!h.includes('<script>x'));
+});
+
+test('perfilHtml: sem análise ainda, avisa e não lista grupos', () => {
+  const h = R.perfilHtml(Object.assign({ tabelas:[{ name:'a', type:'TABLE', rows:1 }] }, BASE));
+  assert.match(h, /análise das tabelas ainda não terminou/);
+  assert.doesNotMatch(h, /<h2>Cadastro/);
+});
+
+test('perfilHtml e printHtml: nome IA de Bolso, singular de linha, colunas úteis só em movimento e itens', () => {
+  const h = R.perfilHtml(Object.assign({ tabelas:[
+    { name:'pessoa', type:'TABLE', rows:1, perfil:{ papel:'cadastro', colunas:{ data:'DTANASCFUND', valor:'VLRALUGUEL' } } },
+    { name:'titulo', type:'TABLE', rows:2, perfil:{ papel:'movimento', colunas:{ data:'DTAEMISSAO' } } }] }, BASE));
+  assert.match(h, /O que a IA de Bolso entende deste banco/);
+  assert.match(h, /cerca de 1 linha\)/); assert.match(h, /cerca de 2 linhas/);
+  assert.doesNotMatch(h, /DTANASCFUND|VLRALUGUEL/); assert.match(h, /data: DTAEMISSAO/);
+  assert.match(R.printHtml({ pergunta:'p', titulo:'t', frase:'f', sql:'s', quando:'q', motor:'m' }), /Relatório gerado pela IA de Bolso/);
+});

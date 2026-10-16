@@ -27,7 +27,7 @@ function fileName(d){
 }
 function printHtml(o){
   return '<div class="pr">'
-    + '<header class="pr-head">' + (o.logoSvg || '') + '<span>Relatório gerado pelo Harness Pocket</span></header>'
+    + '<header class="pr-head">' + (o.logoSvg || '') + '<span>Relatório gerado pela IA de Bolso</span></header>'
     + '<p class="pr-q">Pergunta: ' + esc(o.pergunta) + '</p>'
     + '<h1>' + esc(o.titulo) + '</h1><p>' + esc(o.frase) + '</p>'
     + (o.aviso ? '<p>' + esc(o.aviso) + '</p>' : '')
@@ -39,6 +39,38 @@ function printHtml(o){
     + '</div>';
 }
 
-const api = { toCsv, fileName, printHtml };
+// O que o harness entende do banco: as tabelas agrupadas pelo papel do perfil, com colunas úteis e a
+// descrição do modelo. As vazias só pelo nome, no fim. Sem as ligações entre tabelas.
+const GRUPOS = [['movimento', 'Movimento'], ['itens', 'Itens de movimento'], ['cadastro', 'Cadastro'], ['parametro', 'Parâmetro'], ['indefinida', 'Indefinida']];
+function linhaTabela(t){
+  const p = t.perfil, c = (p.papel === 'movimento' || p.papel === 'itens') ? (p.colunas || {}) : {};
+  const uteis = [c.data ? 'data: ' + c.data : '', c.valor ? 'valor: ' + c.valor : '', c.quantidade ? 'quantidade: ' + c.quantidade : ''].filter(Boolean).join('; ');
+  const linhas = n => 'cerca de ' + Number(n).toLocaleString('pt-BR') + (Number(n) === 1 ? ' linha' : ' linhas');
+  const tam = t.type === 'VIEW' ? (t.rows ? 'view, ' + linhas(t.rows) : 'view') : linhas(t.rows || 0);
+  return '<li><b>' + esc(t.name) + '</b> <span class="pr-meta">(' + esc(tam) + ')</span>'
+    + (uteis ? '<br><span class="pr-meta">' + esc(uteis) + '</span>' : '')
+    + (p.descricao ? '<br>' + esc(p.descricao) : '') + '</li>';
+}
+function perfilHtml(o){
+  const tabs = o.tabelas || [], com = tabs.filter(t => t.perfil && t.perfil.papel);
+  const cab = '<header class="pr-head">' + (o.logoSvg || '') + '<span>O que a IA de Bolso entende deste banco</span></header>'
+    + '<h1>' + esc(o.base || 'Banco de dados') + '</h1>'
+    + '<p class="pr-meta">' + esc(o.motor) + (o.schema ? ' · schema ' + esc(o.schema) : '') + ' · ' + esc(o.quando) + ' · ' + tabs.length + ' tabelas</p>';
+  const rodape = '<footer class="pr-foot">' + (o.logoSvg || '') + '<span>CD2 Tech' + (o.contato ? ' · ' + esc(o.contato) : '') + '</span></footer>';
+  if(!com.length) return '<div class="pr">' + cab + '<p>A análise das tabelas ainda não terminou. Tente de novo em alguns segundos.</p>' + rodape + '</div>';
+  const pr = o.progresso;
+  const aviso = pr && pr.feitos < pr.total ? '<p>O modelo ainda está descrevendo as tabelas: ' + pr.feitos + ' de ' + pr.total + ' tabelas descritas até agora.</p>' : '';
+  const conta = papel => com.filter(t => t.perfil.papel === papel).length;
+  const resumo = '<ul class="pr-resumo">' + GRUPOS.concat([['vazia', 'Vazias']]).map(([p, rotulo]) => '<li>' + rotulo + ': ' + conta(p) + '</li>').join('') + '</ul>';
+  const grupos = GRUPOS.map(([p, rotulo]) => {
+    const lista = com.filter(t => t.perfil.papel === p);
+    return lista.length ? '<h2>' + rotulo + ' (' + lista.length + ')</h2><ul class="pr-tabs">' + lista.map(linhaTabela).join('') + '</ul>' : '';
+  }).join('');
+  const vazias = com.filter(t => t.perfil.papel === 'vazia');
+  const fim = vazias.length ? '<h2>Vazias (' + vazias.length + ')</h2><p>' + vazias.map(t => esc(t.name)).join(', ') + '</p>' : '';
+  return '<div class="pr">' + cab + aviso + resumo + grupos + fim + rodape + '</div>';
+}
+
+const api = { toCsv, fileName, printHtml, perfilHtml };
 if(typeof module !== 'undefined' && module.exports) module.exports = api; else root.CD2Report = api;
 })(typeof window !== 'undefined' ? window : globalThis);

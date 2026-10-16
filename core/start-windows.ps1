@@ -127,7 +127,7 @@ try {
     Robo-Fim 'ok' "Pronto: $Url"
     Write-Host ""
 
-    if (Start-Ctl) { Write-Host "Controle do banco em 127.0.0.1:$CtlPort. Configure o banco pela tela Ferramentas." -ForegroundColor Gray }
+    if (Start-Ctl) { Write-Host "Controle do banco em 127.0.0.1:$CtlPort. Configure o banco pela tela Configuracoes." -ForegroundColor Gray }
     $AppUrl = "$Url/#k=$CtlKey"
 
     # abre como janela de aplicativo (Edge vem com o Windows; Chrome como alternativa)

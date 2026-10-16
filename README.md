@@ -86,7 +86,7 @@ Windows e Mac modernos **não executam nada automaticamente** ao plugar o pen dr
 
 ## 3. Conectar a um banco de dados
 
-O pen drive leva o [MCP Toolbox for Databases](https://github.com/googleapis/mcp-toolbox) (v1.14.0, um binário por sistema em `bin/toolbox/`) e o `cd2-ctl`, um controle pequeno feito aqui (código em `ctl/`, um binário por sistema em `bin/ctl/`). A conexão é feita pela tela: botão **Ferramentas**, modo **MCP Nativo para Banco de dados**, preencha motor, host, porta, base (ou service name no Oracle), usuário, senha e schema, e clique em **Salvar e conectar**. O toolbox reinicia sozinho com a conexão nova. Se ela falhar, a anterior continua valendo e a tela mostra o motivo e o fim do log. **Desconectar do banco** apaga a conexão deste computador.
+O pen drive leva o [MCP Toolbox for Databases](https://github.com/googleapis/mcp-toolbox) (v1.14.0, um binário por sistema em `bin/toolbox/`) e o `cd2-ctl`, um controle pequeno feito aqui (código em `ctl/`, um binário por sistema em `bin/ctl/`). A conexão é feita pela tela: botão **Configurações**, modo **MCP Nativo para Banco de dados**, preencha motor, host, porta, base (ou service name no Oracle), usuário, senha e schema, e clique em **Salvar e conectar**. O toolbox reinicia sozinho com a conexão nova. Se ela falhar, a anterior continua valendo e a tela mostra o motivo e o fim do log. **Desconectar do banco** apaga a conexão deste computador.
 
 | Motor | Porta padrão | Schema padrão | Conta de leitura recomendada |
 |---|---|---|---|
@@ -95,7 +95,7 @@ O pen drive leva o [MCP Toolbox for Databases](https://github.com/googleapis/mcp
 | MariaDB / MySQL | 3306 | nome da base | `GRANT SELECT ON base.* TO ...` |
 | SQL Server | 1433 | `dbo` | membro só de `db_datareader` |
 
-A IA ganha sete ferramentas somente leitura: `db_connection_status`, `db_catalog` (o mapa do banco para os relatórios), `db_list_tables`, `db_describe_table`, `db_search_columns`, `db_sample_table` (até 20 linhas) e `db_read_only_query` (SELECT avulso, até 200 linhas). O botão **Ferramentas** mostra a conexão ativa e a lista.
+A IA ganha sete ferramentas somente leitura: `db_connection_status`, `db_catalog` (o mapa do banco para os relatórios), `db_list_tables`, `db_describe_table`, `db_search_columns`, `db_sample_table` (até 20 linhas) e `db_read_only_query` (SELECT avulso, até 200 linhas). O botão **Configurações** mostra a conexão ativa e exporta em PDF o que o harness entende do banco.
 
 - **A conexão fica no computador, não no pen drive.** Arquivo `db.env` em `~/Library/Caches/cd2-harness` (Mac), `${XDG_CACHE_HOME:-~/.cache}/cd2-harness` (Linux) ou `%LOCALAPPDATA%\cd2-harness` (Windows), legível só pelo usuário. O formato é o mesmo da v0.5.0: quem já tinha uma conexão continua conectado.
 - **A senha passa pelo navegador só para ser gravada**, sempre em `127.0.0.1`, protegida pela chave da sessão. Ela nunca volta para a tela (o campo mostra "Senha salva") e nunca vai para log: o `cd2-ctl` tira do `toolbox.log` toda linha que cita a senha ou a palavra password.
@@ -106,11 +106,11 @@ A IA ganha sete ferramentas somente leitura: `db_connection_status`, `db_catalog
 - É preciso a variante certa em `bin/toolbox/` e `bin/ctl/` (`windows-amd64`, `darwin-arm64`, `darwin-amd64`, `linux-amd64`). O preparo baixa as quatro; `CD2_TOOLBOX_PLATFORMS` limita as duas pastas. Sem o `cd2-ctl` da plataforma, o launcher avisa e segue sem banco (Demonstração e Archeo continuam).
 - **Tempo máximo de 15 segundos por consulta.** PostgreSQL corta no servidor (`statement_timeout`), MariaDB/MySQL pelo `queryTimeout` da receita. No SQL Server e no Oracle, o harness para de esperar aos 15 s, mas a consulta pode continuar no servidor: crie a conta de leitura com limite de recurso (Resource Governor no SQL Server, perfil com `CPU_PER_CALL` no Oracle).
 
-Ao conectar, o harness lê até 10 linhas de cada tabela (no máximo 2 consultas ao mesmo tempo, views por último e uma de cada vez) para entender o papel de cada uma: movimento, itens de movimento, cadastro, parâmetro ou vazia. Isso leva segundos e já melhora a escolha da tabela. Depois, em segundo plano, o modelo escreve uma frase sobre cada tabela, e uma faixa com o robô mostra o progresso; dá para ir perguntando enquanto isso. Nada disso é gravado: amostras, papéis e descrições ficam só na memória da janela e são refeitos a cada conexão.
+Ao conectar, o harness lê até 10 linhas de cada tabela (no máximo 2 consultas ao mesmo tempo, views por último e uma de cada vez) para entender o papel de cada uma: movimento, itens de movimento, cadastro, parâmetro ou vazia. Isso leva segundos e já melhora a escolha da tabela. Depois, em segundo plano, o modelo escreve uma frase sobre cada tabela, e uma faixa com o robô mostra o progresso; dá para ir perguntando enquanto isso. Nada disso é gravado: amostras, papéis e descrições ficam só na memória da janela e são refeitos a cada conexão. Em Configurações, o link **Exportar o que o harness entende do banco (PDF)** gera um relatório com o papel, as colunas úteis e a descrição de cada tabela, pela janela de impressão do navegador.
 
 ## 3b. Conectar ao Archeo MCP
 
-Botão **Ferramentas** no topo, escolher "Archeo MCP", informar a URL do MCP (`https://archeo.cd2.com.br/api/mcp`) e clicar em **Entrar com a conta do Archeo**. A janela vai para o consentimento do Archeo, a pessoa autoriza o workspace e volta para o harness já conectado.
+Botão **Configurações** no topo, escolher "Archeo MCP", informar a URL do MCP (`https://archeo.cd2.com.br/api/mcp`) e clicar em **Entrar com a conta do Archeo**. A janela vai para o consentimento do Archeo, a pessoa autoriza o workspace e volta para o harness já conectado.
 
 Como funciona por baixo (spec 041 do Archeo): OAuth 2.1 com Authorization Code + PKCE, registro dinâmico do cliente, escopo `mcp:tools:read`. O access token dura 15 minutos e o harness renova sozinho com o refresh token (30 dias, rotacionado a cada uso). Código em `web/oauth.js` e `web/mcp.js`, testes em `tests/`.
 
@@ -181,7 +181,7 @@ Regras de texto que valem para qualquer mudança: português do Brasil, frases c
 - [ ] Testado em Windows (Intel/AMD), Mac (Apple Silicon) e, se aplicável, Linux, em máquina "limpa"
 - [ ] Testado com antivírus ligado
 - [ ] Origens do pen drive liberadas no Archeo (`API_CORS_ORIGINS` e `DATABASE_MCP_BROWSER_ORIGINS`) e login testado com a conta que vai ser usada
-- [ ] Conta de leitura do banco criada e testada pela tela Ferramentas num notebook que não é o seu
+- [ ] Conta de leitura do banco criada e testada pela tela Configurações num notebook que não é o seu
 - [ ] `node --test` verde na raiz do repo
 - [ ] `report.contact` preenchido em `web/config.json`
 - [ ] `sh tests/eval/rodar.sh` com PORTÃO PASSOU no modelo que vai para o pen drive

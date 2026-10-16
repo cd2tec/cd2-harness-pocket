@@ -72,7 +72,7 @@ Os scripts de gravação (`GRAVAR-*`, `gravar-*` e `core/make-usb-*`) e a pasta 
 1. Tire e plugue de novo o pen drive.
 2. Abra pelo launcher do seu sistema (`INICIAR-CD2-...`).
 3. Espere a janela abrir e mande uma pergunta qualquer. Na primeira vez, o modelo leva de 20 a 90 segundos para carregar; o robô no terminal mostra quanto do modelo já foi lido do pen drive.
-4. Se for usar banco: Ferramentas, modo MCP Nativo para Banco de dados, preencha a conexão e clique em Salvar e conectar. A lista com motor, versão e tabelas tem de aparecer.
+4. Se for usar banco: Configurações, modo MCP Nativo para Banco de dados, preencha a conexão e clique em Salvar e conectar. A lista com motor, versão e tabelas tem de aparecer.
 5. Feche e ejete com segurança.
 
 Se passou, está aprovado. Grave os outros com o mesmo script ou copie a pasta `CD2-HARNESS` inteira de um pen drive para outro já formatado em exFAT, e compare o `CHECKSUMS.sha256` no final.
@@ -115,5 +115,5 @@ Serve para entender o que o script faz, ou para quando ele não puder rodar.
 
 - Em `web/config.json`, ajuste o texto de abertura e as sugestões. Se for deixar o Archeo como padrão, coloque só a URL (`mcp.mode` igual a `"mcp"`). O login é feito pela conta de cada pessoa, no navegador, e não fica gravado. **Token nunca**, porque o pen drive vai circular.
 - O modelo padrão vem de um repositório pessoal no Hugging Face. Antes de distribuir sob a marca CD2, confirme licença e origem ou troque pelo GGUF oficial da Qwen (variável `CD2_MODEL_URL` no preparo).
-- A conexão com o banco não vai no pen drive: em cada computador ela é feita pela tela Ferramentas e fica guardada só nele. Leve a conta de leitura pronta.
+- A conexão com o banco não vai no pen drive: em cada computador ela é feita pela tela Configurações e fica guardada só nele. Leve a conta de leitura pronta.
 - Grave um, teste em um notebook que não seja o seu, e só então duplique.
