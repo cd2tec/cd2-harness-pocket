@@ -158,7 +158,10 @@ textarea:focus,input:focus{outline:2px solid var(--focus);outline-offset:2px}
 .note{max-width:812px;margin:var(--space-2) auto 0;font:500 11px/16px var(--font-sans);color:var(--ink-muted)}
 
 /* ---------- diálogo de ferramentas ---------- */
-dialog{background:var(--surface-raised);color:var(--ink);border:0;border-radius:var(--radius-md);box-shadow:var(--shadow-card);padding:var(--space-8);width:min(540px,92vw)}
+dialog{--dlg-pad:var(--space-8);background:var(--surface-raised);color:var(--ink);border:0;border-radius:var(--radius-md);box-shadow:var(--shadow-card);padding:var(--dlg-pad);width:min(540px,92vw);max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain}
+/* Em tela baixa o modal rola, e os botões de ação ficam presos no rodapé, sempre à vista. */
+dialog > .row:last-child{position:sticky;bottom:calc(-1 * var(--dlg-pad));z-index:1;margin:var(--space-6) calc(-1 * var(--dlg-pad)) calc(-1 * var(--dlg-pad));padding:var(--space-4) var(--dlg-pad);background:var(--surface-raised);border-top:1px solid var(--border)}
+@media (max-height:720px){dialog{--dlg-pad:var(--space-4)} dialog h2{margin:var(--space-3) 0 var(--space-2)}}
 dialog::backdrop{background:rgba(13,18,51,.55)}
 dialog h2{margin:var(--space-6) 0 var(--space-4);font:700 22px/28px var(--font-sans)}
 label{display:block;font:600 13px/16px var(--font-sans);color:var(--ink);margin:var(--space-6) 0 var(--space-2)}
@@ -183,7 +186,6 @@ input:disabled,select:disabled{background:var(--surface-100);color:var(--ink-mut
 .lnk{font:600 13px/20px var(--font-sans);color:var(--ink-brand)}
 #tbLog{margin:var(--space-3) 0 0}
 /* boas-vindas: abre toda vez que o harness inicia */
-.welcome{max-height:calc(100vh - 32px);overflow-y:auto}
 .welcome p{margin:0 0 var(--space-4);font:400 15px/24px var(--font-sans);color:var(--ink)}
 .welcome__warn{margin:var(--space-6) 0;padding:var(--space-4);border-radius:var(--radius-md);background:var(--surface-100);border:1px solid var(--border)}
 .welcome__warn .tag{margin-bottom:var(--space-2)}
@@ -253,7 +255,7 @@ input:disabled,select:disabled{background:var(--surface-100);color:var(--ink-mut
   <div class="spacer"></div>
   <div class="tags">
     <span class="tag tag--local" title="O modelo roda neste computador"><i></i><span>100% local</span></span>
-    <span class="tag tag--backlog" id="pModel"><i></i><span>modelo…</span></span>
+    <span class="tag tag--backlog" id="pModel"><i></i><span>modelo de IA…</span></span>
     <span class="tag tag--backlog" id="pMcp"><i></i><span>ferramentas…</span></span>
   </div>
   <div class="actions">
@@ -352,15 +354,15 @@ input:disabled,select:disabled{background:var(--surface-100);color:var(--ink-mut
 </dialog>
 
 <div id="printArea" aria-hidden="true"></div>
-<script src="mcp.js?v=0.10.0"></script>
-<script src="oauth.js?v=0.10.0"></script>
-<script src="toolbox.js?v=0.10.0"></script>
-<script src="chart.js?v=0.10.0"></script>
-<script src="catalog.js?v=0.10.0"></script>
-<script src="perfil.js?v=0.10.0"></script>
-<script src="descricao.js?v=0.10.0"></script>
-<script src="ask.js?v=0.10.0"></script>
-<script src="report.js?v=0.10.0"></script>
+<script src="mcp.js?v=0.10.2"></script>
+<script src="oauth.js?v=0.10.2"></script>
+<script src="toolbox.js?v=0.10.2"></script>
+<script src="chart.js?v=0.10.2"></script>
+<script src="catalog.js?v=0.10.2"></script>
+<script src="perfil.js?v=0.10.2"></script>
+<script src="descricao.js?v=0.10.2"></script>
+<script src="ask.js?v=0.10.2"></script>
+<script src="report.js?v=0.10.2"></script>
 <script>
 "use strict";
 const $ = s => document.querySelector(s);
@@ -968,17 +970,22 @@ async function pingModel(){
   for(let i = 0; i < 40; i++){
     try{
       const r = await fetch('/health'); if(r.ok){
-        let name = 'modelo local';
-        try{ const m = await (await fetch('/v1/models')).json(); const id = m.data && m.data[0] && (m.data[0].id || ''); if(id) name = id.split(/[\\/]/).pop().replace(/\.gguf$/i, ''); }catch(e){}
-        setPill('#pModel', 'ok', name.length > 28 ? name.slice(0, 28) + '…' : name); return true;
+        // Para quem usa, é só o modelo de IA: o nome do modelo não aparece na tela.
+        setPill('#pModel', 'ok', 'modelo de IA pronto'); return true;
       }
     }catch(e){}
     await new Promise(r => setTimeout(r, 1500));
   }
-  setPill('#pModel', 'err', 'modelo offline'); return false;
+  setPill('#pModel', 'err', 'modelo de IA offline'); return false;
+}
+// A janela ocupa a área útil da tela em que abriu (inclusive num segundo monitor). Com o Chrome já
+// aberto, ele ignora o tamanho pedido pelo launcher; a página resolve. Numa aba comum o navegador ignora.
+function ocuparTela(){
+  try{ window.moveTo(screen.availLeft || 0, screen.availTop || 0); window.resizeTo(screen.availWidth, screen.availHeight); }catch(e){}
 }
 function openWelcome(){ const w = $('#welcome'); w.showModal(); w.scrollTop = 0; }
 async function boot(){
+  ocuparTela();
   openWelcome();
   loadCtlKey();
   montarRobo(); montarMascote();

@@ -9,7 +9,7 @@
 
 **A IA da CD2 rodando 100% no seu computador, direto do pen drive.**
 
-Plugou, clicou, conversou. O harness abre uma janela com a identidade da CD2 e conversa com um modelo Qwen3 4B rodando no próprio computador, sem instalar nada e sem mandar dados para a nuvem. Quando houver rede, conecta a um MCP do Archeo para consultar dados reais.
+Plugou, clicou, conversou. O harness abre uma janela com a identidade da CD2 e conversa com um modelo de IA rodando no próprio computador, sem instalar nada e sem mandar dados para a nuvem. Quando houver rede, conecta a um MCP do Archeo para consultar dados reais.
 
 [Site do projeto](https://cd2tec.github.io/cd2-harness-pocket/) · [Passo a passo do pen drive](docs/criar-pendrive.md) · [Baixar ZIP](https://github.com/cd2tec/cd2-harness-pocket/archive/refs/heads/main.zip) · [Dar uma estrela](https://github.com/cd2tec/cd2-harness-pocket)
 
@@ -166,8 +166,9 @@ Regras de texto que valem para qualquer mudança: português do Brasil, frases c
 ## 6. Limitações e cuidados
 
 - **Experimental, não comercial.** É um conjunto para experimentar e mostrar o que uma IA local e específica consegue fazer. Não é indicado para uso comercial nem para decisões importantes sem conferência humana. A interface mostra esse aviso toda vez que abre.
-- **Velocidade.** O modelo padrão é o Qwen3 4B Instruct 2507, sem fase de raciocínio. No modo Banco de dados cada pergunta custa uma chamada ao modelo (duas no pior caso). Em notebook só com CPU, espere cerca de 9 segundos por pergunta, medido na avaliação em `tests/eval/`.
-- **Procedência do modelo.** GGUF do Qwen3-4B-Instruct-2507 quantizado pela Unsloth, licença Apache 2.0 da Qwen, conferido por SHA-256 no preparo. A Qwen não publica o GGUF oficial deste modelo.
+- **Velocidade.** O modelo de IA padrão responde sem fase de raciocínio. No modo Banco de dados cada pergunta custa uma chamada ao modelo (duas no pior caso). Em notebook só com CPU, espere cerca de 9 segundos por pergunta, medido na avaliação em `tests/eval/`.
+- **Procedência do modelo.** O arquivo do modelo de IA vem de fonte conhecida, com licença aberta, e é conferido por SHA-256 no preparo. Origem e licença estão na seção 9.
+- **Nome do modelo.** Para quem usa, é só "o modelo de IA": a tela e o terminal não mostram qual é.
 - **Antivírus e SmartScreen.** O llamafile é um executável "poliglota" (APE) e alguns antivírus corporativos o bloqueiam. Teste nos notebooks em que vai rodar e leve o seu como reserva.
 - **Mac.** Em Apple Silicon o llamafile precisa das Xcode Command Line Tools na primeira execução. Se o macOS reclamar de "desenvolvedor não verificado", libere em Ajustes do Sistema > Privacidade e Segurança.
 - **Linux.** Se der erro de `run-detectors`/WINE, é `binfmt_misc`; a doc do llamafile traz o registro do `ape`.
@@ -224,7 +225,7 @@ Este código é Apache 2.0 (ver `LICENSE`). O harness baixa, mas não redistribu
 - **llamafile** (Mozilla.ai, Apache 2.0), de https://github.com/mozilla-ai/llamafile
 - **MCP Toolbox for Databases** (Google, Apache 2.0), de https://github.com/googleapis/mcp-toolbox
 - **cd2-ctl** (código deste repositório, Apache 2.0, pasta `ctl/`), compilado pelo GitHub Actions e baixado do release `ctl-v<versão>` deste repositório
-- **Modelo GGUF** (configurável em `CD2_MODEL_URL`, sempre junto com `CD2_MODEL_FILE`, o nome do arquivo em `models/`): confira licença e origem antes de distribuir os pen drives sob a marca da CD2.
+- **Modelo GGUF**: o padrão é o Qwen3-4B-Instruct-2507 (Qwen, Apache 2.0), quantizado em Q4_K_M pela Unsloth e baixado de https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF; a Qwen não publica o GGUF oficial deste modelo. É configurável em `CD2_MODEL_URL`, sempre junto com `CD2_MODEL_FILE` (o nome do arquivo em `models/`). Com outro modelo, confira licença e origem antes de distribuir os pen drives sob a marca da CD2.
 
 ## Para você que é dev
 

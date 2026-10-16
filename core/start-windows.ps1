@@ -112,7 +112,8 @@ try {
     # robo de carregamento: le o modelo em pedacos (progresso real) e anima enquanto o servidor sobe
     . (Join-Path $PSScriptRoot 'robo-windows.ps1')
     Robo-Init (Join-Path $PSScriptRoot 'robo.txt')
-    Write-Host "Carregando o modelo: $($ModelFile.Name)" -ForegroundColor Gray
+    # Para quem usa, o modelo e so "o modelo de IA": o nome do arquivo nao aparece no terminal.
+    Write-Host "Carregando o modelo de IA..." -ForegroundColor Gray
     if (-not (Robo-Ler $Model)) { Write-Host "[AVISO] Nao consegui ler o modelo antes de subir o servidor; seguindo assim mesmo." -ForegroundColor DarkYellow }
     Start-Server @('-ngl', '999')
     if (-not (Robo-Esperar $Url $script:Proc 240)) {
@@ -120,7 +121,6 @@ try {
         Start-Server @('--gpu', 'disable', '-ngl', '0')
         if (-not (Robo-Esperar $Url $script:Proc 240)) {
             Robo-Fim 'erro' "O modelo nao subiu."
-            if (Test-Path $LogErr) { Get-Content $LogErr -Tail 25 }
             Fail "O servidor nao iniciou. Logs em $LogDir"
         }
     }
@@ -141,7 +141,8 @@ try {
         "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe"
     )
     $browser = $cands | Where-Object { Test-Path $_ } | Select-Object -First 1
-    if ($browser) { Start-Process -FilePath $browser -ArgumentList @("--app=$AppUrl", '--window-size=1280,860') }
+    # maximizada: o campo de pergunta cabe em tela pequena
+    if ($browser) { Start-Process -FilePath $browser -ArgumentList @("--app=$AppUrl", '--start-maximized') }
     else { Start-Process $AppUrl }
 
     Write-Host ""

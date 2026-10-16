@@ -77,14 +77,15 @@ start_server() {  # $@ = flags extras (GPU)
 # robo de carregamento: le o modelo em pedacos (progresso real) e anima enquanto o servidor sobe
 . "$ROOT/core/robo-unix.sh"
 robo_init
-say "Carregando o modelo: $(basename "$MODEL")"
+# Para quem usa, o modelo e so "o modelo de IA": o nome do arquivo nao aparece no terminal.
+say "Carregando o modelo de IA..."
 robo_ler "$MODEL" || say "[AVISO] Nao consegui ler o modelo antes de subir o servidor; seguindo assim mesmo."
 start_server -ngl 999
 if ! robo_esperar "$URL" "$PID" 240; then
   robo_aviso "Aceleracao por GPU indisponivel, tentando so com CPU..."
   kill "$PID" 2>/dev/null; sleep 1
   start_server --gpu disable -ngl 0
-  robo_esperar "$URL" "$PID" 240 || { robo_fim erro "O modelo nao subiu."; tail -n 25 "$LOG"; die "O servidor nao iniciou. Log completo: $LOG"; }
+  robo_esperar "$URL" "$PID" 240 || { robo_fim erro "O modelo nao subiu."; die "O servidor nao iniciou. Log completo: $LOG"; }
 fi
 robo_fim ok "Pronto: $URL"
 say ""
@@ -123,15 +124,25 @@ VER="$(tr -d ' \r\n' < "$ROOT/VERSION" 2>/dev/null)"
 APP_URL="$URL/?v=$VER#k=$CTL_KEY"
 
 # --- abrir como janela de aplicativo quando houver Chrome/Edge ---------------
+# A janela ocupa a tela toda, para o campo de pergunta caber em tela pequena. No Mac o Chrome ignora
+# --start-maximized, entao o tamanho vem da area util da tela (sem barra de menu e Dock), sem pedir permissao.
+tela_mac() {
+  osascript -l JavaScript -e 'ObjC.import("AppKit"); var f = $.NSScreen.mainScreen.visibleFrame; Math.floor(f.size.width) + "," + Math.floor(f.size.height)' 2>/dev/null
+}
 open_app() {
   if [ "$OS" = "Darwin" ]; then
+    TAM="$(tela_mac)"
     for app in "Google Chrome" "Microsoft Edge" "Brave Browser" "Chromium"; do
-      if [ -d "/Applications/$app.app" ]; then open -na "$app" --args "--app=$APP_URL" "--window-size=1280,860"; return; fi
+      if [ -d "/Applications/$app.app" ]; then
+        if [ -n "$TAM" ]; then open -na "$app" --args "--app=$APP_URL" "--start-maximized" "--window-position=0,0" "--window-size=$TAM"
+        else open -na "$app" --args "--app=$APP_URL" "--start-maximized"; fi
+        return
+      fi
     done
     open "$APP_URL"
   else
     for b in google-chrome google-chrome-stable microsoft-edge chromium chromium-browser brave-browser; do
-      if command -v "$b" >/dev/null 2>&1; then "$b" "--app=$APP_URL" "--window-size=1280,860" >/dev/null 2>&1 & return; fi
+      if command -v "$b" >/dev/null 2>&1; then "$b" "--app=$APP_URL" "--start-maximized" >/dev/null 2>&1 & return; fi
     done
     command -v xdg-open >/dev/null 2>&1 && xdg-open "$APP_URL" >/dev/null 2>&1 || say "Abra no navegador: $APP_URL"
   fi
