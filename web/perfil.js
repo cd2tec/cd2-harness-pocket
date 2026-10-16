@@ -11,6 +11,8 @@ const LINHAS = 10, MAX_VIEWS = 30;
 const PAPEIS = ['movimento', 'itens', 'cadastro', 'parametro', 'vazia', 'indefinida'];
 // Palavras no formato de Cat.tokens: sem acento, minúsculas, sem plural.
 const AUDITORIA = new Set(['cadastro', 'cad', 'inclusao', 'criacao', 'created', 'alteracao', 'alt', 'atualizacao', 'updated', 'modified', 'inserted', 'ultima', 'ult']);
+// Datas de atributo da entidade (nascimento, validade...): nunca são a data de um movimento.
+const ATRIBUTO = new Set(['nascimento', 'nasc', 'validade', 'admissao', 'demissao', 'expiracao', 'expiration', 'expiry', 'birth', 'birthday', 'vigencia', 'fundacao']);
 const VALOR = new Set(['vlr', 'valor', 'vl', 'tot', 'total', 'amount', 'amt', 'preco', 'price', 'prc', 'custo', 'cost', 'receita', 'revenue']);
 const UNITARIO = new Set(['preco', 'price', 'prc', 'unit', 'unitario', 'custo', 'cost']);
 const TOTAL = new Set(['tot', 'total']);
@@ -33,7 +35,7 @@ function sinaisColuna(c, vals){
   const valor = c.kind === 'numero' && !chave && tem(c, VALOR);
   const unitario = valor && tem(c, UNITARIO) && !tem(c, TOTAL);
   return {
-    dataMov: c.kind === 'data' && !tem(c, AUDITORIA) && varia,
+    dataMov: c.kind === 'data' && !tem(c, AUDITORIA) && !tem(c, ATRIBUTO) && varia,
     dataAud: c.kind === 'data' && tem(c, AUDITORIA),
     valorTotal: valor && !unitario,
     unitario,
@@ -66,7 +68,7 @@ function analisarTabela(t, linhas){
   let papel = 'indefinida';
   if(!dataMov && t.columns.length <= 8 && ((algum('chaveNome') && algum('conteudo')) || nome.some(x => NOME_PARAMETRO.has(x)))) papel = 'parametro';
   else if(dataMov && (algum('valorTotal') || algum('quantidade'))) papel = 'movimento';
-  else if(!dataMov && (algum('descricao') || (algum('usuario') && algum('dataAud')) || algum('unitario'))) papel = 'cadastro';
+  else if(!dataMov && !(algum('quantidade') && !algum('descricao')) && (algum('descricao') || (algum('usuario') && algum('dataAud')) || algum('unitario'))) papel = 'cadastro';
   return { papel, colunas, amostra, chave };
 }
 
@@ -78,14 +80,14 @@ function resumo(catalog){
 
 // Perfil de todas as tabelas. Segunda passada: tabela com valor ou quantidade que se liga a uma
 // tabela de movimento pela chave do registro dela vira itens (mov_venda_item pelo nr_cupom,
-// order_lines pelo order_id -> sales_orders.id). Movimento só vira itens se tiver item no nome.
+// order_lines pelo order_id -> sales_orders.id). Movimento só vira itens se tiver item no nome; cadastro só se tiver quantidade.
 function analisarCatalogo(catalog, amostras){
   const tabs = (catalog && catalog.tables) || [];
   for(const t of tabs) t.perfil = analisarTabela(t, amostras ? amostras.get(t.name) : null);
   const movs = tabs.filter(t => t.perfil.papel === 'movimento' && t.perfil.chave);
   for(const t of tabs){
     const p = t.perfil;
-    if(p.papel !== 'indefinida' && p.papel !== 'movimento') continue;
+    if(p.papel !== 'indefinida' && p.papel !== 'movimento' && !(p.papel === 'cadastro' && p.colunas.quantidade)) continue;
     if(!p.colunas.valor && !p.colunas.quantidade) continue;
     if(p.papel === 'movimento' && !Cat.tokens(t.name).some(x => Cat.NOME_ITEM.has(x))) continue;
     const liga = movs.some(m => m !== t && Cat.links([m, t]).some(l => (l.a === m.name ? l.col : l.colB) === m.perfil.chave));

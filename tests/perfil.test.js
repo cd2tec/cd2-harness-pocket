@@ -112,3 +112,40 @@ test('perfil: lê a amostra sem diferenciar caixa dos nomes de coluna', () => {
   const p = P.analisarTabela(c.tables[0], gera(5, i => ({ nr_cupom:i, dt_mov:'2026-01-0' + (i + 1), vlr_tot:i * 2 })));
   assert.equal(p.papel, 'movimento'); assert.equal(p.chave, 'NR_CUPOM');
 });
+
+// Correção 1: item só com preço unitário e quantidade; data de atributo não é data de movimento.
+test('perfil: item com preço unitário e quantidade, sem total, liga ao pedido e vira itens', () => {
+  const c = cat([
+    ['pedido','TABLE',500,[['id','integer'],['order_date','date'],['total_amount','numeric(12,2)']]],
+    ['pedido_item','TABLE',1500,[['pedido_id','integer'],['produto_id','integer'],['quantity','integer'],['unit_price','numeric(10,2)']]]
+  ]);
+  P.analisarCatalogo(c, new Map([
+    ['pedido', gera(8, i => ({ id:i + 1, order_date:'2026-04-0' + (i + 1), total_amount:50 + i }))],
+    ['pedido_item', gera(8, i => ({ pedido_id:1 + (i >> 1), produto_id:10 + i, quantity:1 + i % 3, unit_price:4.5 + i }))]
+  ]));
+  assert.deepEqual(papeis(c), { pedido:'movimento', pedido_item:'itens' });
+});
+
+test('perfil: tabela com quantidade e sem descrição não é cadastro', () => {
+  const c = cat([['nota_fiscal_item','TABLE',900,[['numero','integer'],['serie','integer'],['item','integer'],['cd_prod','integer'],['qtd','integer'],['vl_unit','numeric(10,2)']]]]);
+  P.analisarCatalogo(c, new Map([['nota_fiscal_item', gera(8, i => ({ numero:1 + (i >> 1), serie:1, item:1 + i % 2, cd_prod:5 + i, qtd:1 + i % 4, vl_unit:2.5 + i }))]]));
+  assert.equal(perfil(c, 'nota_fiscal_item').papel, 'indefinida');
+});
+
+test('perfil: produto com estoque e preço continua cadastro (tem descrição)', () => {
+  const c = cat([['produto','TABLE',200,[['cd_prod','integer'],['ds_prod','varchar(80)'],['qtd_estoque','integer'],['vlr_preco','numeric(10,2)']]]]);
+  P.analisarCatalogo(c, new Map([['produto', gera(8, i => ({ cd_prod:i + 1, ds_prod:'Produto ' + i, qtd_estoque:10 + i, vlr_preco:3 + i }))]]));
+  assert.equal(perfil(c, 'produto').papel, 'cadastro');
+});
+
+test('perfil: data de validade não faz o cadastro virar movimento', () => {
+  const c = cat([['produto','TABLE',200,[['id','integer'],['codigo_barras','varchar(20)'],['dt_validade','date'],['custo_total','numeric(10,2)']]]]);
+  P.analisarCatalogo(c, new Map([['produto', gera(8, i => ({ id:i + 1, codigo_barras:'789' + i, dt_validade:'2027-01-0' + (i + 1), custo_total:5 + i }))]]));
+  assert.notEqual(perfil(c, 'produto').papel, 'movimento');
+});
+
+test('perfil: funcionário com nascimento e admissão é cadastro', () => {
+  const c = cat([['funcionario','TABLE',60,[['id','integer'],['nome','varchar(80)'],['dt_nascimento','date'],['dt_admissao','date'],['salario','numeric(10,2)']]]]);
+  P.analisarCatalogo(c, new Map([['funcionario', gera(8, i => ({ id:i + 1, nome:'Pessoa ' + i, dt_nascimento:'199' + i + '-03-01', dt_admissao:'2020-0' + (i + 1) + '-10', salario:2000 + i }))]]));
+  assert.equal(perfil(c, 'funcionario').papel, 'cadastro');
+});
