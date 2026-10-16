@@ -1,0 +1,114 @@
+'use strict';
+// Testes do perfil das tabelas (web/perfil.js). Rodar: node --test
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const C = require('../web/catalog.js');
+const P = require('../web/perfil.js');
+
+const cat = defs => C.buildCatalog(defs.flatMap(([nome, tipo, linhas, cols]) =>
+  cols.map(([column_name, data_type]) => ({ table_name:nome, table_type:tipo, num_rows:linhas, column_name, data_type }))));
+const gera = (n, f) => Array.from({ length:n }, (_, i) => f(i));
+const papeis = c => Object.fromEntries(c.tables.map(t => [t.name, t.perfil.papel]));
+const perfil = (c, n) => c.tables.find(t => t.name === n).perfil;
+
+// Estilo 1: ERP em português com prefixos (o banco da avaliação atual).
+const PT = () => cat([
+  ['mov_venda', 'TABLE', 6000, [['nr_cupom','integer'],['cd_loja','integer'],['cd_cli','integer'],['dt_mov','date'],['vlr_tot','numeric(12,2)']]],
+  ['mov_venda_item', 'TABLE', 18000, [['nr_cupom','integer'],['seq','integer'],['cd_prod','integer'],['qtd_it','integer'],['vlr_tot_it','numeric(12,2)']]],
+  ['produto', 'TABLE', 120, [['cd_prod','integer'],['ds_prod','varchar(80)'],['cd_depto','integer'],['vlr_custo','numeric(10,2)']]],
+  ['loja', 'TABLE', 4, [['cd_loja','integer'],['nm_loja','varchar(40)'],['uf','char(2)']]],
+  ['cliente', 'TABLE', 300, [['cd_cli','integer'],['nm_cli','varchar(80)'],['uf','char(2)'],['dt_cad','date']]],
+  ['cfg_parametro', 'TABLE', 2, [['chave','varchar(40)'],['valor','text']]],
+  ['log_integracao', 'TABLE', 20000, [['id','bigint'],['dt_log','timestamp'],['msg','text']]],
+  ['aux_tmp_import', 'TABLE', 0, [['linha','integer'],['conteudo','text']]]
+]);
+const AM_PT = new Map([
+  ['mov_venda', gera(10, i => ({ nr_cupom:100 + i, cd_loja:1 + i % 4, cd_cli:i % 3, dt_mov:'2026-01-0' + (1 + i % 9), vlr_tot:10.5 * (i + 1) }))],
+  ['mov_venda_item', gera(10, i => ({ nr_cupom:100 + (i >> 1), seq:1 + i % 2, cd_prod:7 + i, qtd_it:1 + i % 3, vlr_tot_it:3.2 * (i + 1) }))],
+  ['produto', gera(10, i => ({ cd_prod:i + 1, ds_prod:'Produto ' + i, cd_depto:1 + i % 3, vlr_custo:2.5 + i }))],
+  ['loja', gera(4, i => ({ cd_loja:i + 1, nm_loja:'Loja ' + i, uf:'SP' }))],
+  ['cliente', gera(10, i => ({ cd_cli:i + 1, nm_cli:'Cliente ' + i, uf:'RJ', dt_cad:'2025-0' + (1 + i % 9) + '-01' }))],
+  ['cfg_parametro', [{ chave:'versao', valor:'1.0' }, { chave:'moeda', valor:'BRL' }]],
+  ['log_integracao', gera(10, i => ({ id:i + 1, dt_log:'2026-01-01 10:0' + i, msg:'evento ' + i }))],
+  ['aux_tmp_import', []]
+]);
+
+test('perfil: ERP em português com prefixos', () => {
+  const c = PT(); P.analisarCatalogo(c, AM_PT);
+  assert.deepEqual(papeis(c), { mov_venda:'movimento', mov_venda_item:'itens', produto:'cadastro', loja:'cadastro', cliente:'cadastro',
+    cfg_parametro:'parametro', log_integracao:'indefinida', aux_tmp_import:'vazia' });
+  assert.deepEqual(perfil(c, 'mov_venda').colunas, { data:'dt_mov', valor:'vlr_tot' });
+  assert.equal(perfil(c, 'mov_venda').chave, 'nr_cupom');
+  assert.deepEqual(perfil(c, 'mov_venda_item').colunas, { valor:'vlr_tot_it', quantidade:'qtd_it' });
+});
+
+// Estilo 2: ERP em inglês sem prefixo, com estatística desatualizada e view sem contagem.
+test('perfil: ERP em inglês sem prefixo', () => {
+  const c = cat([
+    ['sales_orders','TABLE',4000,[['id','integer'],['store_id','integer'],['customer_id','integer'],['order_date','date'],['total_amount','numeric(12,2)']]],
+    ['order_lines','TABLE',8000,[['order_id','integer'],['line_no','integer'],['product_id','integer'],['quantity','integer'],['line_total','numeric(12,2)']]],
+    ['products','TABLE',100,[['id','integer'],['name','varchar(80)'],['category_id','integer'],['created_at','timestamp'],['updated_at','timestamp']]],
+    ['price_list','TABLE',400,[['product_id','integer'],['store_id','integer'],['unit_price','numeric(10,2)'],['created_at','timestamp'],['updated_at','timestamp'],['updated_by','varchar(30)']]],
+    ['app_settings','TABLE',3,[['setting_key','varchar(40)'],['setting_value','text']]],
+    ['audit_log','TABLE',30000,[['id','bigint'],['created_at','timestamp'],['user_name','varchar(30)'],['action','text']]],
+    ['tmp_sync_orders','TABLE',1200,[['id','integer'],['payload','text']]],
+    ['v_daily_sales','VIEW',0,[['sale_date','date'],['store','varchar(40)'],['total','numeric']]]
+  ]);
+  P.analisarCatalogo(c, new Map([
+    ['sales_orders', gera(10, i => ({ id:i + 1, store_id:1 + i % 4, customer_id:i, order_date:'2026-02-1' + i, total_amount:20 + i }))],
+    ['order_lines', gera(10, i => ({ order_id:1 + (i >> 1), line_no:1 + i % 2, product_id:3 + i, quantity:1 + i % 4, line_total:5 + i }))],
+    ['products', gera(10, i => ({ id:i + 1, name:'Product ' + i, category_id:1 + i % 5, created_at:'2025-01-0' + (i % 9 + 1), updated_at:'2025-06-0' + (i % 9 + 1) }))],
+    ['price_list', gera(10, i => ({ product_id:i + 1, store_id:1, unit_price:3 + i, created_at:'2025-01-01', updated_at:'2026-01-0' + (i % 9 + 1), updated_by:'admin' }))],
+    ['app_settings', [{ setting_key:'currency', setting_value:'BRL' }, { setting_key:'version', setting_value:'2.3' }]],
+    ['audit_log', gera(10, i => ({ id:i + 1, created_at:'2026-01-01 08:0' + i, user_name:'user' + i, action:'update' }))],
+    ['tmp_sync_orders', []],
+    ['v_daily_sales', gera(10, i => ({ sale_date:'2026-03-0' + (i % 9 + 1), store:'Downtown', total:100 + i }))]
+  ]));
+  assert.deepEqual(papeis(c), { sales_orders:'movimento', order_lines:'itens', products:'cadastro', price_list:'cadastro',
+    app_settings:'parametro', audit_log:'cadastro', tmp_sync_orders:'vazia', v_daily_sales:'movimento' });
+});
+
+// Estilo 3: estruturas com o formato das do ZeusManager, com outros nomes (a regra lê a estrutura).
+test('perfil: estruturas do caso real com outros nomes', () => {
+  const c = cat([
+    ['tb_preco_canal','TABLE',169067,[['cod_loja','int'],['controle','varchar(10)'],['cod_item','varchar(20)'],['cod_canal','int'],['usuario','varchar(20)'],
+      ['data_cadastro','datetime'],['data_ultima_alteracao','datetime'],['preco_unitario','numeric'],['percentual_comissao','numeric']]],
+    ['vw_vendas_dia','VIEW',0,[['tipo_registro','int'],['dta_movimento','datetime'],['cod_loja','int'],['num_operacao','int'],['hora_venda','int'],
+      ['qtde_vendida','numeric'],['vlr_total_venda','numeric']]],
+    ['tb_config_valor','TABLE',2576,[['arquivo','varchar(40)'],['chave_registro','int'],['posicao','int'],['cod_loja','int'],['valor','varchar(80)'],
+      ['dth_inclusao','datetime'],['dth_alteracao','datetime'],['idt_usuario','varchar(20)']]]
+  ]);
+  P.analisarCatalogo(c, new Map([
+    ['tb_preco_canal', gera(10, i => ({ cod_loja:1, controle:'A', cod_item:'M' + i, cod_canal:i % 3, usuario:'adm', data_cadastro:'2024-05-0' + (i % 9 + 1),
+      data_ultima_alteracao:'2026-01-0' + (i % 9 + 1), preco_unitario:4.5 + i, percentual_comissao:0 }))],
+    ['vw_vendas_dia', gera(10, i => ({ tipo_registro:1, dta_movimento:'2026-03-0' + (i % 9 + 1), cod_loja:1 + i % 2, num_operacao:500 + i, hora_venda:900 + i,
+      qtde_vendida:1 + i, vlr_total_venda:30 + i }))],
+    ['tb_config_valor', gera(10, i => ({ arquivo:'PDV', chave_registro:1, posicao:i, cod_loja:1, valor:'S', dth_inclusao:'2023-01-01', dth_alteracao:'2025-0' + (i % 9 + 1) + '-01', idt_usuario:'adm' }))]
+  ]));
+  assert.deepEqual(papeis(c), { tb_preco_canal:'cadastro', vw_vendas_dia:'movimento', tb_config_valor:'parametro' });
+  assert.deepEqual(perfil(c, 'vw_vendas_dia').colunas, { data:'dta_movimento', valor:'vlr_total_venda', quantidade:'qtde_vendida' });
+});
+
+test('perfil: sem amostra o papel sai das colunas; empate fica indefinido', () => {
+  const c = cat([
+    ['sales_orders','TABLE',4000,[['id','integer'],['order_date','date'],['total_amount','numeric']]],
+    ['misc','TABLE',10,[['a','integer'],['b','text']]]
+  ]);
+  const so = P.analisarTabela(c.tables[0], null);
+  assert.equal(so.papel, 'movimento'); assert.equal(so.amostra, false);
+  assert.equal(P.analisarTabela(c.tables[1], [{ a:1, b:'x' }, { a:2, b:'y' }]).papel, 'indefinida');
+});
+
+test('perfil: toda amostra falhando não quebra; itens ainda são reconhecidos pela chave', () => {
+  const c = PT();
+  const r = P.analisarCatalogo(c, new Map());
+  assert.equal(perfil(c, 'mov_venda').papel, 'movimento'); assert.equal(perfil(c, 'mov_venda_item').papel, 'itens');
+  assert.equal(perfil(c, 'aux_tmp_import').papel, 'indefinida');
+  assert.equal(r.vazia, 0); assert.equal(Object.values(r).reduce((a, b) => a + b, 0), c.tables.length);
+});
+
+test('perfil: lê a amostra sem diferenciar caixa dos nomes de coluna', () => {
+  const c = cat([['MOV_VENDA','TABLE',10,[['NR_CUPOM','NUMBER'],['DT_MOV','DATE'],['VLR_TOT','NUMBER']]]]);
+  const p = P.analisarTabela(c.tables[0], gera(5, i => ({ nr_cupom:i, dt_mov:'2026-01-0' + (i + 1), vlr_tot:i * 2 })));
+  assert.equal(p.papel, 'movimento'); assert.equal(p.chave, 'NR_CUPOM');
+});
