@@ -179,7 +179,17 @@ function buildMessages(o){
   const d = DIALETO[o.motor] || DIALETO.postgres, pre = limpo(schemaPrefix(o.motor, o.schema, o.usuario));
   // View não tem contagem de linhas: "cerca de 0 linhas" faria o modelo achar que está vazia.
   const tam = t => t.type === 'VIEW' ? (t.rows ? 'view, cerca de ' + t.rows + ' linhas' : 'view') : 'cerca de ' + t.rows + ' linhas';
-  const tabs = o.tabelas.map(t => '- ' + pre + limpo(t.name) + ' (' + tam(t) + '): '
+  // Papel e colunas úteis do perfil das tabelas; indefinida não acrescenta nada.
+  const papel = t => {
+    const p = t.perfil;
+    if(!p || !p.papel || p.papel === 'indefinida') return '';
+    const c = p.colunas || {};
+    return '; ' + p.papel + (c.data ? '; data: ' + limpo(c.data) : '') + (c.valor ? '; valor: ' + limpo(c.valor) : '') + (c.quantidade ? '; quantidade: ' + limpo(c.quantidade) : '');
+  };
+  // Descrição feita pelo modelo a partir da amostra: só texto, sem quebra de linha, até 160 caracteres.
+  const desc = t => t.perfil && t.perfil.descricao
+    ? 'descrição: ' + String(t.perfil.descricao).replace(/[\u0000-\u001f\u007f\s]+/g, ' ').trim().slice(0, 160) + ' | colunas: ' : '';
+  const tabs = o.tabelas.map(t => '- ' + pre + limpo(t.name) + ' (' + tam(t) + papel(t) + '): ' + desc(t)
     + t.columns.map(c => limpo(c.name) + ' ' + limpo(c.type)).join(', ')).join('\n');
   const lig = Cat.links(o.tabelas);
   const sys = [
@@ -278,9 +288,10 @@ async function ask(o){
 }
 
 function modelCaller(o){
+  const schema = o.schema || SCHEMA, nome = o.schemaName || 'consulta', maxTokens = o.maxTokens || 1024;
   return async function(messages, signal){
-    const body = { model:'cd2', messages, stream:false, temperature:0, max_tokens:1024 };
-    if(o.useSchema) body.response_format = { type:'json_schema', json_schema:{ name:'consulta', strict:true, schema:SCHEMA } };
+    const body = { model:'cd2', messages, stream:false, temperature:0, max_tokens:maxTokens };
+    if(o.useSchema) body.response_format = { type:'json_schema', json_schema:{ name:nome, strict:true, schema } };
     const r = await o.fetch(o.url, { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(body), signal });
     if(!r.ok) throw new Error('Modelo respondeu HTTP ' + r.status);
     const j = await r.json();
