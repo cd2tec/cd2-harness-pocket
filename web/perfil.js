@@ -96,6 +96,32 @@ function analisarCatalogo(catalog, amostras){
   return resumo(catalog);
 }
 
-const api = { PAPEIS, LINHAS, MAX_VIEWS, analisarTabela, analisarCatalogo, resumo };
+// Lê a amostra de cada tabela sem pesar no banco: no máximo `paralelo` tabelas ao mesmo tempo;
+// views por último e uma de cada vez (view pode esconder consulta pesada, e no SQL Server e no
+// Oracle o banco segue executando depois que o front desiste); só as `maxViews` primeiras views.
+async function amostrar(catalog, sample, o){
+  o = o || {};
+  const tabs = (catalog && catalog.tables) || [], out = new Map(), vivo = o.vivo || (() => true);
+  const maxViews = o.maxViews == null ? MAX_VIEWS : o.maxViews;
+  const tabelas = tabs.filter(t => t.type !== 'VIEW'), views = tabs.filter(t => t.type === 'VIEW');
+  const total = tabs.length; let feitos = 0;
+  const conta = () => { feitos++; if(o.onProgresso) o.onProgresso(feitos, total); };
+  const um = async t => {
+    let r = null;
+    try{ r = await sample(t.name); }catch(e){ r = null; }
+    if(!vivo()) return;
+    out.set(t.name, Array.isArray(r) ? r.slice(0, LINHAS) : null); conta();
+  };
+  let i = 0;
+  const trabalhador = async () => { while(i < tabelas.length && vivo()) await um(tabelas[i++]); };
+  await Promise.all(Array.from({ length:Math.max(1, Math.min(o.paralelo || 2, tabelas.length)) }, trabalhador));
+  for(const [k, v] of views.entries()){
+    if(!vivo()) break;
+    if(k < maxViews) await um(v); else { out.set(v.name, null); conta(); }
+  }
+  return out;
+}
+
+const api = { PAPEIS, LINHAS, MAX_VIEWS, analisarTabela, analisarCatalogo, resumo, amostrar };
 if(isNode) module.exports = api; else root.CD2Perfil = api;
 })(typeof window !== 'undefined' ? window : globalThis);

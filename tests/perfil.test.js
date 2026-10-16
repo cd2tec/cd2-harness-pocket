@@ -149,3 +149,27 @@ test('perfil: funcionário com nascimento e admissão é cadastro', () => {
   P.analisarCatalogo(c, new Map([['funcionario', gera(8, i => ({ id:i + 1, nome:'Pessoa ' + i, dt_nascimento:'199' + i + '-03-01', dt_admissao:'2020-0' + (i + 1) + '-10', salario:2000 + i }))]]));
   assert.equal(perfil(c, 'funcionario').papel, 'cadastro');
 });
+
+test('amostrar: no máximo 2 tabelas ao mesmo tempo, views depois e uma por vez, até 30 views', async () => {
+  const c = cat([...gera(5, i => ['t' + i, 'TABLE', 10, [['a','int']]]), ...gera(33, i => ['v' + i, 'VIEW', 0, [['a','int']]])]);
+  let ativos = 0, pico = 0, picoViews = 0; const ordem = [], prog = [];
+  const sample = async nome => {
+    ativos++; pico = Math.max(pico, ativos); if(nome[0] === 'v') picoViews = Math.max(picoViews, ativos); ordem.push(nome);
+    await new Promise(r => setTimeout(r, 5)); ativos--; return [{ a:1 }];
+  };
+  const m = await P.amostrar(c, sample, { onProgresso:(n, t) => prog.push(n + '/' + t) });
+  assert.ok(pico <= 2, 'pico ' + pico); assert.equal(picoViews, 1);
+  assert.ok(ordem.slice(0, 5).every(n => n[0] === 't'), ordem.join(','));
+  assert.equal(ordem.length, 35);
+  assert.equal(m.get('v32'), null); assert.deepEqual(m.get('t0'), [{ a:1 }]);
+  assert.equal(prog[prog.length - 1], '38/38');
+});
+
+test('amostrar: falha vira null, resposta que não é lista vira null, corta em 10 linhas, para quando não está mais vivo', async () => {
+  const c = cat([['a','TABLE',1,[['x','int']]], ['b','TABLE',1,[['x','int']]], ['c','TABLE',1,[['x','int']]], ['d','TABLE',1,[['x','int']]]]);
+  const m = await P.amostrar(c, async n => { if(n === 'a') throw new Error('sem permissão'); if(n === 'b') return 'lixo'; return gera(15, i => ({ x:i })); });
+  assert.equal(m.get('a'), null); assert.equal(m.get('b'), null); assert.equal(m.get('c').length, 10);
+  let vivo = true; const chamadas = [];
+  const m2 = await P.amostrar(c, async n => { chamadas.push(n); vivo = false; return [{ x:1 }]; }, { vivo:() => vivo, paralelo:1 });
+  assert.deepEqual(chamadas, ['a']); assert.equal(m2.size, 0);
+});
