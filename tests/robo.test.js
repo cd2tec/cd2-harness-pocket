@@ -116,3 +116,19 @@ test('robo_restaura devolve o cursor no modo com cor', async () => {
   assert.ok(r.out.includes('\x1b[?25l'));
   assert.ok(r.out.endsWith('\x1b[?25h'));
 });
+
+// PowerShell nao diferencia maiusculas em nome de variavel: $T e $t sao a mesma. Em 16/10/2026 o
+// $t do pixel apagava o $T das letras zzZ e o Windows quebrava com "ForegroundColor nulo".
+test('scripts PowerShell nao usam duas grafias da mesma variavel', () => {
+  const dir = path.join(ROOT, 'core');
+  for(const f of fs.readdirSync(dir).filter(n => n.endsWith('.ps1'))){
+    const src = fs.readFileSync(path.join(dir, f), 'utf8').replace(/^\s*#.*$/gm, '').replace(/'[^'\n]*'/g, "''");
+    const grafias = new Map();
+    for(const m of src.matchAll(/\$(?:script:|global:|env:)?([A-Za-z_][A-Za-z0-9_]*)/g)){
+      const k = m[0].toLowerCase(), s = grafias.get(k) || new Set();
+      s.add(m[0]); grafias.set(k, s);
+    }
+    const ruins = [...grafias.values()].filter(s => s.size > 1).map(s => [...s].join('/'));
+    assert.deepEqual(ruins, [], f);
+  }
+});

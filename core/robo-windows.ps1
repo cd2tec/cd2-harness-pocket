@@ -54,7 +54,8 @@ function Robo-Escreve([string]$txt, $fg, $bg) {
 function Robo-Quadro([string]$estado, [int]$f, [int]$pct, [string]$texto) {
     if (-not $script:RoboFancy) { return }
     $W = 50; $H = 12
-    $T = @{}
+    # letras soltas por cima do desenho (zzZ). Nao chamar de T: no PowerShell e a mesma variavel do pixel t
+    $Letras = @{}
     $G = New-Object 'string[,]' $H, $W
     for ($y = 0; $y -lt $H; $y++) { for ($x = 0; $x -lt $W; $x++) { $G[$y, $x] = '.' } }
     $p = [Math]::Max(0, [Math]::Min(100, $pct))
@@ -79,9 +80,9 @@ function Robo-Quadro([string]$estado, [int]$f, [int]$pct, [string]$texto) {
             if ($c -ge 24 -and $c -le 27) { $bx = 33 + ($f % 2); $by = 3; $rosto = 'espia' }
             if ($c -lt 22) {
                 $z = $c % 16
-                if ($z -lt 12) { $T['2,44'] = @('z', 'DarkGray') }
-                if ($z -ge 4) { $T['1,46'] = @('z', 'Gray') }
-                if ($z -ge 8) { $T['0,48'] = @('Z', 'White') }
+                if ($z -lt 12) { $Letras['2,44'] = @('z', 'DarkGray') }
+                if ($z -ge 4) { $Letras['1,46'] = @('z', 'Gray') }
+                if ($z -ge 8) { $Letras['0,48'] = @('Z', 'White') }
             }
         }
         'pronto' {
@@ -106,7 +107,7 @@ function Robo-Quadro([string]$estado, [int]$f, [int]$pct, [string]$texto) {
         $seg = ''; $fg = $null; $bg = $null
         for ($x = 0; $x -lt $W; $x++) {
             $t = $G[$y, $x]; $b = $G[($y + 1), $x]
-            $letra = $T["$($y / 2),$x"]
+            $letra = $Letras["$($y / 2),$x"]
             if ($letra) {
                 if ($seg) { Robo-Escreve $seg $fg $bg; $seg = '' }
                 Robo-Escreve $letra[0] $letra[1] $null; $fg = $null; $bg = $null; continue
