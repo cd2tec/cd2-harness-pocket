@@ -1,5 +1,6 @@
 # CD2 Harness - robo de carregamento do terminal (PowerShell 5.1+). Carregado por core/start-windows.ps1.
 # Mesmo desenho do core/robo-unix.sh (quadros em core/robo.txt), com as 16 cores do console.
+# Cheio, o cerebro dorme soltando zzZ e o robo cutuca ate ele acordar sorrindo.
 # O progresso e real: Robo-Ler le o .gguf em pedacos de 8 MB e conta os bytes; Robo-Esperar so anda
 # enquanto o processo esta vivo e o /health ainda nao respondeu. Saida redirecionada, NO_COLOR ou
 # CD2_SIMPLES=1 caem para linhas de texto. Arquivo so em ASCII: o PowerShell 5.1 le .ps1 sem BOM como ANSI.
@@ -39,7 +40,7 @@ function Robo-Poe($G, [string]$nome, [int]$ox, [int]$oy, [string]$olho, [int]$ch
             if ($ch -eq 'c') { $ch = $olho }
             if ($ch -eq 'i') { if ($r -gt 6 - $cheias) { $ch = 'm' } else { $ch = 'k' } }
             $yy = $oy + $r; $xx = $ox + $c
-            if ($yy -ge 0 -and $yy -lt 12 -and $xx -ge 0 -and $xx -lt 44) { $G[$yy, $xx] = $ch }
+            if ($yy -ge 0 -and $yy -lt 12 -and $xx -ge 0 -and $xx -lt 50) { $G[$yy, $xx] = $ch }
         }
     }
 }
@@ -52,14 +53,15 @@ function Robo-Escreve([string]$txt, $fg, $bg) {
 
 function Robo-Quadro([string]$estado, [int]$f, [int]$pct, [string]$texto) {
     if (-not $script:RoboFancy) { return }
-    $W = 44; $H = 12
+    $W = 50; $H = 12
+    $T = @{}
     $G = New-Object 'string[,]' $H, $W
     for ($y = 0; $y -lt $H; $y++) { for ($x = 0; $x -lt $W; $x++) { $G[$y, $x] = '.' } }
     $p = [Math]::Max(0, [Math]::Min(100, $pct))
     $cheias = [int][Math]::Floor($p * 6 / 100 + 0.5)
     Robo-Poe $G 'pen' 1 4 'c' $cheias
-    Robo-Poe $G 'cerebro' 33 3 'c' $cheias
     $carrega = $false; $dy = 0; $olho = 'c'; $x0 = 25; $corpo = 'roboA'
+    $bx = 33; $by = 3; $rosto = ''
     switch ($estado) {
         'lendo' {
             $c = $f % 32
@@ -67,15 +69,29 @@ function Robo-Quadro([string]$estado, [int]$f, [int]$pct, [string]$texto) {
             if ($f % 2) { $corpo = 'roboA' } else { $corpo = 'roboB' }
         }
         'acordando' {
+            # Ciclo de 6 s: o cerebro dorme respirando e solta zzZ; no fim o robo encosta e cutuca,
+            # o cerebro treme, espia com um olho e volta a dormir.
+            $c = $f % 30; $cheias = 6
             if ([Math]::Floor($f / 3) % 2) { $corpo = 'roboA' } else { $corpo = 'roboB' }
             if ($f % 15 -eq 0) { $olho = 'g' }
+            if ([Math]::Floor($f / 5) % 2) { $by = 2; $rosto = 'ronco' } else { $rosto = 'sono' }
+            if ($c -ge 22) { $x0 = 26; $corpo = 'roboA' }
+            if ($c -ge 24 -and $c -le 27) { $bx = 33 + ($f % 2); $by = 3; $rosto = 'espia' }
+            if ($c -lt 22) {
+                $z = $c % 16
+                if ($z -lt 12) { $T['2,44'] = @('z', 'DarkGray') }
+                if ($z -ge 4) { $T['1,46'] = @('z', 'Gray') }
+                if ($z -ge 8) { $T['0,48'] = @('Z', 'White') }
+            }
         }
         'pronto' {
-            $olho = 'y'; if ($f % 2) { $dy = -1 }
+            $olho = 'y'; if ($f % 2) { $dy = -1 }; $rosto = 'acordado'; $by = 3 + $dy
             $G[0, 34] = 'y'; $G[1, 42] = 'y'; $G[2, 31] = 'y'; $G[0, 39] = 'y'
         }
-        'erro' { $olho = 'r'; $corpo = 'roboB' }
+        'erro' { $olho = 'r'; $corpo = 'roboB'; $rosto = 'sono' }
     }
+    Robo-Poe $G 'cerebro' $bx $by 'c' $cheias
+    if ($rosto) { Robo-Poe $G $rosto $bx $by 'c' $cheias }
     Robo-Poe $G $corpo $x0 (2 + $dy) $olho $cheias
     if ($carrega) { Robo-Poe $G 'bloco' ($x0 + 2) $dy 'c' $cheias }
 
@@ -90,6 +106,11 @@ function Robo-Quadro([string]$estado, [int]$f, [int]$pct, [string]$texto) {
         $seg = ''; $fg = $null; $bg = $null
         for ($x = 0; $x -lt $W; $x++) {
             $t = $G[$y, $x]; $b = $G[($y + 1), $x]
+            $letra = $T["$($y / 2),$x"]
+            if ($letra) {
+                if ($seg) { Robo-Escreve $seg $fg $bg; $seg = '' }
+                Robo-Escreve $letra[0] $letra[1] $null; $fg = $null; $bg = $null; continue
+            }
             if ($t -eq '.' -and $b -eq '.') { $ch = ' '; $nf = 'Gray'; $nb = $null }
             elseif ($b -eq '.') { $ch = $script:RoboTopo; $nf = $script:RoboCor[$t]; $nb = $null }
             elseif ($t -eq '.') { $ch = $script:RoboBase; $nf = $script:RoboCor[$b]; $nb = $null }
@@ -142,8 +163,17 @@ function Robo-Esperar([string]$url, $proc, [int]$prazo) {
             } catch { }
         }
         if (((Get-Date) - $ini).TotalSeconds -ge $prazo) { return $false }
-        Robo-Quadro 'acordando' $q 90 ("Acordando o modelo  $(Robo-Seg) s")
+        Robo-Quadro 'acordando' $q 90 ("$(Robo-Frase $q)  $(Robo-Seg) s")
         $q++; Start-Sleep -Milliseconds 200
+    }
+}
+
+function Robo-Frase([int]$q) {  # muda a frase a cada ciclo de 6 s da cena do cerebro dormindo
+    switch ([Math]::Floor($q / 30) % 4) {
+        0 { return 'Acordando o modelo' }
+        1 { return 'Ele pediu mais cinco minutinhos' }
+        2 { return 'Cutucando de leve' }
+        default { return 'Abrindo as cortinas' }
     }
 }
 

@@ -48,6 +48,23 @@ test('quadros de todos os estados rodam sem erro', async () => {
   }
 });
 
+test('acordando: o cerebro dorme soltando zzZ e acorda sorrindo no pronto', async () => {
+  const sono = (await run('robo_quadro acordando 9 90 x', FANCY)).out;
+  assert.equal((sono.match(/;1;38;5;\d+m[zZ]/g) || []).length, 3, 'sem zzZ');
+  const cutucando = (await run('robo_quadro acordando 25 90 x', FANCY)).out;
+  assert.ok(!/;1;38;5;\d+m[zZ]/.test(cutucando), 'zzZ durante a cutucada');
+  const pronto = (await run('robo_quadro pronto 2 100 x', FANCY)).out;
+  assert.ok(!/;1;38;5;\d+m[zZ]/.test(pronto), 'zzZ no pronto');
+  assert.ok(pronto.includes('5;255'), 'sem olho branco');
+});
+
+test('acordando: a frase muda a cada ciclo de 6 s', async () => {
+  const r = await run('robo_frase 0; robo_frase 30; robo_frase 60; robo_frase 90; robo_frase 120', {});
+  const f = linhas(r.out);
+  assert.equal(new Set(f.slice(0, 4)).size, 4);
+  assert.equal(f[4], f[0]);
+});
+
 test('modo simples: sem escape de cor nem desenho', async () => {
   const r = await run('robo_quadro lendo 3 62 "Lendo"; robo_fim ok "Pronto"', SIMPLE);
   assert.ok(!r.out.includes('\x1b['), JSON.stringify(r.out));

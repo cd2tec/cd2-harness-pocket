@@ -1,5 +1,6 @@
 # CD2 Harness - robo de carregamento do terminal (POSIX sh). Carregado por core/start-unix.sh.
 # Enquanto o modelo sobe, um robo em pixel art leva blocos do pen drive ate um cerebro que enche.
+# Cheio, o cerebro dorme soltando zzZ e o robo cutuca ate ele acordar sorrindo.
 # O progresso e real: robo_ler le o .gguf em pedacos e conta os bytes (a parte lenta da primeira
 # vez, e o arquivo ainda fica no cache de disco para o llamafile), e robo_esperar so anda enquanto
 # o processo esta vivo e o /health ainda nao respondeu. Sem terminal, sem cor (NO_COLOR, TERM=dumb)
@@ -11,7 +12,7 @@ ROBO_DESENHADO=0
 ROBO_LEITOR=""
 ROBO_T0=0
 
-# Desenha a cena 44x12 pixels em 6 linhas de meio-bloco. Entradas: E (estado), F (quadro), P (0-100).
+# Desenha a cena 50x12 pixels em 6 linhas de meio-bloco (mais as letras do zzZ por cima). Entradas: E (estado), F (quadro), P (0-100).
 ROBO_AWK='
 function poe(nome, ox, oy, olho,   r, c, ch, linha, yy, xx) {
   for (r = 0; r < n[nome]; r++) {
@@ -26,8 +27,9 @@ function poe(nome, ox, oy, olho,   r, c, ch, linha, yy, xx) {
     }
   }
 }
+function zz(linha, col, letra, c256) { T[linha, col] = letra; TC[linha, col] = c256 }
 BEGIN {
-  W = 44; H = 12; ESC = sprintf("%c", 27)
+  W = 50; H = 12; ESC = sprintf("%c", 27)
   cor["g"] = 250; cor["k"] = 238; cor["b"] = 21; cor["w"] = 255; cor["c"] = 45
   cor["y"] = 191; cor["p"] = 213; cor["m"] = 205; cor["r"] = 196
   for (y = 0; y < H; y++) for (x = 0; x < W; x++) G[y, x] = "."
@@ -39,28 +41,44 @@ END {
   f = F + 0; p = P + 0; if (p < 0) p = 0; if (p > 100) p = 100
   cheias = int(p * 6 / 100 + 0.5)
   poe("pen", 1, 4, "c")
-  poe("cerebro", 33, 3, "c")
   carrega = 0; dy = 0; olho = "c"; x = 25; corpo = "roboA"
+  bx = 33; by = 3; rosto = ""
   if (E == "lendo") {
     c = f % 32
     if (c < 16) { x = 10 + c; carrega = 1 } else x = 25 - (c - 16)
     corpo = (f % 2) ? "roboA" : "roboB"
   } else if (E == "acordando") {
+    # Ciclo de 6 s: o cerebro dorme respirando e solta zzZ; no fim o robo encosta e cutuca,
+    # o cerebro treme, espia com um olho e volta a dormir.
+    c = f % 30; cheias = 6
     corpo = (int(f / 3) % 2) ? "roboA" : "roboB"
     if (f % 15 == 0) olho = "g"
+    by = (int(f / 5) % 2) ? 2 : 3
+    rosto = (by == 2) ? "ronco" : "sono"
+    if (c >= 22) { x = 26; corpo = "roboA" }
+    if (c >= 24 && c <= 27) { bx = 33 + (f % 2); by = 3; rosto = "espia" }
+    if (c < 22) {
+      z = c % 16
+      if (z < 12) zz(2, 44, "z", 245)
+      if (z >= 4) zz(1, 46, "z", 250)
+      if (z >= 8) zz(0, 48, "Z", 255)
+    }
   } else if (E == "pronto") {
-    olho = "y"; dy = (f % 2) ? -1 : 0
+    olho = "y"; dy = (f % 2) ? -1 : 0; rosto = "acordado"; by = 3 + dy
     G[0, 34] = "y"; G[1, 42] = "y"; G[2, 31] = "y"; G[0, 39] = "y"
   } else if (E == "erro") {
-    olho = "r"; corpo = "roboB"
+    olho = "r"; corpo = "roboB"; rosto = "sono"
   }
+  poe("cerebro", bx, by, "c")
+  if (rosto != "") poe(rosto, bx, by, "c")
   poe(corpo, x, 2 + dy, olho)
   if (carrega) poe("bloco", x + 2, dy, "c")
   for (y = 0; y < H; y += 2) {
     linha = "  "
     for (x = 0; x < W; x++) {
       t = G[y, x]; b = G[y + 1, x]
-      if (t == "." && b == ".") linha = linha ESC "[0m "
+      if ((y / 2, x) in T) linha = linha ESC "[0;1;38;5;" TC[y / 2, x] "m" T[y / 2, x]
+      else if (t == "." && b == ".") linha = linha ESC "[0m "
       else if (b == ".") linha = linha ESC "[0;38;5;" cor[t] "m\342\226\200"
       else if (t == ".") linha = linha ESC "[0;38;5;" cor[b] "m\342\226\204"
       else linha = linha ESC "[38;5;" cor[t] ";48;5;" cor[b] "m\342\226\200"
@@ -131,9 +149,18 @@ robo_esperar() {  # url pid prazo_s: 0 quando o /health responde; 1 se o process
     kill -0 "$2" 2>/dev/null || return 1
     if [ $((q % 5)) -eq 0 ]; then curl -sf --max-time 1 "$1/health" >/dev/null 2>&1 && return 0; fi
     [ $(( $(date +%s) - ini )) -ge "$3" ] && return 1
-    robo_quadro acordando "$q" 90 "Acordando o modelo  $(robo_seg) s"
+    robo_quadro acordando "$q" 90 "$(robo_frase "$q")  $(robo_seg) s"
     q=$((q + 1)); sleep 0.2
   done
+}
+
+robo_frase() {  # quadro: muda a frase a cada ciclo de 6 s da cena do cerebro dormindo
+  case $(( $1 / 30 % 4 )) in
+    0) echo "Acordando o modelo" ;;
+    1) echo "Ele pediu mais cinco minutinhos" ;;
+    2) echo "Cutucando de leve" ;;
+    *) echo "Abrindo as cortinas" ;;
+  esac
 }
 
 robo_aviso() {  # texto: mostra na linha de status (ou como linha comum)
