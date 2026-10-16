@@ -128,7 +128,9 @@ try {
     Write-Host ""
 
     if (Start-Ctl) { Write-Host "Controle do banco em 127.0.0.1:$CtlPort. Configure o banco pela tela Configuracoes." -ForegroundColor Gray }
-    $AppUrl = "$Url/#k=$CtlKey"
+    # ?v=<versao> muda o endereco a cada versao: o navegador nao reaproveita o front antigo do cache.
+    $Ver = ''; try { $Ver = (Get-Content -Raw (Join-Path $Root 'VERSION')).Trim() } catch { }
+    $AppUrl = "$Url/?v=$Ver#k=$CtlKey"
 
     # abre como janela de aplicativo (Edge vem com o Windows; Chrome como alternativa)
     $cands = @(

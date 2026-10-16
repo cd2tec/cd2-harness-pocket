@@ -118,7 +118,9 @@ start_ctl() {
   return 1
 }
 start_ctl && say "Controle do banco em 127.0.0.1:$CTL_PORT. Configure o banco pela tela Configuracoes."
-APP_URL="$URL/#k=$CTL_KEY"
+# ?v=<versao> muda o endereco a cada versao: o navegador nao reaproveita o front antigo do cache.
+VER="$(tr -d ' \r\n' < "$ROOT/VERSION" 2>/dev/null)"
+APP_URL="$URL/?v=$VER#k=$CTL_KEY"
 
 # --- abrir como janela de aplicativo quando houver Chrome/Edge ---------------
 open_app() {
