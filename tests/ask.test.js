@@ -400,3 +400,52 @@ test('buildMessages: nomes e tipos sem quebra de linha e com no máximo 80 carac
   assert.match(m[1].content, /Erro: e{300}\n/);
   assert.doesNotMatch(m[1].content, /e{301}/);
 });
+
+const CAT3 = Cat.buildCatalog([
+  ['mov_venda', 20000, 'nr_cupom', 'integer'], ['mov_venda', 20000, 'dt_mov', 'date'], ['mov_venda', 20000, 'vlr_tot', 'numeric(12,2)'],
+  ['mov_venda_item', 60000, 'nr_cupom', 'integer'], ['mov_venda_item', 60000, 'cd_prod', 'integer'], ['mov_venda_item', 60000, 'qtd_it', 'integer'],
+  ['mov_venda_item', 60000, 'vlr_tot_it', 'numeric(12,2)'],
+  ['produto', 200, 'cd_prod', 'integer'], ['produto', 200, 'ds_prod', 'varchar(80)']
+].map(([table_name, num_rows, column_name, data_type]) => ({ table_name, num_rows, column_name, data_type, table_type:'TABLE' })));
+const baseItens = o => Object.assign({ pergunta:'faturamento por produto', catalog:CAT3, motor:'postgres' }, o);
+const DOBRA = J({ sql:'SELECT p.ds_prod AS produto, SUM(v.vlr_tot) AS total FROM mov_venda v JOIN mov_venda_item i ON i.nr_cupom = v.nr_cupom JOIN produto p ON p.cd_prod = i.cd_prod GROUP BY p.ds_prod', visual:'barra', x:'produto', y:'total' });
+const CERTA = J({ sql:'SELECT p.ds_prod AS produto, SUM(i.vlr_tot_it) AS total FROM mov_venda_item i JOIN produto p ON p.cd_prod = i.cd_prod GROUP BY p.ds_prod', visual:'barra', x:'produto', y:'total' });
+
+test('buildMessages: lista como as tabelas se ligam; sem ligação, não lista', () => {
+  const sys = A.buildMessages({ pergunta:'p', tabelas:Cat.rankTables(CAT3, 'faturamento por produto'), motor:'postgres' })[0].content;
+  assert.match(sys, /Como as tabelas se ligam/);
+  // A ligação vale nos dois sentidos; a ordem segue o ranking das tabelas.
+  assert.match(sys, /mov_venda\.nr_cupom = mov_venda_item\.nr_cupom|mov_venda_item\.nr_cupom = mov_venda\.nr_cupom/);
+  assert.match(sys, /mov_venda_item\.cd_prod = produto\.cd_prod|produto\.cd_prod = mov_venda_item\.cd_prod/);
+  assert.ok(sys.indexOf('Como as tabelas se ligam') < sys.indexOf('Regras:'));
+  assert.doesNotMatch(A.buildMessages({ pergunta:'p', tabelas:Cat.rankTables(CAT2, 'vendas'), motor:'postgres' })[0].content, /Como as tabelas se ligam/);
+});
+
+test('ask: soma do cabeçalho depois de JOIN com os itens não vai ao banco e volta ao modelo com o motivo', async () => {
+  const callModel = fila([DOBRA, CERTA]), runSql = fila([{ ok:true, rows:[{ produto:'A', total:'5' }] }]);
+  const r = await A.ask(baseItens({ callModel, runSql }));
+  assert.equal(r.ok, true); assert.equal(runSql.calls.length, 1);
+  assert.match(runSql.calls[0][0], /vlr_tot_it/);
+  const erro = callModel.calls[1][0][1].content;
+  assert.match(erro, /mov_venda\.vlr_tot/); assert.match(erro, /mov_venda_item/); assert.match(erro, /vlr_tot_it/);
+  const r2 = await A.ask(baseItens({ callModel:fila([DOBRA, DOBRA]), runSql:fila([]) }));
+  assert.equal(r2.ok, false); assert.equal(r2.motivo, 'sql');
+});
+
+test('somaDoCabecalho: só trava SUM ou AVG de coluna do cabeçalho com os itens juntos', () => {
+  const t = Cat.rankTables(CAT3, 'faturamento por produto');
+  assert.match(A.somaDoCabecalho('SELECT SUM(v.vlr_tot) FROM mov_venda v JOIN mov_venda_item i ON i.nr_cupom = v.nr_cupom', t), /vlr_tot/);
+  assert.match(A.somaDoCabecalho('SELECT avg(VLR_TOT) AS m FROM MOV_VENDA JOIN MOV_VENDA_ITEM USING (nr_cupom)', t), /vlr_tot/i);
+  assert.equal(A.somaDoCabecalho('SELECT SUM(vlr_tot) AS total FROM mov_venda', t), '');
+  assert.equal(A.somaDoCabecalho('SELECT SUM(i.vlr_tot_it) FROM mov_venda v JOIN mov_venda_item i ON i.nr_cupom = v.nr_cupom', t), '');
+  assert.equal(A.somaDoCabecalho('SELECT COUNT(DISTINCT v.nr_cupom) FROM mov_venda v JOIN mov_venda_item i ON i.nr_cupom = v.nr_cupom', t), '');
+  assert.equal(A.somaDoCabecalho("SELECT SUM(vlr_tot) FROM mov_venda WHERE obs <> 'mov_venda_item'", t), '');
+});
+
+test('buildMessages: view sem contagem de linhas não aparece como 0 linhas', () => {
+  const tabelas = [{ name:'view_resumo_venda', type:'VIEW', rows:0, columns:[{ name:'total', type:'numeric' }] },
+    { name:'venda', type:'TABLE', rows:0, columns:[{ name:'valor', type:'numeric' }] }];
+  const sys = A.buildMessages({ pergunta:'p', tabelas, motor:'postgres' })[0].content;
+  assert.match(sys, /- view_resumo_venda \(view\): total numeric/);
+  assert.match(sys, /- venda \(cerca de 0 linhas\): valor numeric/);
+});

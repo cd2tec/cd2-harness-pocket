@@ -158,7 +158,7 @@ statement: |
       FROM sys.objects o
       JOIN sys.schemas s ON s.schema_id = o.schema_id
      WHERE s.name = '${CD2_DB_SCHEMA}' AND o.type IN ('U', 'V')
-     ORDER BY num_rows DESC, o.name)
+     ORDER BY CASE WHEN o.type = 'V' THEN 0 ELSE 1 END, num_rows DESC, o.name)
   SELECT t.name AS table_name, t.table_type, t.num_rows,
          c.name AS column_name, ty.name AS data_type, c.column_id AS ordinal
     FROM t

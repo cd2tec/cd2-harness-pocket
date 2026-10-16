@@ -150,7 +150,7 @@ statement: |
               FROM ALL_OBJECTS o
               LEFT JOIN ALL_TABLES tb ON tb.OWNER = o.OWNER AND tb.TABLE_NAME = o.OBJECT_NAME
              WHERE o.OWNER = '${CD2_DB_SCHEMA}' AND o.OBJECT_TYPE IN ('TABLE', 'VIEW')
-             ORDER BY num_rows DESC, o.OBJECT_NAME)
+             ORDER BY CASE WHEN o.OBJECT_TYPE = 'VIEW' THEN 0 ELSE 1 END, num_rows DESC, o.OBJECT_NAME)
            WHERE ROWNUM <= 300) t ON t.object_name = c.TABLE_NAME
    WHERE c.OWNER = '${CD2_DB_SCHEMA}' AND c.COLUMN_ID <= 60
    ORDER BY t.num_rows DESC, c.TABLE_NAME, c.COLUMN_ID

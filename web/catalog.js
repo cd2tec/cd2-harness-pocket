@@ -126,6 +126,35 @@ function humanize(name){
 }
 // Chave: palavra que começa com id, cod, cd, nr ou nro, ou que termina em id.
 function isKey(c){ return c.tokens.some(t => /^(id|cod|cd|nr|nro)/.test(t) || t.endsWith('id')); }
+// Ligações entre as tabelas candidatas: a mesma coluna-chave (cd_prod, nr_cupom, cliente_id) em duas
+// tabelas. Muito ERP antigo não declara chave estrangeira, então o nome é a pista. id ou codigo sozinho
+// existe em quase toda tabela e ligaria coisas sem relação.
+const GENERICA = new Set(['id', 'cod', 'codigo']);
+const colTokens = c => c.tokens || tokens(c.name);
+const isLinkKey = c => { const n = String(c.name).toLowerCase(); return !GENERICA.has(n) && isKey({ tokens:colTokens(c) }); };
+function links(tabs){
+  const out = [];
+  for(let i = 0; i < tabs.length; i++) for(let j = i + 1; j < tabs.length; j++)
+    for(const c of tabs[i].columns) if(isLinkKey(c) && tabs[j].columns.some(d => String(d.name).toLowerCase() === String(c.name).toLowerCase()))
+      out.push({ a:tabs[i].name, b:tabs[j].name, col:c.name });
+  return out;
+}
+// Cabeçalho e itens: a tabela de itens tem 'item' no nome e todas as palavras do cabeçalho
+// (mov_venda e mov_venda_item, pedido e itens_pedido), e as duas se ligam por uma chave.
+function itemPairs(tabs){
+  const out = [];
+  for(const t of tabs){
+    const tt = tokens(t.name);
+    if(!tt.includes('item')) continue;
+    for(const h of tabs){
+      const ht = tokens(h.name);
+      if(h === t || !ht.length || ht.includes('item') || !ht.every(x => tt.includes(x))) continue;
+      const l = links([h, t])[0];
+      if(l) out.push({ cab:h.name, itens:t.name, col:l.col });
+    }
+  }
+  return out;
+}
 const NAO_MEDIDA = new Set(['seq', 'ano', 'cep', 'mes', 'dia']);
 function suggest(catalog){
   const tables = ((catalog && catalog.tables) || []).filter(t => t.type === 'TABLE' && !t.tokens.some(x => NOISE.has(x)))
@@ -143,6 +172,6 @@ function suggest(catalog){
   return out;
 }
 
-const api = { tokens, questionTokens, kindOf, buildCatalog, rankTables, suggest, humanize };
+const api = { tokens, questionTokens, kindOf, buildCatalog, rankTables, suggest, humanize, links, itemPairs };
 if(typeof module !== 'undefined' && module.exports) module.exports = api; else root.CD2Catalog = api;
 })(typeof window !== 'undefined' ? window : globalThis);

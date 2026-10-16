@@ -152,7 +152,7 @@ statement: |
       JOIN pg_namespace n ON n.oid = c.relnamespace
      WHERE n.nspname = '${CD2_DB_SCHEMA}'
        AND c.relkind IN ('r','p','v','m')
-     ORDER BY GREATEST(c.reltuples, 0) DESC, c.relname
+     ORDER BY CASE WHEN c.relkind IN ('v','m') THEN 0 ELSE 1 END, GREATEST(c.reltuples, 0) DESC, c.relname
      LIMIT 300)
   SELECT t.relname AS table_name, t.table_type, t.num_rows,
          a.attname AS column_name, format_type(a.atttypid, a.atttypmod) AS data_type, a.attnum AS ordinal

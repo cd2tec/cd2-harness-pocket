@@ -177,13 +177,17 @@ function schemaPrefix(motor, schema, usuario){
 const limpo = v => String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f\s]+/g, ' ').trim().slice(0, 80);
 function buildMessages(o){
   const d = DIALETO[o.motor] || DIALETO.postgres, pre = limpo(schemaPrefix(o.motor, o.schema, o.usuario));
-  const tabs = o.tabelas.map(t => '- ' + pre + limpo(t.name) + ' (' + (t.type === 'VIEW' ? 'view, ' : '') + 'cerca de ' + t.rows + ' linhas): '
+  // View não tem contagem de linhas: "cerca de 0 linhas" faria o modelo achar que está vazia.
+  const tam = t => t.type === 'VIEW' ? (t.rows ? 'view, cerca de ' + t.rows + ' linhas' : 'view') : 'cerca de ' + t.rows + ' linhas';
+  const tabs = o.tabelas.map(t => '- ' + pre + limpo(t.name) + ' (' + tam(t) + '): '
     + t.columns.map(c => limpo(c.name) + ' ' + limpo(c.type)).join(', ')).join('\n');
+  const lig = Cat.links(o.tabelas);
   const sys = [
     'Você transforma uma pergunta em uma consulta SQL de leitura e diz como mostrar o resultado.',
     'Banco: ' + d.nome + (o.versao ? '. Versão: ' + o.versao : '') + '.',
     'Tabelas disponíveis (use só estas tabelas e colunas, com os nomes exatamente como estão' + (pre ? ', com o schema na frente' : '') + '):',
     tabs,
+    lig.length ? 'Como as tabelas se ligam (use estes JOIN):\n' + lig.map(l => '- ' + pre + limpo(l.a) + '.' + limpo(l.col) + ' = ' + pre + limpo(l.b) + '.' + limpo(l.col)).join('\n') : '',
     'Regras:',
     o.motor === 'sqlserver' ? '- Um único SELECT, sem WITH e sem ponto e vírgula. Use subconsulta no lugar de WITH.' : '- Um único SELECT (ou WITH), sem ponto e vírgula.',
     '- Agregue no banco com GROUP BY e devolva no máximo 50 linhas.',
@@ -197,7 +201,7 @@ function buildMessages(o){
     'Responda só com um objeto JSON no formato {"sql": "...", "visual": "...", "x": "...", "y": "...", "titulo": "..."}.',
     'Exemplos:',
     exemplos(o.motor)
-  ].join('\n');
+  ].filter(Boolean).join('\n');
   let user = 'Pergunta: ' + o.pergunta;
   if(o.anterior) user += '\n\nA tentativa anterior falhou.\nSQL anterior: ' + (o.anterior.sql || '(nenhum)') + '\nErro: ' + String(o.anterior.erro == null ? '' : o.anterior.erro).slice(0, 300) + '\nCorrija e responda de novo só com o JSON.';
   return [{ role:'system', content:sys }, { role:'user', content:user }];
@@ -209,6 +213,28 @@ function readsListedTable(sql, tabelas){
   const s = String(sql).replace(/'(?:[^']|'')*'/g, ' ');
   const esc = n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return tabelas.some(t => new RegExp('(^|[^A-Za-z0-9_$#])' + esc(t.name) + '([^A-Za-z0-9_$#]|$)', 'i').test(s));
+}
+// Depois de JOIN do cabeçalho com os itens, o valor do cabeçalho se repete em cada item: SUM ou AVG dele
+// conta em dobro. O prompt já pede para não fazer isso, mas o modelo pequeno insiste; aqui a consulta
+// é recusada antes de ir ao banco e o motivo volta para o modelo. Devolve o motivo, ou '' se está ok.
+function somaDoCabecalho(sql, tabelas){
+  const s = String(sql).replace(/'(?:[^']|'')*'/g, ' ');
+  const esc = n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const usa = n => new RegExp('(^|[^A-Za-z0-9_$#])' + esc(n) + '([^A-Za-z0-9_$#]|$)', 'i').test(s);
+  const cols = n => (tabelas.find(t => t.name === n) || { columns:[] }).columns;
+  const tem = (n, c) => cols(n).some(x => String(x.name).toLowerCase() === c.toLowerCase());
+  for(const p of Cat.itemPairs(tabelas)){
+    if(!usa(p.cab) || !usa(p.itens)) continue;
+    for(const m of s.matchAll(/\b(?:SUM|AVG)\s*\(\s*(?:DISTINCT\s+)?(?:"?[\w$#]+"?\.)?"?([\w$#]+)"?\s*\)/gi)){
+      const c = m[1];
+      if(!tem(p.cab, c) || tem(p.itens, c)) continue;
+      const valores = cols(p.itens).filter(x => x.kind === 'numero' && String(x.name).toLowerCase() !== p.col.toLowerCase()).map(x => x.name);
+      return 'A consulta junta ' + p.cab + ' com os itens (' + p.itens + ') e soma ' + p.cab + '.' + c
+        + ', que se repete em cada item e conta em dobro. Use uma coluna de valor de ' + p.itens
+        + (valores.length ? ' (' + valores.join(', ') + ')' : '') + ' ou não junte os itens.';
+    }
+  }
+  return '';
 }
 // Título do modelo com número que não está na pergunta não vale: o número viria do modelo.
 function safeTitle(titulo, pergunta){
@@ -229,6 +255,8 @@ async function ask(o){
     const g = Tb.guardSql(req.sql);
     if(!g.ok){ falha = 'sql'; ultimoSql = req.sql; anterior = { sql:req.sql, erro:g.error }; continue; }
     if(!readsListedTable(g.sql, tabelas)){ falha = 'sql'; ultimoSql = g.sql; anterior = { sql:g.sql, erro:'A consulta precisa ler uma das tabelas listadas.' }; continue; }
+    const dobra = somaDoCabecalho(g.sql, tabelas);
+    if(dobra){ falha = 'sql'; ultimoSql = g.sql; anterior = { sql:g.sql, erro:dobra }; continue; }
     const sql = Tb.prepareSql(g.sql, o.motor);
     ultimoSql = sql;
     const r = await o.runSql(sql, o.signal);
@@ -283,6 +311,6 @@ function toolRunner(client, o){
   };
 }
 
-const api = { VISUALS, MENSAGENS, SCHEMA, parseRows, parseModelJson, isTimeout, pickVisual, frase, buildMessages, ask, modelCaller, toolRunner };
+const api = { VISUALS, MENSAGENS, SCHEMA, parseRows, parseModelJson, isTimeout, pickVisual, frase, buildMessages, somaDoCabecalho, ask, modelCaller, toolRunner };
 if(isNode) module.exports = api; else root.CD2Ask = api;
 })(typeof window !== 'undefined' ? window : globalThis);

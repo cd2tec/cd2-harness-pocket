@@ -189,3 +189,35 @@ test('suggest: não usa seq, ano, cep, mes, dia nem chave como medida', () => {
     .concat([{ table_name:'item_nota', table_type:'TABLE', num_rows:100, column_name:'ds_item', data_type:'varchar(40)', ordinal:9 }]));
   assert.deepEqual(C.suggest(cat), ['Quantos registros tem item nota']);
 });
+
+const tab = (...nomes) => CAT.tables.filter(t => nomes.includes(t.name));
+test('links: liga as tabelas candidatas pela coluna-chave de mesmo nome', () => {
+  const l = C.links(tab('mov_venda', 'mov_venda_item', 'produto', 'loja', 'cliente')).map(x => x.a + '.' + x.col + ' = ' + x.b + '.' + x.col);
+  assert.ok(l.includes('mov_venda.nr_cupom = mov_venda_item.nr_cupom'), l.join('; '));
+  assert.ok(l.includes('mov_venda_item.cd_prod = produto.cd_prod'), l.join('; '));
+  assert.ok(l.includes('mov_venda.cd_loja = loja.cd_loja'), l.join('; '));
+  assert.ok(l.includes('mov_venda.cd_cli = cliente.cd_cli'), l.join('; '));
+  assert.ok(!l.some(x => /\.uf /.test(x)), 'uf não é chave: ' + l.join('; '));
+  assert.ok(!l.some(x => /\.seq /.test(x)), 'seq não é chave');
+  assert.deepEqual(C.links(tab('produto')), []);
+  assert.deepEqual(C.links([]), []);
+});
+
+test('itemPairs: acha a tabela de itens do cabeçalho, nos dois jeitos de nomear', () => {
+  assert.deepEqual(C.itemPairs(tab('mov_venda', 'mov_venda_item', 'produto')), [{ cab:'mov_venda', itens:'mov_venda_item', col:'nr_cupom' }]);
+  const cat = C.buildCatalog([
+    { table_name:'pedido', column_name:'nr_pedido', data_type:'int' }, { table_name:'pedido', column_name:'vlr_total', data_type:'numeric' },
+    { table_name:'itens_pedido', column_name:'nr_pedido', data_type:'int' }, { table_name:'itens_pedido', column_name:'vlr_item', data_type:'numeric' }
+  ]);
+  assert.deepEqual(C.itemPairs(cat.tables), [{ cab:'pedido', itens:'itens_pedido', col:'nr_pedido' }]);
+  assert.deepEqual(C.itemPairs(tab('mov_venda', 'produto')), []);
+});
+
+test('links: id ou codigo sozinho, presente em toda tabela, não vira ligação', () => {
+  const cat = C.buildCatalog([
+    { table_name:'pedido', column_name:'id', data_type:'int' }, { table_name:'pedido', column_name:'cliente_id', data_type:'int' },
+    { table_name:'cliente', column_name:'id', data_type:'int' }, { table_name:'cliente', column_name:'codigo', data_type:'int' },
+    { table_name:'fornecedor', column_name:'codigo', data_type:'int' }, { table_name:'fornecedor', column_name:'cliente_id', data_type:'int' }
+  ]);
+  assert.deepEqual(C.links(cat.tables).map(x => x.col), ['cliente_id']);
+});

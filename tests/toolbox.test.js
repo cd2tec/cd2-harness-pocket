@@ -194,3 +194,16 @@ test('portFor: porta padrão do motor, sem sobrescrever porta digitada', () => {
   assert.equal(T.portFor('sqlserver', '14330'), '14330');
   assert.equal(T.portFor('xpto', '5432'), '5432');
 });
+
+// View não tem contagem de linhas (entra com 0). Ordenar só por linhas e cortar em 300 deixava as
+// views de fora em banco com muitas tabelas vazias, e são elas que alguém montou para relatório.
+test('db_catalog: nos quatro motores, views vêm antes da ordem por linhas', () => {
+  const fs = require('node:fs'), path = require('node:path');
+  for(const motor of ['postgres', 'mariadb', 'sqlserver', 'oracle']){
+    const y = fs.readFileSync(path.join(__dirname, '..', 'core', 'toolbox', motor + '.yaml'), 'utf8');
+    const bloco = y.slice(y.indexOf('name: db_catalog'), y.indexOf('---', y.indexOf('name: db_catalog')));
+    const ordens = [...bloco.matchAll(/ORDER BY ([^\n]+)/g)].map(m => m[1]);
+    assert.ok(ordens.length >= 1, motor);
+    assert.match(ordens[0], /^CASE WHEN .*(VIEW|'v'|'V').* THEN 0 ELSE 1 END, /, motor + ': ' + ordens[0]);
+  }
+});
