@@ -610,6 +610,9 @@ async function analisarBanco(client, gen){
   const amostras = await CD2Perfil.amostrar(cat, sample, { vivo, onProgresso:(n, t) => { if(vivo()) faixa('Lendo as tabelas…', n, t); } });
   if(!vivo()) return;
   CD2Perfil.analisarCatalogo(cat, amostras);
+  // Com o papel de cada tabela, as sugestões saem do movimento, não da maior tabela.
+  st.suggestions = CD2Catalog.suggest(cat);
+  if($('#hero')) renderHero();
   const r = await CD2Descricao.executarFila({ catalog:cat, amostras, vivo, ocupado:() => st.busy,
     callModel:CD2Ask.modelCaller({ fetch:(...a) => fetch(...a), url:'/v1/chat/completions', useSchema:USE_SCHEMA, schema:CD2Descricao.SCHEMA, schemaName:'tabela', maxTokens:200 }),
     onProgresso:(n, t) => { if(vivo()) faixa('Entendendo as tabelas…', n, t, ' (dá para ir perguntando)'); } });

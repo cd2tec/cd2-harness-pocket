@@ -134,8 +134,8 @@ function ajustePapel(papel, tipo, nomeEntidade, citaItem){
 }
 // Nota: +3 por palavra no nome da tabela, +1 por palavra em coluna (até 5), +1,5 por palavra na
 // descrição do modelo (até 3), +1 com data, +1 com número, desempate pelo volume (view sem contagem
-// empata no topo), mais o ajuste do papel. Só entra quem tem ao menos uma palavra em comum com a
-// pergunta, e tabela vazia nunca entra.
+// fica neutra, como uma tabela de umas mil linhas: não ganha nem perde de saída), mais o ajuste do
+// papel. Só entra quem tem ao menos uma palavra em comum com a pergunta, e tabela vazia nunca entra.
 function rankTables(catalog, pergunta, opts){
   opts = opts || {};
   const max = opts.max || 5, maxCols = opts.maxCols || 25, qs = questionTokens(pergunta), scored = [];
@@ -154,7 +154,7 @@ function rankTables(catalog, pergunta, opts){
     }
     if(!tableHits && !colHits && !descHits) continue;
     const hasData = t.columns.some(c => c.kind === 'data'), hasNum = t.columns.some(c => c.kind === 'numero');
-    const volume = t.type === 'VIEW' && !t.rows ? 0.1 : Math.log10(t.rows + 1) / 100;
+    const volume = t.type === 'VIEW' && !t.rows ? 0.03 : Math.log10(t.rows + 1) / 100;
     let score = 3 * tableHits + Math.min(5, colHits) + 1.5 * Math.min(3, descHits) + (hasData ? 1 : 0) + (hasNum ? 1 : 0) + volume;
     if(t.tokens.some(x => NOISE.has(x))) score /= 2;
     score += ajustePapel(papel, tipo, nomeEntidade, citaItem);
@@ -198,17 +198,17 @@ function links(tabs){
   for(const a of tabs) for(const c of a.columns){
     const e = entidadeRef(c.name);
     if(!e) continue;
-    for(const b of tabs){
-      if(b === a || raiz(ultimaPalavra(b.name)) !== e) continue;
-      const id = b.columns.find(d => String(d.name).toLowerCase() === 'id');
-      if(id) add(a.name, c.name, b.name, id.name);
-    }
+    const cands = tabs.filter(b => b !== a && raiz(ultimaPalavra(b.name)) === e && b.columns.some(d => String(d.name).toLowerCase() === 'id'));
+    // order_id com sales_orders e purchase_orders: ambíguo, só liga à tabela que se chama order(s).
+    const alvo = cands.length > 1 ? cands.filter(b => raiz(String(b.name).toLowerCase().replace(/[^a-z0-9]/g, '')) === e) : cands;
+    for(const b of alvo) add(a.name, c.name, b.name, b.columns.find(d => String(d.name).toLowerCase() === 'id').name);
   }
   return out;
 }
 // Cabeçalho e itens: a tabela de itens tem item, line, linha ou detalhe no nome e se liga ao
 // cabeçalho, e o cabeçalho tem todas as palavras dela no nome (mov_venda e mov_venda_item) ou é
-// apontado por uma referência <entidade>_id dos itens (order_lines.order_id -> sales_orders.id).
+// apontado por uma referência <entidade>_id dos itens e divide com ela uma palavra do nome
+// (order_lines.order_id -> sales_orders.id; order_lines.product_id -> products não é cabeçalho).
 function itemPairs(tabs){
   const out = [];
   for(const t of tabs){
@@ -217,22 +217,32 @@ function itemPairs(tabs){
     for(const h of tabs){
       const ht = tokens(h.name);
       if(h === t || !ht.length || ht.some(x => NOME_ITEM.has(x))) continue;
-      const contido = ht.every(x => tt.includes(x));
-      const l = links([h, t]).find(x => contido || (x.a === t.name && x.b === h.name && x.colB !== x.col));
+      const contido = ht.every(x => tt.includes(x)), comum = ht.some(x => tt.includes(x));
+      const l = links([h, t]).find(x => contido || (comum && x.a === t.name && x.b === h.name && x.colB !== x.col));
       if(l) out.push({ cab:h.name, itens:t.name, col:l.a === t.name ? l.col : l.colB });
     }
   }
   return out;
 }
 const NAO_MEDIDA = new Set(['seq', 'ano', 'cep', 'mes', 'dia']);
+const papelDe = t => t.perfil && t.perfil.papel;
+// Com perfil, o fato sai do movimento (depois dos itens), view inclusive, antes do volume; cadastro
+// (o de preço costuma ser a maior tabela), parâmetro e vazia nunca são o fato.
+function escolheFato(todas, tables, ok){
+  if(!todas.some(t => t.perfil)) return tables.find(ok);
+  const vivas = todas.filter(t => !t.tokens.some(x => NOISE.has(x))).sort((a, b) => b.rows - a.rows || a.name.localeCompare(b.name));
+  for(const p of ['movimento', 'itens']){ const f = vivas.find(t => papelDe(t) === p && ok(t)); if(f) return f; }
+  return tables.find(t => !['cadastro', 'parametro', 'vazia'].includes(papelDe(t)) && ok(t));
+}
 function suggest(catalog){
-  const tables = ((catalog && catalog.tables) || []).filter(t => t.type === 'TABLE' && !t.tokens.some(x => NOISE.has(x)))
+  const todas = (catalog && catalog.tables) || [];
+  const tables = todas.filter(t => t.type === 'TABLE' && !t.tokens.some(x => NOISE.has(x)))
     .slice().sort((a, b) => b.rows - a.rows || a.name.localeCompare(b.name));
   const out = [], used = new Set();
   const add = (s, t) => { if(out.length < 4 && !out.includes(s)){ out.push(s); used.add(t.name); } };
   const val = t => t.columns.find(c => c.kind === 'numero' && !isKey(c) && !c.tokens.some(x => NAO_MEDIDA.has(x)));
   const txt = t => t.columns.find(c => c.kind === 'texto' && !isKey(c));
-  const fato = tables.find(t => t.columns.some(c => c.kind === 'data') && val(t));
+  const fato = escolheFato(todas, tables, t => t.columns.some(c => c.kind === 'data') && val(t));
   if(fato) add('Total por mês em ' + humanize(fato.name), fato);
   const top = tables.find(t => t !== fato && val(t) && txt(t));
   if(top) add('Top 10 de ' + humanize(top.name) + ' por ' + humanize(val(top).name), top);

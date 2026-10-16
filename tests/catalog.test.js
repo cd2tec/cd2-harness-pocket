@@ -301,11 +301,66 @@ test('rankTables: a descrição do modelo faz a tabela de nome críptico entrar'
   assert.equal(C.rankTables(cat, 'cupons emitidos')[0].name, 'zx_m045');
 });
 
-test('rankTables: preço não é sinônimo de faturamento; view sem contagem não perde o desempate', () => {
+test('rankTables: preço não é sinônimo de faturamento; view sem contagem tem volume neutro no desempate', () => {
   const precos = C.buildCatalog([{ table_name:'lista', column_name:'preco_unitario', data_type:'numeric' }]);
   assert.deepEqual(C.rankTables(precos, 'faturamento'), []);
-  const empate = C.buildCatalog([
-    { table_name:'vendas_a', table_type:'TABLE', num_rows:1000000, column_name:'vlr_total', data_type:'numeric' },
+  const empate = n => C.buildCatalog([
+    { table_name:'vendas_a', table_type:'TABLE', num_rows:n, column_name:'vlr_total', data_type:'numeric' },
     { table_name:'vendas_b', table_type:'VIEW', num_rows:0, column_name:'vlr_total', data_type:'numeric' }]);
-  assert.equal(C.rankTables(empate, 'vendas')[0].name, 'vendas_b');
+  assert.equal(C.rankTables(empate(1000000), 'vendas')[0].name, 'vendas_a');
+  assert.equal(C.rankTables(empate(10), 'vendas')[0].name, 'vendas_b');
+});
+
+// Ramos do ajuste pelo papel: diferença da nota com o papel contra a mesma tabela indefinida.
+const ajuste = (defs, nome, papel, pergunta) => {
+  const nota = p => { const cat = C.buildCatalog(defs); for(const t of cat.tables) t.perfil = { papel:t.name === nome ? p : 'indefinida', colunas:{} };
+    return C.rankTables(cat, pergunta).find(t => t.name === nome).score; };
+  return Math.round((nota(papel) - nota('indefinida')) * 1000) / 1000;
+};
+const ITENS = [{ table_name:'venda_item', column_name:'vlr_total', data_type:'numeric' }, { table_name:'venda_item', column_name:'cd_produto', data_type:'int' }];
+
+test('ajuste do papel: itens sobem mais quando a pergunta cita produto ou categoria', () => {
+  assert.equal(ajuste(ITENS, 'venda_item', 'itens', 'Valor total por produto'), 4);
+  assert.equal(ajuste(ITENS, 'venda_item', 'itens', 'Valor total por categoria'), 4);
+  assert.equal(ajuste(ITENS, 'venda_item', 'itens', 'Valor total da venda'), 2);
+});
+
+test('ajuste do papel: parâmetro desce em pergunta neutra', () => {
+  const defs = [{ table_name:'config_cliente', column_name:'estado', data_type:'varchar(2)' }];
+  assert.equal(C.tipoPergunta('Clientes por estado'), 'neutra');
+  assert.equal(ajuste(defs, 'config_cliente', 'parametro', 'Clientes por estado'), -3);
+});
+
+test('ajuste do papel: cadastro com o nome da entidade da pergunta de medida não desce; o que só bate na medida desce', () => {
+  const defs = [{ table_name:'loja', column_name:'nome_loja', data_type:'varchar(40)' },
+    { table_name:'tab_preco_venda', column_name:'preco_unitario', data_type:'numeric' }];
+  assert.equal(C.tipoPergunta('Faturamento de venda por loja'), 'medida');
+  assert.equal(ajuste(defs, 'loja', 'cadastro', 'Faturamento de venda por loja'), 0);
+  assert.equal(ajuste(defs, 'tab_preco_venda', 'cadastro', 'Faturamento de venda por loja'), -3);
+});
+
+test('suggest com perfil: o fato é o movimento, não o cadastro de preço maior', () => {
+  const sug = C.suggest(comPapel(CATP, PAPEIS_P));
+  assert.equal(sug[0], 'Total por mês em view resumo venda');
+  assert.ok(!sug.some(s => /^Total por mês em (tab mercadoria|tab parametro)/.test(s)), sug.join(' | '));
+  assert.equal(C.suggest(comPapel(CATP, {}))[0], 'Total por mês em tab mercadoria tipo venda');
+});
+
+test('itemPairs: tabela apontada pelos itens só é cabeçalho com palavra de nome em comum', () => {
+  const cat = C.buildCatalog([
+    { table_name:'sales_orders', column_name:'id', data_type:'int' }, { table_name:'sales_orders', column_name:'total_amount', data_type:'numeric' },
+    { table_name:'order_lines', column_name:'order_id', data_type:'int' }, { table_name:'order_lines', column_name:'product_id', data_type:'int' },
+    { table_name:'order_lines', column_name:'line_total', data_type:'numeric' }, { table_name:'products', column_name:'id', data_type:'int' }
+  ]);
+  assert.deepEqual(C.itemPairs(cat.tables), [{ cab:'sales_orders', itens:'order_lines', col:'order_id' }]);
+});
+
+test('links: referência que casa com mais de uma tabela só liga à de nome igual à entidade', () => {
+  const defs = [
+    { table_name:'sales_orders', column_name:'id', data_type:'int' }, { table_name:'purchase_orders', column_name:'id', data_type:'int' },
+    { table_name:'order_lines', column_name:'order_id', data_type:'int' }];
+  const liga = cat => C.links(cat.tables).map(x => x.a + '.' + x.col + ' = ' + x.b + '.' + x.colB);
+  assert.deepEqual(liga(C.buildCatalog(defs)), []);
+  assert.deepEqual(liga(C.buildCatalog(defs.concat([{ table_name:'orders', column_name:'id', data_type:'int' }]))), ['order_lines.order_id = orders.id']);
+  assert.deepEqual(liga(C.buildCatalog(defs.filter(d => d.table_name !== 'purchase_orders'))), ['order_lines.order_id = sales_orders.id']);
 });
