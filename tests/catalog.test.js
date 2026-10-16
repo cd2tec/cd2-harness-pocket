@@ -62,7 +62,7 @@ test('rankTables: faturamento por mês escolhe a tabela de vendas com data', () 
   assert.equal(r[0].name, 'mov_venda');
   assert.ok(r.findIndex(t => t.name === 'log_integracao') !== 0);
   assert.ok(r.length <= 5);
-  assert.deepEqual(Object.keys(r[0]).sort(), ['columns', 'name', 'rows', 'score', 'type']);
+  assert.deepEqual(Object.keys(r[0]).sort(), ['columns', 'name', 'perfil', 'rows', 'score', 'type']);
 });
 
 test('rankTables: produtos mais vendidos traz produto e itens de venda', () => {
@@ -245,4 +245,67 @@ test('itemPairs: order_lines é itens de sales_orders pela referência order_id'
     { table_name:'customers', column_name:'id', data_type:'int' }
   ]);
   assert.deepEqual(C.itemPairs(cat.tables), [{ cab:'sales_orders', itens:'order_lines', col:'order_id' }]);
+});
+
+// Formato do caso real: cadastro de preço grande, view de vendas sem contagem, cadastro de lojas,
+// parâmetros e uma tabela vazia com estatística desatualizada.
+const CATP = C.buildCatalog([
+  ['tab_mercadoria_tipo_venda','TABLE',169067,'cod_loja','int'], ['tab_mercadoria_tipo_venda','TABLE',169067,'cod_mercadoria','varchar(20)'],
+  ['tab_mercadoria_tipo_venda','TABLE',169067,'data_cadastro','datetime'], ['tab_mercadoria_tipo_venda','TABLE',169067,'preco_unitario','numeric'],
+  ['view_resumo_venda','VIEW',0,'dta_movimento','datetime'], ['view_resumo_venda','VIEW',0,'cod_loja','int'], ['view_resumo_venda','VIEW',0,'vlr_total_venda','numeric'],
+  ['loja','TABLE',4,'cod_loja','int'], ['loja','TABLE',4,'nome_loja','varchar(40)'],
+  ['produto','TABLE',900,'cod_mercadoria','varchar(20)'], ['produto','TABLE',900,'descricao','varchar(80)'],
+  ['tab_parametro_valor','TABLE',2576,'chave','varchar(40)'], ['tab_parametro_valor','TABLE',2576,'valor','varchar(40)'],
+  ['importacao_venda_tmp','TABLE',5000,'vlr_venda','numeric']
+].map(([table_name, table_type, num_rows, column_name, data_type]) => ({ table_name, table_type, num_rows, column_name, data_type })));
+const PAPEIS_P = { tab_mercadoria_tipo_venda:'cadastro', view_resumo_venda:'movimento', loja:'cadastro', produto:'cadastro',
+  tab_parametro_valor:'parametro', importacao_venda_tmp:'vazia' };
+const comPapel = (cat, m) => { for(const t of cat.tables) t.perfil = m[t.name] ? { papel:m[t.name], colunas:{} } : undefined; return cat; };
+const nomes = r => r.map(t => t.name);
+
+test('tipoPergunta: medida, entidade e neutra', () => {
+  for(const p of ['Qual o valor total da venda?', 'Faturamento por loja', 'Quantas vendas foram feitas?', 'Quantidade de itens vendidos por mês',
+    'Ticket médio por loja', 'Quanto vendemos em março?', 'Vendas por dia'])
+    assert.equal(C.tipoPergunta(p), 'medida', p);
+  for(const p of ['Quantos clientes temos?', 'Quantos produtos tem cada departamento?', 'Lista de lojas', 'Qual o preço médio da lista de preços?'])
+    assert.equal(C.tipoPergunta(p), 'entidade', p);
+  assert.equal(C.tipoPergunta('Clientes por estado'), 'neutra');
+});
+
+test('rankTables com papel: pergunta de medida escolhe o movimento, não o cadastro de preço', () => {
+  const cat = comPapel(CATP, PAPEIS_P);
+  const v = C.rankTables(cat, 'Qual o valor total da venda?');
+  assert.equal(v[0].name, 'view_resumo_venda'); assert.equal(v[0].perfil.papel, 'movimento');
+  const r = nomes(C.rankTables(cat, 'Faturamento por loja'));
+  assert.equal(r[0], 'view_resumo_venda'); assert.ok(r.includes('loja'), r.join(', '));
+  assert.ok(r.indexOf('tab_mercadoria_tipo_venda') > r.indexOf('loja'), r.join(', '));
+});
+
+test('rankTables com papel: pergunta de entidade sobe o cadastro; vazia some', () => {
+  const cat = comPapel(CATP, PAPEIS_P);
+  assert.equal(C.rankTables(cat, 'Lista de lojas')[0].name, 'loja');
+  assert.ok(!nomes(C.rankTables(cat, 'vendas importadas')).includes('importacao_venda_tmp'));
+});
+
+test('rankTables: papel indefinido ou ausente mantém a nota de hoje', () => {
+  const nota = r => r.map(t => t.name + ':' + t.score.toFixed(4));
+  const sem = nota(C.rankTables(comPapel(CATP, {}), 'Faturamento por loja'));
+  const ind = nota(C.rankTables(comPapel(CATP, Object.fromEntries(Object.keys(PAPEIS_P).map(k => [k, 'indefinida']))), 'Faturamento por loja'));
+  assert.deepEqual(ind, sem);
+});
+
+test('rankTables: a descrição do modelo faz a tabela de nome críptico entrar', () => {
+  const cat = C.buildCatalog([{ table_name:'zx_m045', column_name:'c1', data_type:'int' }, { table_name:'zx_m045', column_name:'c2', data_type:'numeric' }]);
+  assert.deepEqual(C.rankTables(cat, 'cupons emitidos'), []);
+  cat.tables[0].perfil = { papel:'movimento', colunas:{}, descricaoTokens:C.tokens('Cupons fiscais emitidos no PDV, com data e valor', true) };
+  assert.equal(C.rankTables(cat, 'cupons emitidos')[0].name, 'zx_m045');
+});
+
+test('rankTables: preço não é sinônimo de faturamento; view sem contagem não perde o desempate', () => {
+  const precos = C.buildCatalog([{ table_name:'lista', column_name:'preco_unitario', data_type:'numeric' }]);
+  assert.deepEqual(C.rankTables(precos, 'faturamento'), []);
+  const empate = C.buildCatalog([
+    { table_name:'vendas_a', table_type:'TABLE', num_rows:1000000, column_name:'vlr_total', data_type:'numeric' },
+    { table_name:'vendas_b', table_type:'VIEW', num_rows:0, column_name:'vlr_total', data_type:'numeric' }]);
+  assert.equal(C.rankTables(empate, 'vendas')[0].name, 'vendas_b');
 });

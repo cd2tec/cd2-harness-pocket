@@ -18,7 +18,8 @@ const SYN = [
   ['cliente','customer','client','cli','consumidor'],
   ['data','date','dt','dia','mes','ano','periodo','day','month','year','time','semana',
     'janeiro','fevereiro','marco','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'],
-  ['valor','vlr','total','tot','amount','price','preco','faturamento','receita','custo','ticket'],
+  ['valor','vlr','total','tot','amount','faturamento','receita','custo','ticket'],
+  ['preco','price','unitario','unit'],
   ['quantidade','qtd','qty','quant'],
   ['loja','store','filial','branch','unidade'],
   ['departamento','depto','dept','department','secao','categoria','category'],
@@ -95,27 +96,73 @@ function pickColumns(cols, hit, n){
   return cols.map((c, i) => ({ c, i })).sort((a, b) => rank(a.c) - rank(b.c) || a.i - b.i).slice(0, n)
     .sort((a, b) => a.i - b.i).map(({ c }) => ({ name:c.name, type:c.type, kind:c.kind }));
 }
-// Nota: +3 por palavra no nome da tabela, +1 por palavra em coluna (até 5), +1 com data, +1 com
-// número, desempate pelo volume. Só entra quem tem ao menos uma palavra em comum com a pergunta.
+// Tipo de pergunta, pelas palavras cruas (as de parada contam aqui: "quanto", "quantos").
+// Medida: valor, total, faturamento, contagem de movimento, evolução no tempo. Entidade: contar ou
+// listar cadastro ("quantos clientes", "lista de lojas"). Medida tem precedência.
+const MEDIDA_RAW = ['total','totais','faturamento','faturado','fatura','receita','valor','valores','quanto','quanta','soma','somar','media',
+  'ticket','vendeu','vendemos','vendido','vendidos','vendida','vendidas','venda','vendas','pedido','pedidos','cupom','cupons','nota','notas',
+  'quantidade','revenue','sales','sale','orders','order','amount','sum','average','avg'];
+const TEMPO_RAW = ['mes','dia','ano','semana','trimestre','month','day','year','week'];
+const ENTIDADE_RAW = ['quantos','quantas','lista','liste','listar','quais','cadastro','cadastrados','cadastradas','temos','existem','many','list'];
+const ITEM_RAW = ['produto','produtos','item','itens','departamento','departamentos','categoria','categorias','mercadoria','mercadorias',
+  'sku','secao','marca','product','products','category','categories','department'];
+const MEDIDA_Q = new Set(MEDIDA_RAW.map(stem));
+function palavras(p){
+  return String(p == null ? '' : p).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+}
+function tipoPergunta(p){
+  const w = palavras(p);
+  const noTempo = w.some((x, i) => TEMPO_RAW.includes(x) && (w[i - 1] === 'por' || w[i - 1] === 'per'));
+  if(noTempo || w.some(x => MEDIDA_RAW.includes(x))) return 'medida';
+  if(w.some(x => ENTIDADE_RAW.includes(x))) return 'entidade';
+  return 'neutra';
+}
+// Ajuste da nota pelo papel. Cadastro só desce em pergunta de medida quando nenhuma palavra de
+// entidade da pergunta bate com o nome dele: em "faturamento por loja", a tabela loja continua
+// candidata (para o JOIN do nome); um cadastro de preço que só bate em "venda" desce.
+function ajustePapel(papel, tipo, nomeEntidade, citaItem){
+  if(tipo === 'medida'){
+    if(papel === 'movimento') return 4;
+    if(papel === 'itens') return citaItem ? 4 : 2;
+    if(papel === 'cadastro') return nomeEntidade ? 0 : -3;
+    if(papel === 'parametro') return -6;
+  }else if(tipo === 'entidade'){
+    if(papel === 'cadastro') return 3;
+    if(papel === 'parametro') return -6;
+  }else if(papel === 'parametro') return -3;
+  return 0;
+}
+// Nota: +3 por palavra no nome da tabela, +1 por palavra em coluna (até 5), +1,5 por palavra na
+// descrição do modelo (até 3), +1 com data, +1 com número, desempate pelo volume (view sem contagem
+// empata no topo), mais o ajuste do papel. Só entra quem tem ao menos uma palavra em comum com a
+// pergunta, e tabela vazia nunca entra.
 function rankTables(catalog, pergunta, opts){
   opts = opts || {};
   const max = opts.max || 5, maxCols = opts.maxCols || 25, qs = questionTokens(pergunta), scored = [];
+  const tipo = tipoPergunta(pergunta), citaItem = palavras(pergunta).some(x => ITEM_RAW.includes(x));
   for(const t of (catalog && catalog.tables) || []){
-    let tableHits = 0, colHits = 0; const hitCols = new Set();
+    const papel = t.perfil && t.perfil.papel;
+    if(papel === 'vazia') continue;
+    const desc = (t.perfil && t.perfil.descricaoTokens) || [];
+    let tableHits = 0, nomeEntidade = 0, colHits = 0, descHits = 0; const hitCols = new Set();
     for(const q of qs){
-      if(t.tokens.some(x => match(q, x))) tableHits++;
+      if(t.tokens.some(x => match(q, x))){ tableHits++; if(!MEDIDA_Q.has(q)) nomeEntidade++; }
       let hit = false;
       for(const c of t.columns) if(c.tokens.some(x => match(q, x))){ hitCols.add(c.name); hit = true; }
       if(hit) colHits++;
+      if(desc.some(x => match(q, x))) descHits++;
     }
-    if(!tableHits && !colHits) continue;
+    if(!tableHits && !colHits && !descHits) continue;
     const hasData = t.columns.some(c => c.kind === 'data'), hasNum = t.columns.some(c => c.kind === 'numero');
-    let score = 3 * tableHits + Math.min(5, colHits) + (hasData ? 1 : 0) + (hasNum ? 1 : 0) + Math.log10(t.rows + 1) / 100;
+    const volume = t.type === 'VIEW' && !t.rows ? 0.1 : Math.log10(t.rows + 1) / 100;
+    let score = 3 * tableHits + Math.min(5, colHits) + 1.5 * Math.min(3, descHits) + (hasData ? 1 : 0) + (hasNum ? 1 : 0) + volume;
     if(t.tokens.some(x => NOISE.has(x))) score /= 2;
+    score += ajustePapel(papel, tipo, nomeEntidade, citaItem);
     scored.push({ t, score, hitCols });
   }
   scored.sort((a, b) => b.score - a.score || a.t.name.localeCompare(b.t.name));
-  return scored.slice(0, max).map(({ t, score, hitCols }) => ({ name:t.name, type:t.type, rows:t.rows, score, columns:pickColumns(t.columns, hitCols, maxCols) }));
+  return scored.slice(0, max).map(({ t, score, hitCols }) => ({ name:t.name, type:t.type, rows:t.rows, score,
+    columns:pickColumns(t.columns, hitCols, maxCols), perfil:t.perfil || null }));
 }
 
 function humanize(name){
@@ -194,6 +241,6 @@ function suggest(catalog){
   return out;
 }
 
-const api = { tokens, questionTokens, kindOf, buildCatalog, rankTables, suggest, humanize, links, itemPairs, isKey, NOME_ITEM };
+const api = { tokens, questionTokens, kindOf, buildCatalog, rankTables, suggest, humanize, links, itemPairs, isKey, NOME_ITEM, tipoPergunta };
 if(typeof module !== 'undefined' && module.exports) module.exports = api; else root.CD2Catalog = api;
 })(typeof window !== 'undefined' ? window : globalThis);
