@@ -7,8 +7,10 @@ const { McpClient } = require('../../web/mcp.js');
 const Cat = require('../../web/catalog.js');
 const Ask = require('../../web/ask.js');
 const Tb = require('../../web/toolbox.js');
+const Perfil = require('../../web/perfil.js');
+const Desc = require('../../web/descricao.js');
 const { sameResult } = require('./compare.js');
-const perguntas = require('./perguntas.json');
+const perguntas = require(process.env.CD2_EVAL_PERGUNTAS || './perguntas.json');
 
 const MODEL_URL = process.env.CD2_EVAL_MODEL_URL || 'http://127.0.0.1:18080/v1/chat/completions';
 const TOOLBOX_URL = process.env.CD2_EVAL_TOOLBOX_URL || 'http://127.0.0.1:19080/mcp';
@@ -20,6 +22,20 @@ const status = Tb.parseStatus(await client.call('db_connection_status', {}));
 const cat = Ask.parseRows(await client.call('db_catalog', {}));
 if(!status || !cat.ok) throw new Error('Toolbox sem status ou sem db_catalog: ' + (cat.error || ''));
 const catalog = Cat.buildCatalog(cat.rows);
+// Perfil das tabelas como o front faz ao conectar: amostra, papel e, se ligada, a descrição pelo modelo.
+const comPrazo = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r(null), ms))]);
+const sample = async nome => {
+  const r = await comPrazo(client.call('db_sample_table', { table_name:nome }).then(Ask.parseRows, () => null), 15000);
+  return r && r.ok ? r.rows : null;
+};
+const amostras = await Perfil.amostrar(catalog, sample, {});
+console.log('Papéis: ' + JSON.stringify(Perfil.analisarCatalogo(catalog, amostras)));
+if(process.env.CD2_EVAL_DESCRICAO !== '0'){
+  const t0 = Date.now();
+  const d = await Desc.executarFila({ catalog, amostras,
+    callModel:Ask.modelCaller({ fetch:(...a) => fetch(...a), url:MODEL_URL, useSchema:true, schema:Desc.SCHEMA, schemaName:'tabela', maxTokens:200 }) });
+  console.log('Descrições: ' + d.feitos + ' tabelas em ' + ((Date.now() - t0) / 1000).toFixed(0) + 's' + (d.parou ? ' (parou: ' + d.parou + ')' : ''));
+}
 const callModel = Ask.modelCaller({ fetch:(...a) => fetch(...a), url:MODEL_URL, useSchema:process.env.CD2_EVAL_SCHEMA !== '0' });
 const runSql = Ask.toolRunner(client, { timeoutMs:15000 });
 

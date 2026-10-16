@@ -3,6 +3,7 @@
 #   sh tests/eval/rodar.sh                      modelo padrao em models/, so CPU
 #   CD2_EVAL_GPU=1 sh tests/eval/rodar.sh       usa a GPU (mais rapido, nao vale para o portao)
 #   CD2_EVAL_MODEL=/caminho/outro.gguf sh tests/eval/rodar.sh
+#   CD2_EVAL_BANCO=erp2 sh tests/eval/rodar.sh  segundo banco (ingles, sem prefixo); CD2_EVAL_DESCRICAO=0 pula a fila do modelo
 #   CD2_EVAL_PORT=18080 muda a porta do llamafile; o toolbox usa essa porta + 1000
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"; ROOT="$(cd "$HERE/../.." && pwd)"
@@ -17,12 +18,15 @@ export CD2_EVAL_MODEL_URL="http://127.0.0.1:$PORT/v1/chat/completions"
 export CD2_EVAL_TOOLBOX_URL="http://127.0.0.1:$TBPORT/mcp"
 LOG="${TMPDIR:-/tmp}/cd2-eval"; mkdir -p "$LOG"
 COMPOSE="docker compose -p cd2eval -f $HERE/docker-compose.yml"
+BANCO="${CD2_EVAL_BANCO:-erp}"
+[ -f "$HERE/$BANCO.env" ] || { echo "Banco de avaliacao desconhecido: $BANCO (use erp ou erp2)"; exit 1; }
+if [ "$BANCO" = erp ]; then export CD2_EVAL_PERGUNTAS="$HERE/perguntas.json"; else export CD2_EVAL_PERGUNTAS="$HERE/perguntas-$BANCO.json"; fi
 
 TB=''; LL=''
 trap 'kill $TB $LL 2>/dev/null; $COMPOSE down >/dev/null 2>&1' EXIT
 trap 'exit 130' INT TERM
 $COMPOSE up -d --wait || exit 1
-set -a; . "$HERE/erp.env"; set +a
+set -a; . "$HERE/$BANCO.env"; set +a
 "$ROOT/bin/toolbox/$PLAT/toolbox" --config "$ROOT/core/toolbox/postgres.yaml" --address 127.0.0.1 --port "$TBPORT" \
   --allowed-origins "http://127.0.0.1:$PORT" --disable-reload > "$LOG/toolbox.log" 2>&1 &
 TB=$!

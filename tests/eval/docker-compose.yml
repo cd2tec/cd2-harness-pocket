@@ -7,3 +7,9 @@ services:
     ports: ["55433:5432"]
     volumes: ["./seed/postgres-erp.sql:/docker-entrypoint-initdb.d/seed.sql:ro"]
     healthcheck: { test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "erp"], interval: 2s, retries: 30 }
+  erp2:
+    image: postgres:16
+    environment: { POSTGRES_USER: erp, POSTGRES_PASSWORD: erp, POSTGRES_DB: erp }
+    ports: ["55434:5432"]
+    volumes: ["./seed/postgres-erp2.sql:/docker-entrypoint-initdb.d/seed.sql:ro"]
+    healthcheck: { test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "erp"], interval: 2s, retries: 30 }
