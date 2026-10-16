@@ -34,7 +34,7 @@ if(process.env.CD2_EVAL_DESCRICAO !== '0'){
   const t0 = Date.now();
   const d = await Desc.executarFila({ catalog, amostras,
     callModel:Ask.modelCaller({ fetch:(...a) => fetch(...a), url:MODEL_URL, useSchema:true, schema:Desc.SCHEMA, schemaName:'tabela', maxTokens:200 }) });
-  console.log('Descrições: ' + d.feitos + ' tabelas em ' + ((Date.now() - t0) / 1000).toFixed(0) + 's' + (d.parou ? ' (parou: ' + d.parou + ')' : ''));
+  console.log('Descrições: ' + d.descritas + ' descritas de ' + d.feitos + ' processadas em ' + ((Date.now() - t0) / 1000).toFixed(0) + 's' + (d.parou ? ' (parou: ' + d.parou + ')' : ''));
 }
 const callModel = Ask.modelCaller({ fetch:(...a) => fetch(...a), url:MODEL_URL, useSchema:process.env.CD2_EVAL_SCHEMA !== '0' });
 const runSql = Ask.toolRunner(client, { timeoutMs:15000 });

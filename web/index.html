@@ -614,7 +614,7 @@ async function analisarBanco(client, gen){
     callModel:CD2Ask.modelCaller({ fetch:(...a) => fetch(...a), url:'/v1/chat/completions', useSchema:USE_SCHEMA, schema:CD2Descricao.SCHEMA, schemaName:'tabela', maxTokens:200 }),
     onProgresso:(n, t) => { if(vivo()) faixa('Entendendo as tabelas…', n, t, ' (dá para ir perguntando)'); } });
   if(!vivo()) return;
-  faixa(r.parou === 'modelo' ? 'Tabelas lidas: ' + total + ' (o modelo não respondeu para descrevê-las)' : 'Banco entendido: ' + total + ' tabelas', total, total, '', true);
+  faixa(r.parou === 'modelo' ? 'Tabelas lidas: ' + total + ' (o modelo não respondeu para descrevê-las)' : 'Banco entendido: ' + total + ' tabelas, ' + r.descritas + ' descritas pelo modelo', total, total, '', true);
 }
 async function loadCatalog(client, gen){
   let cat = null, sug = null;
