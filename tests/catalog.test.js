@@ -364,3 +364,22 @@ test('links: referência que casa com mais de uma tabela só liga à de nome igu
   assert.deepEqual(liga(C.buildCatalog(defs.concat([{ table_name:'orders', column_name:'id', data_type:'int' }]))), ['order_lines.order_id = orders.id']);
   assert.deepEqual(liga(C.buildCatalog(defs.filter(d => d.table_name !== 'purchase_orders'))), ['order_lines.order_id = sales_orders.id']);
 });
+
+// ERPs como o Consinco colam o prefixo no nome: DTAVENCIMENTO, SEQPESSOA, USUALTERACAO.
+test('tokens: prefixos colados dta, dth, seq e usu; palavras inteiras que começam igual não se partem', () => {
+  assert.deepEqual(C.tokens('DTAVENCIMENTO'), ['dta', 'vencimento']);
+  assert.deepEqual(C.tokens('Dth_inclusao'), ['dth', 'inclusao']);
+  assert.deepEqual(C.tokens('SEQPESSOA'), ['seq', 'pessoa']);
+  assert.deepEqual(C.tokens('USUALTERACAO'), ['usu', 'alteracao']);
+  assert.deepEqual(C.tokens('usuario'), ['usuario']);
+  assert.deepEqual(C.tokens('sequencia'), ['sequencia']);
+  assert.deepEqual(C.tokens('dt_mov'), ['dt', 'mov']);
+});
+
+test('links: SEQ colado é chave e liga tabelas; seq sozinho não liga', () => {
+  const cat = C.buildCatalog([
+    { table_name:'FI_TITULO', column_name:'SEQPESSOA', data_type:'NUMBER' }, { table_name:'FI_TITULO', column_name:'SEQ', data_type:'NUMBER' },
+    { table_name:'GE_PESSOA', column_name:'SEQPESSOA', data_type:'NUMBER' }, { table_name:'GE_PESSOA', column_name:'SEQ', data_type:'NUMBER' }
+  ]);
+  assert.deepEqual(C.links(cat.tables).map(x => x.a + '.' + x.col + ' = ' + x.b + '.' + x.colB), ['FI_TITULO.SEQPESSOA = GE_PESSOA.SEQPESSOA']);
+});

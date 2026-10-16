@@ -4,14 +4,15 @@
 (function(root){
 "use strict";
 const MAX_COLS_TABLE = 60;
-// Prefixos comuns de coluna em ERP. Separados só quando o resto tem 3 letras ou mais.
-const PREFIXES = ['vlr', 'qtd', 'dt', 'cod', 'cd', 'tot', 'nro', 'nr', 'ds', 'nm'];
+// Prefixos comuns de coluna em ERP, inclusive colados no nome (DTAVENCIMENTO, SEQPESSOA, USUALTERACAO).
+// Separados só quando o resto tem 3 letras ou mais; dta e dth antes de dt para não sobrar 'avencimento'.
+const PREFIXES = ['vlr', 'qtd', 'dta', 'dth', 'dt', 'cod', 'cd', 'tot', 'nro', 'nr', 'ds', 'nm', 'seq', 'usu'];
 // Palavras cruas e os stems delas: 'mais' vira 'mal' no stem, então a crua precisa estar aqui.
 const STOP_RAW = ['de','da','do','das','dos','por','e','o','a','os','as','em','no','na','nos','nas','qual','quais','quanto',
   'quantos','quanta','quantas','mostre','mostra','me','um','uma','com','para','pelo','pela','cada','todo','todos','the','of','by',
   'per','what','how','many','show','list','liste','foram','tem','temos','ha','sao','que','mais','menos','maior','menor','meu','minha'];
 const STOP = new Set(STOP_RAW.concat(STOP_RAW.map(stem)));
-const WHOLE = new Set(['codigo','total','totais','numero','nome','descricao']);
+const WHOLE = new Set(['codigo','total','totais','numero','nome','descricao','usuario','usuarios','sequencia']);
 const SYN = [
   ['venda','sale','pedido','order','cupom','vend','vendido','vendida','faturamento','fatura','receita','ticket'],
   ['produto','product','item','sku','mercadoria','prod','artigo'],
@@ -172,14 +173,14 @@ function humanize(name){
   return t.length ? t.join(' ') : raw.toLowerCase();
 }
 // Chave: palavra que começa com id, cod, cd, nr ou nro, ou que termina em id.
-function isKey(c){ return c.tokens.some(t => /^(id|cod|cd|nr|nro)/.test(t) || t.endsWith('id')); }
+function isKey(c){ return c.tokens.some(t => /^(id|cod|cd|nr|nro|seq)/.test(t) || t.endsWith('id')); }
 // Ligações entre as tabelas candidatas. Dois jeitos de ligar, os dois comuns em ERP:
 // 1. a mesma coluna-chave nas duas tabelas (cd_prod e cd_prod, nr_cupom e nr_cupom). Muito ERP
 //    antigo não declara chave estrangeira, então o nome é a pista. id ou codigo sozinho existe em
 //    quase toda tabela e ligaria coisas sem relação;
 // 2. <entidade>_id, id_<entidade> ou entidadeId apontando para a tabela da entidade, no singular ou
 //    no plural, que tem a coluna id (customer_id -> customers.id, id_cliente -> clientes.id).
-const GENERICA = new Set(['id', 'cod', 'codigo']);
+const GENERICA = new Set(['id', 'cod', 'codigo', 'seq']);
 const NOME_ITEM = new Set(['item', 'line', 'linha', 'detalhe']);
 const colTokens = c => c.tokens || tokens(c.name);
 const isLinkKey = c => { const n = String(c.name).toLowerCase(); return !GENERICA.has(n) && isKey({ tokens:colTokens(c) }); };

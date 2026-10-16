@@ -207,3 +207,35 @@ test('amostrar: amostra rápida limpa o timer do prazo e não deixa nada pendura
   assert.equal(criados, 3); assert.equal(vivos.size, 0);
   assert.ok(Date.now() - t0 < 1000);
 });
+
+// Estilo 4: prefixos colados no nome (Consinco e parecidos).
+test('perfil: ERP com prefixos colados no nome', () => {
+  const c = cat([
+    ['FI_TITULO','TABLE',1661,[['SEQTITULO','NUMBER'],['NROEMPRESA','NUMBER'],['SEQPESSOA','NUMBER'],['DTAEMISSAO','DATE'],['DTAVENCIMENTO','DATE'],['VLRORIGINAL','NUMBER']]],
+    ['GE_PESSOA','TABLE',400,[['SEQPESSOA','NUMBER'],['NOMERAZAO','VARCHAR2'],['FANTASIA','VARCHAR2'],['DTAALTERACAO','DATE'],['USUALTERACAO','VARCHAR2']]],
+    ['MAP_PRODUTO','TABLE',900,[['SEQPRODUTO','NUMBER'],['DESCCOMPLETA','VARCHAR2'],['SEQFAMILIA','NUMBER']]],
+    ['MFL_DOCTOFISCAL','TABLE',5000,[['SEQNF','NUMBER'],['NROEMPRESA','NUMBER'],['DTAEMISSAO','DATE'],['VLRTOTAL','NUMBER']]],
+    ['MFL_DFITEM','TABLE',15000,[['SEQNF','NUMBER'],['SEQPRODUTO','NUMBER'],['QUANTIDADE','NUMBER'],['VLRITEM','NUMBER']]]
+  ]);
+  P.analisarCatalogo(c, new Map([
+    ['FI_TITULO', gera(10, i => ({ SEQTITULO:100 + i, NROEMPRESA:1, SEQPESSOA:i % 4, DTAEMISSAO:'2026-01-0' + (i % 9 + 1), DTAVENCIMENTO:'2026-02-0' + (i % 9 + 1), VLRORIGINAL:50 + i }))],
+    ['GE_PESSOA', gera(4, i => ({ SEQPESSOA:i + 1, NOMERAZAO:'Pessoa ' + i, FANTASIA:'P' + i, DTAALTERACAO:'2025-0' + (i + 1) + '-01', USUALTERACAO:'adm' }))],
+    ['MAP_PRODUTO', gera(10, i => ({ SEQPRODUTO:i + 1, DESCCOMPLETA:'Produto ' + i, SEQFAMILIA:1 + i % 3 }))],
+    ['MFL_DOCTOFISCAL', gera(10, i => ({ SEQNF:500 + i, NROEMPRESA:1, DTAEMISSAO:'2026-03-0' + (i % 9 + 1), VLRTOTAL:80 + i }))],
+    ['MFL_DFITEM', gera(10, i => ({ SEQNF:500 + (i >> 1), SEQPRODUTO:1 + i, QUANTIDADE:1 + i % 3, VLRITEM:7 + i }))]
+  ]));
+  assert.deepEqual(papeis(c), { FI_TITULO:'movimento', GE_PESSOA:'cadastro', MAP_PRODUTO:'cadastro', MFL_DOCTOFISCAL:'movimento', MFL_DFITEM:'itens' });
+  assert.deepEqual(perfil(c, 'FI_TITULO').colunas, { data:'DTAEMISSAO', valor:'VLRORIGINAL' });
+});
+
+test('perfil: cadastro com data que varia, mas sem valor nem quantidade, continua cadastro; data de geração é auditoria', () => {
+  const c = cat([
+    ['GE_PESSOA','TABLE',400,[['SEQPESSOA','NUMBER'],['NOMERAZAO','VARCHAR2'],['DTAATIVACAO','DATE'],['UF','CHAR']]],
+    ['MRL_CLIENTECARTAO','TABLE',12,[['NROCARTAO','NUMBER'],['STATUSCARTAO','CHAR'],['DTAGERACAO','DATE'],['USUGERACAO','VARCHAR2']]]
+  ]);
+  P.analisarCatalogo(c, new Map([
+    ['GE_PESSOA', gera(4, i => ({ SEQPESSOA:i + 1, NOMERAZAO:'Pessoa ' + i, DTAATIVACAO:'2024-0' + (i + 1) + '-10', UF:'SP' }))],
+    ['MRL_CLIENTECARTAO', gera(6, i => ({ NROCARTAO:9000 + i, STATUSCARTAO:'A', DTAGERACAO:'2025-0' + (i + 1) + '-01', USUGERACAO:'adm' }))]
+  ]));
+  assert.deepEqual(papeis(c), { GE_PESSOA:'cadastro', MRL_CLIENTECARTAO:'cadastro' });
+});

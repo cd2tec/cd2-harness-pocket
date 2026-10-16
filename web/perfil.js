@@ -10,7 +10,7 @@ const Cat = isNode ? require('./catalog.js') : root.CD2Catalog;
 const LINHAS = 10, MAX_VIEWS = 30;
 const PAPEIS = ['movimento', 'itens', 'cadastro', 'parametro', 'vazia', 'indefinida'];
 // Palavras no formato de Cat.tokens: sem acento, minúsculas, sem plural.
-const AUDITORIA = new Set(['cadastro', 'cad', 'inclusao', 'criacao', 'created', 'alteracao', 'alt', 'atualizacao', 'updated', 'modified', 'inserted', 'ultima', 'ult']);
+const AUDITORIA = new Set(['cadastro', 'cad', 'inclusao', 'criacao', 'created', 'alteracao', 'alt', 'atualizacao', 'updated', 'modified', 'inserted', 'ultima', 'ult', 'geracao', 'gerado']);
 // Datas de atributo da entidade (nascimento, validade...): nunca são a data de um movimento.
 const ATRIBUTO = new Set(['nascimento', 'nasc', 'validade', 'admissao', 'demissao', 'expiracao', 'expiration', 'expiry', 'birth', 'birthday', 'vigencia', 'fundacao']);
 const VALOR = new Set(['vlr', 'valor', 'vl', 'tot', 'total', 'amount', 'amt', 'preco', 'price', 'prc', 'custo', 'cost', 'receita', 'revenue']);
@@ -24,6 +24,8 @@ const CONTEUDO = new Set(['valor', 'value', 'conteudo', 'content']);
 const NOME_PARAMETRO = new Set(['param', 'parametro', 'config', 'cfg', 'setting', 'configuracao']);
 
 const tem = (c, set) => c.tokens.some(t => set.has(t));
+// Nome e descrição colados no começo de uma palavra composta (NOMERAZAO, DESCCOMPLETA); desconto não é descrição.
+const temDescricao = c => tem(c, DESCRICAO) || c.tokens.some(t => /^(nome|desc|razao)/.test(t) && !/^descont/.test(t));
 const preenchidos = v => v.filter(x => x != null && x !== '');
 function lower(r){ const o = {}; for(const k in r) o[k.toLowerCase()] = r[k]; return o; }
 
@@ -43,7 +45,7 @@ function sinaisColuna(c, vals){
     chave,
     idRegistro: chave && !!vals && vals.length >= 2 && distintos === vals.length,
     usuario: tem(c, USUARIO),
-    descricao: c.kind === 'texto' && tem(c, DESCRICAO),
+    descricao: c.kind === 'texto' && temDescricao(c),
     chaveNome: tem(c, CHAVE),
     conteudo: c.kind === 'texto' && tem(c, CONTEUDO)
   };
@@ -68,7 +70,9 @@ function analisarTabela(t, linhas){
   let papel = 'indefinida';
   if(!dataMov && t.columns.length <= 8 && ((algum('chaveNome') && algum('conteudo')) || nome.some(x => NOME_PARAMETRO.has(x)))) papel = 'parametro';
   else if(dataMov && (algum('valorTotal') || algum('quantidade'))) papel = 'movimento';
-  else if(!dataMov && !(algum('quantidade') && !algum('descricao')) && (algum('descricao') || (algum('usuario') && algum('dataAud')) || algum('unitario'))) papel = 'cadastro';
+  // Aqui a tabela já não é movimento: data que varia sem valor nem quantidade (ativação, última compra) não
+  // impede o cadastro.
+  else if(!(algum('quantidade') && !algum('descricao')) && (algum('descricao') || (algum('usuario') && algum('dataAud')) || algum('unitario'))) papel = 'cadastro';
   return { papel, colunas, amostra, chave };
 }
 
