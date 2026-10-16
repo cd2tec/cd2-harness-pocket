@@ -5,11 +5,11 @@
   </picture>
 </p>
 
-# CD2 Harness
+# CD2 IA de Bolso
 
 **A IA da CD2 rodando 100% no seu computador, direto do pen drive.**
 
-Plugou, clicou, conversou. O harness abre uma janela com a identidade da CD2 e conversa com um modelo de IA rodando no próprio computador, sem instalar nada e sem mandar dados para a nuvem. Quando houver rede, conecta a um MCP do Archeo para consultar dados reais.
+Plugou, clicou, conversou. A IA de Bolso abre uma janela com a identidade da CD2 e conversa com um modelo de IA rodando no próprio computador, sem instalar nada e sem mandar dados para a nuvem. Quando houver rede, conecta a um MCP do Archeo para consultar dados reais.
 
 [Site do projeto](https://cd2tec.github.io/cd2-ia-de-bolso/) · [Passo a passo do pen drive](docs/criar-pendrive.md) · [Baixar cd2tech-iadebolso.zip](https://github.com/cd2tec/cd2-ia-de-bolso/releases/download/iadebolso/cd2tech-iadebolso.zip) · [Dar uma estrela](https://github.com/cd2tec/cd2-ia-de-bolso)
 
@@ -71,7 +71,7 @@ Só no repositório (não vão para o pen drive):
 | Navegador | Edge ou Chrome, para abrir como janela de aplicativo | |
 | Internet | Só no modo Archeo MCP | |
 
-De onde vêm os números: o modelo ocupa uns 2,4 GB de memória e o contexto padrão (8.192 tokens) mais uns 1,2 GB; somando motor, toolbox e a janela do navegador, o harness usa de 4 a 5 GB. Em 8 GB funciona, mas apertado se houver outras coisas abertas. Em notebook só com CPU, espere uns 9 segundos por pergunta. É estimativa a partir do tamanho do modelo e da avaliação em `tests/eval/`; ainda não foi medido numa máquina de 8 GB nem num processador sem AVX2.
+De onde vêm os números: o modelo ocupa uns 2,4 GB de memória e o contexto padrão (8.192 tokens) mais uns 1,2 GB; somando motor, toolbox e a janela do navegador, a IA de Bolso usa de 4 a 5 GB. Em 8 GB funciona, mas apertado se houver outras coisas abertas. Em notebook só com CPU, espere uns 9 segundos por pergunta. É estimativa a partir do tamanho do modelo e da avaliação em `tests/eval/`; ainda não foi medido numa máquina de 8 GB nem num processador sem AVX2.
 
 ## 1. Criar o pen drive (uma vez, com internet)
 
@@ -112,18 +112,18 @@ O pen drive leva o [MCP Toolbox for Databases](https://github.com/googleapis/mcp
 | MariaDB / MySQL | 3306 | nome da base | `GRANT SELECT ON base.* TO ...` |
 | SQL Server | 1433 | `dbo` | membro só de `db_datareader` |
 
-A IA ganha sete ferramentas somente leitura: `db_connection_status`, `db_catalog` (o mapa do banco para os relatórios), `db_list_tables`, `db_describe_table`, `db_search_columns`, `db_sample_table` (até 20 linhas) e `db_read_only_query` (SELECT avulso, até 200 linhas). O botão **Configurações** mostra a conexão ativa e exporta em PDF o que o harness entende do banco.
+A IA ganha sete ferramentas somente leitura: `db_connection_status`, `db_catalog` (o mapa do banco para os relatórios), `db_list_tables`, `db_describe_table`, `db_search_columns`, `db_sample_table` (até 20 linhas) e `db_read_only_query` (SELECT avulso, até 200 linhas). O botão **Configurações** mostra a conexão ativa e exporta em PDF o que a IA de Bolso entende do banco.
 
 - **A conexão fica no computador, não no pen drive.** Arquivo `db.env` em `~/Library/Caches/cd2-harness` (Mac), `${XDG_CACHE_HOME:-~/.cache}/cd2-harness` (Linux) ou `%LOCALAPPDATA%\cd2-harness` (Windows), legível só pelo usuário. O formato é o mesmo da v0.5.0: quem já tinha uma conexão continua conectado.
 - **A senha passa pelo navegador só para ser gravada**, sempre em `127.0.0.1`, protegida pela chave da sessão. Ela nunca volta para a tela (o campo mostra "Senha salva") e nunca vai para log: o `cd2-ctl` tira do `toolbox.log` toda linha que cita a senha ou a palavra password.
 - **Chave da sessão.** A cada abertura o launcher sorteia 32 bytes, entrega ao `cd2-ctl` pelo ambiente e à janela pelo endereço (`#k=`). A página guarda a chave só naquela aba e limpa o endereço. Sem a chave certa, o `cd2-ctl` responde 401; ele também recusa outra origem, outro `Host` e corpo acima de 8 KB. Risco aceito: a chave aparece na linha de comando do navegador, visível para outros usuários do mesmo computador. O pen drive é pensado para notebook de uma pessoa, e a chave muda a cada abertura.
-- **Use uma conta de leitura.** O toolbox não valida SQL. O harness recusa qualquer coisa que não seja um único SELECT (no front e no próprio toolbox, com lista de palavras e funções proibidas por motor), e no PostgreSQL a sessão do toolbox já abre com `default_transaction_read_only=on`. Mesmo assim, a garantia de verdade é a permissão da conta.
-- **Portas.** O launcher usa um trio que avança junto: P para o harness, P+1000 para o toolbox e P+3000 para o `cd2-ctl` (8080, 9080 e 11080 por padrão). Todos escutam só em `127.0.0.1`.
+- **Use uma conta de leitura.** O toolbox não valida SQL. A IA de Bolso recusa qualquer coisa que não seja um único SELECT (no front e no próprio toolbox, com lista de palavras e funções proibidas por motor), e no PostgreSQL a sessão do toolbox já abre com `default_transaction_read_only=on`. Mesmo assim, a garantia de verdade é a permissão da conta.
+- **Portas.** O launcher usa um trio que avança junto: P para a IA de Bolso, P+1000 para o toolbox e P+3000 para o `cd2-ctl` (8080, 9080 e 11080 por padrão). Todos escutam só em `127.0.0.1`.
 - Se o banco não responder em 15 segundos (senha errada, firewall), a tela mostra Atenção com o motivo e as últimas linhas do log, já filtradas.
 - É preciso a variante certa em `bin/toolbox/` e `bin/ctl/` (`windows-amd64`, `darwin-arm64`, `darwin-amd64`, `linux-amd64`). O preparo baixa as quatro; `CD2_TOOLBOX_PLATFORMS` limita as duas pastas. Sem o `cd2-ctl` da plataforma, o launcher avisa e segue sem banco (Demonstração e Archeo continuam).
-- **Tempo máximo de 15 segundos por consulta.** PostgreSQL corta no servidor (`statement_timeout`), MariaDB/MySQL pelo `queryTimeout` da receita. No SQL Server e no Oracle, o harness para de esperar aos 15 s, mas a consulta pode continuar no servidor: crie a conta de leitura com limite de recurso (Resource Governor no SQL Server, perfil com `CPU_PER_CALL` no Oracle).
+- **Tempo máximo de 15 segundos por consulta.** PostgreSQL corta no servidor (`statement_timeout`), MariaDB/MySQL pelo `queryTimeout` da receita. No SQL Server e no Oracle, a IA de Bolso para de esperar aos 15 s, mas a consulta pode continuar no servidor: crie a conta de leitura com limite de recurso (Resource Governor no SQL Server, perfil com `CPU_PER_CALL` no Oracle).
 
-Ao conectar, o harness lê até 10 linhas de cada tabela (no máximo 2 consultas ao mesmo tempo, views por último e uma de cada vez) para entender o papel de cada uma: movimento, itens de movimento, cadastro, parâmetro ou vazia. Isso leva segundos e já melhora a escolha da tabela. Depois, em segundo plano, o modelo escreve uma frase sobre cada tabela, e uma faixa com o robô mostra o progresso; dá para ir perguntando enquanto isso. Nada disso é gravado: amostras, papéis e descrições ficam só na memória da janela e são refeitos a cada conexão. Em Configurações, o link **Exportar o que o harness entende do banco (PDF)** gera um relatório com o papel, as colunas úteis e a descrição de cada tabela, pela janela de impressão do navegador.
+Ao conectar, a IA de Bolso lê até 10 linhas de cada tabela (no máximo 2 consultas ao mesmo tempo, views por último e uma de cada vez) para entender o papel de cada uma: movimento, itens de movimento, cadastro, parâmetro ou vazia. Isso leva segundos e já melhora a escolha da tabela. Depois, em segundo plano, o modelo escreve uma frase sobre cada tabela, e uma faixa com o robô mostra o progresso; dá para ir perguntando enquanto isso. Nada disso é gravado: amostras, papéis e descrições ficam só na memória da janela e são refeitos a cada conexão. Em Configurações, o link **Exportar o que a IA de Bolso entende do banco (PDF)** gera um relatório com o papel, as colunas úteis e a descrição de cada tabela, pela janela de impressão do navegador.
 
 ## 3b. Conectar ao Archeo MCP
 
@@ -139,12 +139,12 @@ Sem internet ou sem MCP, o modo **Demonstração** funciona offline com dados fi
 
 ## 3c. Relatórios e gráficos
 
-No modo Banco de dados, cada pergunta vira uma consulta, um gráfico e um relatório. Ao conectar, o harness lê o mapa do banco uma vez e sugere quatro perguntas tiradas do próprio esquema do cliente.
+No modo Banco de dados, cada pergunta vira uma consulta, um gráfico e um relatório. Ao conectar, a IA de Bolso lê o mapa do banco uma vez e sugere quatro perguntas tiradas do próprio esquema do cliente.
 
 - **Pergunte do jeito que falaria:** "faturamento por mês", "top 10 produtos por valor", "quantos clientes por estado".
 - **O que aparece:** título, uma frase de resumo e o visual (número, barra, linha, pizza ou tabela), com a consulta usada num bloco recolhível.
-- **Os números vêm do banco, não do modelo.** O modelo escolhe a consulta e o tipo de gráfico, mas nunca vê o resultado. A frase de resumo é montada pelo harness a partir do dado.
-- **Quando não dá:** o harness diz que não achou tabelas, que não conseguiu montar a consulta, que a consulta demorou demais ou que veio vazia.
+- **Os números vêm do banco, não do modelo.** O modelo escolhe a consulta e o tipo de gráfico, mas nunca vê o resultado. A frase de resumo é montada pela IA de Bolso a partir do dado.
+- **Quando não dá:** a IA de Bolso diz que não achou tabelas, que não conseguiu montar a consulta, que a consulta demorou demais ou que veio vazia.
 - **Confira a consulta usada.** Os números vêm do banco, mas a consulta pode estar errada. Um JOIN errado mostra um número real, só que de outra pergunta.
 - **Levar embora:** **CSV** baixa os dados (abre no Excel com acentos e decimais certos). **Imprimir/PDF** gera o relatório com logo e contato da CD2 no rodapé.
 - **Contato no relatório:** preencha `report.contact` em `web/config.json` (site, e-mail, telefone).
@@ -167,7 +167,7 @@ Interface, site e README seguem o **Design System CD2 Tech** (Manual de Marca CD
 | Elemento | Como aparece aqui |
 |---|---|
 | Cores | `blue-retail` #0000ff em botões e destaques; `white-human` #f2f2f2 de fundo; texto em `ink` #0d1233. `yellow-like` #dbff2a só como energia pontual (modo Demonstração, terceiro passo do site). |
-| Tema | Claro (White_HUMAN) na interface do harness, como pede o sistema para sistemas e dashboards; azul (Blue_RETAIL) no hero e no rodapé do site. |
+| Tema | Claro (White_HUMAN) na interface da IA de Bolso, como pede o sistema para sistemas e dashboards; azul (Blue_RETAIL) no hero e no rodapé do site. |
 | Tipografia | Manrope (400 a 800), embutida em `web/fonts/` e `docs/assets/fonts/` em WOFF2 com subconjunto latino. Funciona offline. Licença SIL OFL 1.1, gravada nos próprios arquivos. |
 | Logo | `cd2-logo-horizontal` colorida sobre a barra superior branca (fixa no topo, no padrão dos sites da CD2 em cd2tec.github.io); símbolo como avatar da IA e favicon, o mesmo do site do Archeo. Arquivos em `docs/assets/logos/`. |
 | Componentes | Botões em pílula (primário, secundário), StatusTag para o estado do modelo e das ferramentas (Concluído = pronto, Em melhoria = Demonstração, Atenção = offline ou erro), SectionHeader com eyebrow e régua de 240px, blocos de conexão no site. |
@@ -231,7 +231,7 @@ Só quem altera a pasta `ctl/` precisa de Go (1.23 ou mais novo; no Mac, `brew i
 
 ## 9. Licenças e origem dos componentes
 
-Este código é Apache 2.0 (ver `LICENSE`). O harness baixa, mas não redistribui no repositório:
+Este código é Apache 2.0 (ver `LICENSE`). A IA de Bolso baixa, mas não redistribui no repositório:
 
 - **Manrope** (The Manrope Project Authors, SIL Open Font License 1.1), embutida em subconjunto em `web/fonts/` e `docs/assets/fonts/`
 - **llamafile** (Mozilla.ai, Apache 2.0), de https://github.com/mozilla-ai/llamafile

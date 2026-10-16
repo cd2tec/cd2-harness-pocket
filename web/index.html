@@ -309,7 +309,7 @@ input:disabled,select:disabled{background:var(--surface-100);color:var(--ink-mut
     <dl class="kv" id="tbStatus"></dl>
     <div class="hint" id="tbHint"></div>
     <details class="tool" id="tbLog" style="display:none"><summary>Log do toolbox</summary><div class="inner"></div></details>
-    <div class="hint"><a href="#" class="lnk" id="bPerfilPdf" style="display:none">Exportar o que o harness entende do banco (PDF)</a></div>
+    <div class="hint"><a href="#" class="lnk" id="bPerfilPdf" style="display:none">Exportar o que a IA de Bolso entende do banco (PDF)</a></div>
     <div class="hint"><a href="#" class="lnk" id="bDbOff" style="display:none">Desconectar do banco</a></div>
   </div>
   <div id="archeoBox">
@@ -354,15 +354,15 @@ input:disabled,select:disabled{background:var(--surface-100);color:var(--ink-mut
 </dialog>
 
 <div id="printArea" aria-hidden="true"></div>
-<script src="mcp.js?v=0.10.3"></script>
-<script src="oauth.js?v=0.10.3"></script>
-<script src="toolbox.js?v=0.10.3"></script>
-<script src="chart.js?v=0.10.3"></script>
-<script src="catalog.js?v=0.10.3"></script>
-<script src="perfil.js?v=0.10.3"></script>
-<script src="descricao.js?v=0.10.3"></script>
-<script src="ask.js?v=0.10.3"></script>
-<script src="report.js?v=0.10.3"></script>
+<script src="mcp.js?v=0.10.4"></script>
+<script src="oauth.js?v=0.10.4"></script>
+<script src="toolbox.js?v=0.10.4"></script>
+<script src="chart.js?v=0.10.4"></script>
+<script src="catalog.js?v=0.10.4"></script>
+<script src="perfil.js?v=0.10.4"></script>
+<script src="descricao.js?v=0.10.4"></script>
+<script src="ask.js?v=0.10.4"></script>
+<script src="report.js?v=0.10.4"></script>
 <script>
 "use strict";
 const $ = s => document.querySelector(s);
@@ -864,9 +864,9 @@ function renderToolbox(){
       const dt = document.createElement('dt'); dt.textContent = k; const dd = document.createElement('dd'); dd.textContent = v; dl.appendChild(dt); dl.appendChild(dd);
     }
   };
-  if(!st.ctlKey) warn('Para configurar o banco, abra o harness pelo atalho INICIAR.');
-  else if(st.ctlStale) warn('Esta janela é de uma abertura anterior do harness. Feche e abra pelo atalho INICIAR.');
-  else if(!st.ctlUp) warn('O controle do banco não está rodando. Feche e abra o harness pelo atalho INICIAR.');
+  if(!st.ctlKey) warn('Para configurar o banco, abra a IA de Bolso pelo atalho INICIAR.');
+  else if(st.ctlStale) warn('Esta janela é de uma abertura anterior da IA de Bolso. Feche e abra pelo atalho INICIAR.');
+  else if(!st.ctlUp) warn('O controle do banco não está rodando. Feche e abra a IA de Bolso pelo atalho INICIAR.');
   else if(st.ctlBusy || cs.estado === 'subindo') hint.textContent = 'Conectando ao banco...';
   else{
     if(cs.estado === 'rodando') lines(st.dbStatus ? CD2Toolbox.statusLines(st.dbStatus) : CD2Toolbox.ctlStatusLines(cs));
@@ -920,7 +920,7 @@ async function saveDb(){
   try{ r = await ctlRequest('POST', '/config', CD2Toolbox.configPayload(readDbForm())); }
   catch(e){ st.ctlUp = false; }
   finally{ st.ctlBusy = false; $('#cfgSave').disabled = false; }
-  if(!r){ renderToolbox(); showCfgError('O controle do banco não respondeu. Feche e abra o harness pelo atalho INICIAR.'); return; }
+  if(!r){ renderToolbox(); showCfgError('O controle do banco não respondeu. Feche e abra a IA de Bolso pelo atalho INICIAR.'); return; }
   if(r.status !== 200){ renderToolbox(); showCfgError(r.data.erro || ('O controle do banco respondeu HTTP ' + r.status + '.')); return; }
   st.ctlStatus = r.data;
   if(!r.data.erro) fillDbForm(r.data);  // na falha, o que a pessoa digitou fica no formulário

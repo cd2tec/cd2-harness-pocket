@@ -1,4 +1,4 @@
-# Como criar o pen drive do CD2 Harness
+# Como criar o pen drive da CD2 IA de Bolso
 
 A ideia é simples: plugar um pen drive, dar um duplo clique e, alguns minutos depois, ter um pen drive que abre a IA da CD2 em qualquer computador, sem instalar nada e sem internet.
 
@@ -6,7 +6,7 @@ O caminho até aqui foi feito na mão uma vez, no Mac, e deu certo. Esta página
 
 ## O que você precisa
 
-- Um pen drive de **16 GB ou mais, USB 3.x**. O modelo tem 2,5 GB e é lido do pen drive toda vez que o harness abre, então USB 2 deixa a partida bem mais lenta.
+- Um pen drive de **16 GB ou mais, USB 3.x**. O modelo tem 2,5 GB e é lido do pen drive toda vez que a IA de Bolso abre, então USB 2 deixa a partida bem mais lenta.
 - Internet na primeira gravação, por uns **3,9 GB de download**. Os pen drives seguintes não baixam nada: o motor, o modelo e o toolbox ficam guardados no seu computador.
 - Esta pasta, clonada do repositório ou baixada como ZIP.
 
@@ -24,7 +24,7 @@ O script mostra os pen drives encontrados, pede para você escolher um e só seg
 
 Daí ele faz, nesta ordem:
 
-1. **Monta uma cópia local** do harness e baixa o llamafile e o modelo para uma pasta de cache do seu computador. Se a conexão cair, rode de novo: o download retoma de onde parou, e o que já estiver completo é pulado.
+1. **Monta uma cópia local** da IA de Bolso e baixa o llamafile e o modelo para uma pasta de cache do seu computador. Se a conexão cair, rode de novo: o download retoma de onde parou, e o que já estiver completo é pulado.
 2. **Formata** o pen drive em exFAT com tabela MBR e nome `CD2`. É o formato que Windows, Mac e Linux leem e que aceita arquivo acima de 4 GB (FAT32 não aceita).
 3. **Copia** a pasta `CD2-HARNESS` inteira para o pen drive, com `bin/` e `models/` já preenchidos.
 4. **Confere** os checksums lendo direto do pen drive, guarda uma cópia do `CHECKSUMS.sha256` fora dele e ejeta.
