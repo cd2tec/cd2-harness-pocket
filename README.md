@@ -179,7 +179,7 @@ Regras de texto que valem para qualquer mudança: português do Brasil, frases c
 
 - **Experimental, não comercial.** É um conjunto para experimentar e mostrar o que uma IA local e específica consegue fazer. Não é indicado para uso comercial nem para decisões importantes sem conferência humana. A interface mostra esse aviso toda vez que abre.
 - **Velocidade.** O modelo de IA padrão responde sem fase de raciocínio. No modo Banco de dados cada pergunta custa uma chamada ao modelo (duas no pior caso). Em notebook só com CPU, espere cerca de 9 segundos por pergunta, medido na avaliação em `tests/eval/`.
-- **Procedência do modelo.** O arquivo do modelo de IA vem de fonte conhecida, com licença aberta, e é conferido por SHA-256 no preparo. Origem e licença estão na seção 9.
+- **Procedência do modelo.** O arquivo do modelo de IA vem de fonte conhecida, com licença aberta, e é conferido por SHA-256 no preparo. Origem e licença estão na seção 7.
 - **Nome do modelo.** Para quem usa, é só "o modelo de IA": a tela e o terminal não mostram qual é.
 - **Antivírus e SmartScreen.** O llamafile é um executável "poliglota" (APE) e alguns antivírus corporativos o bloqueiam. Teste nos notebooks em que vai rodar e leve o seu como reserva.
 - **Mac.** Em Apple Silicon o llamafile precisa das Xcode Command Line Tools na primeira execução. Se o macOS reclamar de "desenvolvedor não verificado", libere em Ajustes do Sistema > Privacidade e Segurança.
@@ -188,49 +188,7 @@ Regras de texto que valem para qualquer mudança: português do Brasil, frases c
 - **Oracle.** Driver Go puro: sem wallet, Kerberos ou TNS. **SQL Server** em Docker para teste é amd64; no Apple Silicon ligue Rosetta.
 - **Modelo pequeno erra.** O aviso na tela é proposital. Em números do Archeo, o dado vem da ferramenta; o texto em volta é do modelo.
 
-## 7. Checklist antes de distribuir
-
-- [ ] Preparo rodado e `CHECKSUMS.sha256` guardado
-- [ ] Testado em Windows (Intel/AMD), Mac (Apple Silicon) e, se aplicável, Linux, em máquina "limpa"
-- [ ] Testado com antivírus ligado
-- [ ] Login no Archeo testado com a conta que vai ser usada
-- [ ] Conta de leitura do banco criada e testada pela tela Configurações num notebook que não é o seu
-- [ ] `node --test` verde na raiz do repo
-- [ ] `report.contact` preenchido em `web/config.json`
-- [ ] `sh tests/eval/rodar.sh` com PORTÃO PASSOU no modelo que vai para o pen drive
-- [ ] Relatório impresso testado (Imprimir/PDF) num notebook que não é o seu
-- [ ] Preparo rodado no Windows (o script do Windows não foi testado nesta versão)
-- [ ] Pen drive com cópia reserva (e um segundo pen drive igual)
-- [ ] Se for apresentar ao vivo, um notebook seu com tudo já funcionando como reserva
-
-## 8. Atualizar e distribuir
-
-O repositório guarda só o código (launchers, interface, scripts). O **llamafile** e o **modelo** não ficam no Git: são baixados pelo preparo e listados no `.gitignore`.
-
-Fluxo de uma atualização:
-
-1. Ajuste o código e/ou `web/config.json` e suba a mudança aqui (suba o número em `VERSION`).
-2. Num pen drive já preparado, copie por cima só o que mudou. Normalmente basta a pasta `web/` e a pasta `core/`; `bin/` (incluindo `bin/toolbox/` e `bin/ctl/`) e `models/` ficam. Se o `cd2-ctl` mudou de versão, rode o preparo de novo: ele baixa só o que mudou.
-3. Para um pen drive novo: rode o gravador (`GRAVAR-PENDRIVE-*`), que formata, baixa do cache e confere. Ver [docs/criar-pendrive.md](docs/criar-pendrive.md).
-4. Duplicar em série: com um pen drive aprovado, copie todo o conteúdo da raiz dele (incluindo `bin/` e `models/`) para a raiz dos demais, já formatados em exFAT, sem rodar o preparo de novo, e compare o `CHECKSUMS.sha256`.
-5. Pen drives gravados antes da v0.10.4 guardam tudo dentro da pasta `CD2-HARNESS`. Eles continuam funcionando: abra a pasta e dê dois cliques no `INICIAR`. Para atualizar um deles, copie `web/` e `core/` para dentro dessa pasta, ou regrave o pen drive para ficar no formato novo, com tudo na raiz.
-
-O site do projeto é o `docs/index.html`, publicado pelo GitHub Pages a partir da pasta `/docs` do branch `main` (Settings > Pages > Deploy from a branch). O `docs/.nojekyll` faz o Pages servir os arquivos como estão.
-
-Fim de linha: `.bat` e `.ps1` usam CRLF e `.sh`/`.command` usam LF (definido em `.gitattributes`). Se editar no Windows, não troque isso, ou o launcher do Mac/Linux quebra.
-
-### Para quem mexe no `cd2-ctl`
-
-Só quem altera a pasta `ctl/` precisa de Go (1.23 ou mais novo; no Mac, `brew install go`). O resto do projeto continua sem build.
-
-- Testes: `cd ctl && go test ./...` e, com o Postgres do Docker no ar (`docker compose -f tests/toolbox/docker-compose.yml up -d postgres`), `sh tests/ctl/e2e.sh`. A CI (`.github/workflows/ci.yml`) roda `go test` e `node --test` em todo pull request e push na `main`.
-- Teste local sem release: `sh ctl/build.sh` compila para `bin/ctl/<plataforma>/`, e `CD2_CTL_LOCAL=1 sh core/prepare-unix.sh` usa esse binário em vez de baixar.
-- Publicar uma versão: suba `CTL_VERSION` em `core/prepare-unix.sh` e `core/prepare-windows.ps1`, faça o merge e crie a tag, por exemplo `git tag ctl-v0.6.1 && git push origin ctl-v0.6.1`. O workflow `.github/workflows/ctl-release.yml` compila as quatro plataformas e anexa `cd2-ctl-<os>-<arch>` e `SHA256SUMS` ao release; o preparo confere o checksum antes de usar. `CD2_CTL_VERSION` escolhe outra versão no preparo, nunca "latest".
-- Primeiro release: depois do merge desta versão, quem mantém o repositório precisa empurrar a tag `ctl-v0.6.0` (`git tag ctl-v0.6.0 && git push origin ctl-v0.6.0`) para o release existir. Até lá, o preparo só funciona com `CD2_CTL_LOCAL=1` (depois de `sh ctl/build.sh`).
-- No preparo, um `cd2-ctl` que já confere com o `SHA256SUMS` é pulado; um de outra versão é apagado e baixado inteiro.
-- Órfãos: os launchers passam o próprio PID em `--parent-pid` (`$$` no Mac/Linux, `$PID` no Windows). O `cd2-ctl` confere a cada 2 s se o launcher ainda existe e, se ele sumiu sem limpar (console do Windows fechado no X, `kill -9`), derruba o toolbox e sai sozinho.
-
-## 9. Licenças e origem dos componentes
+## 7. Licenças e origem dos componentes
 
 Este código é Apache 2.0 (ver `LICENSE`). A IA de Bolso baixa, mas não redistribui no repositório:
 

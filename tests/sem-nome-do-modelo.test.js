@@ -22,7 +22,7 @@ test('launchers não mostram o arquivo do modelo nem o log do servidor no termin
 
 test('site e README só citam o modelo na seção de licenças', () => {
   assert.doesNotMatch(ler('docs/index.html'), /qwen/i);
-  const r = ler('README.md'), i = r.indexOf('## 9. Licenças'), f = r.indexOf('\n## ', i + 1);
+  const r = ler('README.md'), i = r.search(/## \d+\. Licenças/), f = r.indexOf('\n## ', i + 1);
   assert.ok(i > 0);
   assert.doesNotMatch(r.slice(0, i) + r.slice(f), /qwen/i);
   assert.match(r.slice(i, f), /Qwen3-4B-Instruct-2507/);
