@@ -14,7 +14,7 @@ die()  { printf '\n[ERRO] %s\n' "$*" >&2; printf 'Pressione ENTER para sair.'; r
 banner() {
   printf '\n'
   printf '  \033[38;5;179m+-----------------------------+\033[0m\n'
-  printf '  \033[38;5;179m|\033[0m   \033[1mCD2 Tech\033[0m  Harness           \033[38;5;179m|\033[0m\n'
+  printf '  \033[38;5;179m|\033[0m   \033[1mCD2 Tech\033[0m  IA de Bolso     \033[38;5;179m|\033[0m\n'
   printf '  \033[38;5;179m+-----------------------------+\033[0m\n'
   printf '  IA local, sem nuvem.\n\n'
 }
@@ -150,7 +150,7 @@ open_app() {
 open_app
 
 say ""
-say "O harness esta rodando. Para encerrar: feche esta janela ou pressione Ctrl+C."
+say "A IA de Bolso esta rodando. Para encerrar: feche esta janela ou pressione Ctrl+C."
 # mantem o script vivo enquanto o servidor viver
 while kill -0 "$PID" 2>/dev/null; do sleep 2; done
 say "O servidor foi encerrado."

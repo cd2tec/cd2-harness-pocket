@@ -88,7 +88,7 @@ function Start-Ctl {
 Clear-Host
 Write-Host ""
 Write-Host "  +-----------------------------+" -ForegroundColor DarkYellow
-Write-Host "  |   CD2 Tech  Harness         |" -ForegroundColor Yellow
+Write-Host "  |   CD2 Tech  IA de Bolso     |" -ForegroundColor Yellow
 Write-Host "  +-----------------------------+" -ForegroundColor DarkYellow
 Write-Host "  IA local, sem nuvem." -ForegroundColor Gray
 Write-Host ""
@@ -146,7 +146,7 @@ try {
     else { Start-Process $AppUrl }
 
     Write-Host ""
-    Write-Host "O harness esta rodando. Para encerrar, pressione ENTER nesta janela." -ForegroundColor Gray
+    Write-Host "A IA de Bolso esta rodando. Para encerrar, pressione ENTER nesta janela." -ForegroundColor Gray
     while (-not $script:Proc.HasExited) {
         if ([Console]::KeyAvailable) { $k = [Console]::ReadKey($true); if ($k.Key -eq 'Enter') { break } }
         Start-Sleep -Milliseconds 400

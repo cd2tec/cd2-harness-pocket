@@ -33,7 +33,7 @@ if command -v shasum >/dev/null 2>&1; then SUM="shasum -a 256"; else SUM="sha256
 
 printf '\n'
 printf '  \033[38;5;179m+-----------------------------+\033[0m\n'
-printf '  \033[38;5;179m|\033[0m   \033[1mCD2 Tech\033[0m  Harness           \033[38;5;179m|\033[0m\n'
+printf '  \033[38;5;179m|\033[0m   \033[1mCD2 Tech\033[0m  IA de Bolso     \033[38;5;179m|\033[0m\n'
 printf '  \033[38;5;179m+-----------------------------+\033[0m\n'
 printf '  Gravar pen drive\n\n'
 
@@ -75,7 +75,7 @@ fi
 [ -n "$DISK" ] || { say "Cancelado. Nada foi apagado."; exit 0; }
 printf '%s\n' "$CANDS" | cut -f1 | grep -qx "$DISK" || die "'$DISK' nao esta na lista de pen drives acima. Nada foi apagado."
 BYTES="$(disk_bytes "$DISK" | tr -d ' ')"
-[ -n "$BYTES" ] && [ "$BYTES" -lt "$MIN_BYTES" ] && die "Esse pen drive tem menos de 4 GB; o harness precisa de uns 3 GB livres."
+[ -n "$BYTES" ] && [ "$BYTES" -lt "$MIN_BYTES" ] && die "Esse pen drive tem menos de 4 GB; a IA de Bolso precisa de uns 3 GB livres."
 
 if [ "${CD2_USB_YES:-}" != "1" ]; then
   say ""

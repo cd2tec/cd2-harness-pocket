@@ -23,7 +23,7 @@ function Die($msg) { Write-Host "`n[ERRO] $msg" -ForegroundColor Red; Pause-Exit
 
 Write-Host ''
 Write-Host '  +-----------------------------+'
-Write-Host '  |   CD2 Tech  Harness           |'
+Write-Host '  |   CD2 Tech  IA de Bolso     |'
 Write-Host '  +-----------------------------+'
 Write-Host '  Gravar pen drive'
 Write-Host ''
@@ -47,7 +47,7 @@ else {
 if (-not $sel) { Write-Host 'Cancelado. Nada foi apagado.'; Pause-Exit 0 }
 $disk = $disks | Where-Object { "$($_.Number)" -eq "$sel" } | Select-Object -First 1
 if (-not $disk) { Die "'$sel' nao esta na lista de pen drives acima. Nada foi apagado." }
-if ($disk.Size -lt $MinBytes) { Die 'Esse pen drive tem menos de 4 GB; o harness precisa de uns 3 GB livres.' }
+if ($disk.Size -lt $MinBytes) { Die 'Esse pen drive tem menos de 4 GB; a IA de Bolso precisa de uns 3 GB livres.' }
 
 if ($env:CD2_USB_YES -ne '1') {
     Write-Host ''
