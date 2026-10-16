@@ -23,9 +23,9 @@ const cat = Ask.parseRows(await client.call('db_catalog', {}));
 if(!status || !cat.ok) throw new Error('Toolbox sem status ou sem db_catalog: ' + (cat.error || ''));
 const catalog = Cat.buildCatalog(cat.rows);
 // Perfil das tabelas como o front faz ao conectar: amostra, papel e, se ligada, a descrição pelo modelo.
-const comPrazo = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r(null), ms))]);
+// O prazo de cada amostra fica dentro de Perfil.amostrar.
 const sample = async nome => {
-  const r = await comPrazo(client.call('db_sample_table', { table_name:nome }).then(Ask.parseRows, () => null), 15000);
+  const r = await client.call('db_sample_table', { table_name:nome }).then(Ask.parseRows, () => null);
   return r && r.ok ? r.rows : null;
 };
 const amostras = await Perfil.amostrar(catalog, sample, {});

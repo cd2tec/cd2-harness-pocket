@@ -602,9 +602,9 @@ async function analisarBanco(client, gen){
   if(!cat || !vivo()) return;
   const total = cat.tables.length;
   faixa('Lendo as tabelas…', 0, total);
-  const comPrazo = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r(null), ms))]);
+  // O prazo de cada amostra fica dentro de CD2Perfil.amostrar.
   const sample = async nome => {
-    const r = await comPrazo(client.call('db_sample_table', { table_name:nome }).then(CD2Ask.parseRows, () => null), 15000);
+    const r = await client.call('db_sample_table', { table_name:nome }).then(CD2Ask.parseRows, () => null);
     return r && r.ok ? r.rows : null;
   };
   const amostras = await CD2Perfil.amostrar(cat, sample, { vivo, onProgresso:(n, t) => { if(vivo()) faixa('Lendo as tabelas…', n, t); } });

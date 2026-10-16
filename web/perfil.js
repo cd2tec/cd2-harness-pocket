@@ -97,31 +97,42 @@ function analisarCatalogo(catalog, amostras){
 }
 
 // Lê a amostra de cada tabela sem pesar no banco: no máximo `paralelo` tabelas ao mesmo tempo;
-// views por último e uma de cada vez (view pode esconder consulta pesada, e no SQL Server e no
-// Oracle o banco segue executando depois que o front desiste); só as `maxViews` primeiras views.
+// views por último e uma de cada vez; só as `maxViews` primeiras views. Cada amostra corre contra
+// o `prazo`: no SQL Server, no Oracle e no MariaDB o banco segue executando depois que o front
+// desiste, então a primeira view lenta encerra as views e 3 tabelas lentas encerram as tabelas.
+const PRAZO = 15000, MAX_ESTOUROS = 3, ESTOUROU = {};
 async function amostrar(catalog, sample, o){
   o = o || {};
   const tabs = (catalog && catalog.tables) || [], out = new Map(), vivo = o.vivo || (() => true);
-  const maxViews = o.maxViews == null ? MAX_VIEWS : o.maxViews;
+  const maxViews = o.maxViews == null ? MAX_VIEWS : o.maxViews, prazo = o.prazo == null ? PRAZO : o.prazo;
   const tabelas = tabs.filter(t => t.type !== 'VIEW'), views = tabs.filter(t => t.type === 'VIEW');
-  const total = tabs.length; let feitos = 0;
+  const total = tabs.length; let feitos = 0, estourosTabela = 0, viewLenta = false;
   const conta = () => { feitos++; if(o.onProgresso) o.onProgresso(feitos, total); };
-  const um = async t => {
-    let r = null;
-    try{ r = await sample(t.name); }catch(e){ r = null; }
+  const comPrazo = nome => new Promise(res => {
+    const timer = setTimeout(() => res(ESTOUROU), prazo);
+    const fim = r => { clearTimeout(timer); res(r); };
+    Promise.resolve().then(() => sample(nome)).then(fim, () => fim(null));
+  });
+  const um = async (t, view) => {
+    const r = await comPrazo(t.name);
+    if(r === ESTOUROU){ if(view) viewLenta = true; else estourosTabela++; }
     if(!vivo()) return;
     out.set(t.name, Array.isArray(r) ? r.slice(0, LINHAS) : null); conta();
   };
+  // Pulada conta no progresso, para a faixa fechar no total.
+  const pula = t => { out.set(t.name, null); conta(); };
   let i = 0;
-  const trabalhador = async () => { while(i < tabelas.length && vivo()) await um(tabelas[i++]); };
+  const trabalhador = async () => {
+    while(i < tabelas.length && vivo()){ const t = tabelas[i++]; if(estourosTabela >= MAX_ESTOUROS) pula(t); else await um(t, false); }
+  };
   await Promise.all(Array.from({ length:Math.max(1, Math.min(o.paralelo || 2, tabelas.length)) }, trabalhador));
   for(const [k, v] of views.entries()){
     if(!vivo()) break;
-    if(k < maxViews) await um(v); else { out.set(v.name, null); conta(); }
+    if(k < maxViews && !viewLenta) await um(v, true); else pula(v);
   }
   return out;
 }
 
-const api = { PAPEIS, LINHAS, MAX_VIEWS, analisarTabela, analisarCatalogo, resumo, amostrar };
+const api = { PAPEIS, LINHAS, MAX_VIEWS, PRAZO, analisarTabela, analisarCatalogo, resumo, amostrar };
 if(isNode) module.exports = api; else root.CD2Perfil = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -173,3 +173,37 @@ test('amostrar: falha vira null, resposta que não é lista vira null, corta em 
   const m2 = await P.amostrar(c, async n => { chamadas.push(n); vivo = false; return [{ x:1 }]; }, { vivo:() => vivo, paralelo:1 });
   assert.deepEqual(chamadas, ['a']); assert.equal(m2.size, 0);
 });
+
+// Proteção do banco: o prazo fica dentro de amostrar e uma view lenta para as views seguintes.
+test('amostrar: view que estoura o prazo para as views seguintes, que ficam null sem chamar o banco', async () => {
+  const c = cat([['t0','TABLE',1,[['a','int']]], ...gera(4, i => ['v' + i, 'VIEW', 0, [['a','int']]])]);
+  const chamadas = [], prog = [];
+  const m = await P.amostrar(c, nome => { chamadas.push(nome); return nome === 'v0' ? new Promise(() => {}) : Promise.resolve([{ a:1 }]); },
+    { prazo:20, onProgresso:(n, t) => prog.push(n + '/' + t) });
+  assert.deepEqual(chamadas, ['t0', 'v0']);
+  for(const v of ['v0', 'v1', 'v2', 'v3']) assert.equal(m.get(v), null, v);
+  assert.deepEqual(m.get('t0'), [{ a:1 }]);
+  assert.equal(prog[prog.length - 1], '5/5');
+});
+
+test('amostrar: depois de 3 tabelas estourando o prazo, as não iniciadas ficam null sem chamar o banco', async () => {
+  const c = cat(gera(6, i => ['t' + i, 'TABLE', 1, [['a','int']]]));
+  const chamadas = [], prog = [];
+  const m = await P.amostrar(c, nome => { chamadas.push(nome); return new Promise(() => {}); },
+    { prazo:20, paralelo:1, onProgresso:(n, t) => prog.push(n + '/' + t) });
+  assert.deepEqual(chamadas, ['t0', 't1', 't2']);
+  assert.equal(m.size, 6); assert.ok([...m.values()].every(v => v === null));
+  assert.equal(prog[prog.length - 1], '6/6');
+});
+
+test('amostrar: amostra rápida limpa o timer do prazo e não deixa nada pendurado', async () => {
+  const c = cat([['a','TABLE',1,[['x','int']]], ['b','TABLE',1,[['x','int']]], ['v','VIEW',0,[['x','int']]]]);
+  const st = globalThis.setTimeout, ct = globalThis.clearTimeout, vivos = new Set(); let criados = 0;
+  globalThis.setTimeout = (f, ms, ...a) => { const h = st(() => { vivos.delete(h); f(...a); }, ms); if(ms === 60000){ criados++; vivos.add(h); } return h; };
+  globalThis.clearTimeout = h => { vivos.delete(h); ct(h); };
+  const t0 = Date.now();
+  try{ await P.amostrar(c, async () => [{ x:1 }], { prazo:60000 }); }
+  finally{ globalThis.setTimeout = st; globalThis.clearTimeout = ct; }
+  assert.equal(criados, 3); assert.equal(vivos.size, 0);
+  assert.ok(Date.now() - t0 < 1000);
+});
