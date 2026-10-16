@@ -54,6 +54,26 @@ body{background:var(--surface-100);color:var(--ink);font:400 15px/24px var(--fon
 .tags .tag{max-width:220px}
 .tag span{overflow:hidden;text-overflow:ellipsis;min-width:0}
 
+/* ---------- faixa da análise das tabelas ---------- */
+/* Robô em pixel art no estilo do robô do terminal (core/robo.txt), andando em dois quadros. Com
+   "reduzir movimento", fica parado e só o texto e a barra de progresso mudam. */
+.analise{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-2) var(--space-6);background:var(--surface-raised);border-bottom:1px solid rgba(13,18,51,.12);font:500 13px/20px var(--font-sans);color:var(--ink-muted)}
+.analise[hidden]{display:none}
+.analise .robo{width:30px;height:25px;flex:none}
+.analise .barra{flex:0 0 120px;height:6px;border-radius:var(--radius-pill);background:var(--surface-100);overflow:hidden}
+.analise .barra i{display:block;height:100%;width:0;background:var(--brand);transition:width .15s}
+.analise.fim .barra i{background:var(--status-concluido)}
+@keyframes roboA{0%,49%{visibility:visible}50%,100%{visibility:hidden}}
+@keyframes roboB{0%,49%{visibility:hidden}50%,100%{visibility:visible}}
+@keyframes roboBloco{0%,49%{transform:translateY(0)}50%,100%{transform:translateY(-1px)}}
+.analise .q1{animation:roboA .6s steps(1) infinite}
+.analise .q2{animation:roboB .6s steps(1) infinite}
+.analise .bloco{animation:roboBloco .6s steps(1) infinite}
+.analise.fim .q1,.analise.fim .q2,.analise.fim .bloco{animation:none}
+.analise.fim .q2{visibility:hidden}
+@media (prefers-reduced-motion:reduce){.analise .q1,.analise .q2,.analise .bloco{animation:none}.analise .q2{visibility:hidden}}
+@media (max-width:640px){.analise{padding:var(--space-2) var(--space-4)}.analise .barra{flex-basis:64px}}
+
 /* ---------- tags (StatusTag) ---------- */
 .tag{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 var(--space-3);border-radius:var(--radius-sm);font:700 13px/16px var(--font-sans);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .tag i{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.8;flex:none}
@@ -221,6 +241,11 @@ input:disabled,select:disabled{background:var(--surface-100);color:var(--ink-mut
     <button class="sm" id="bCfg" title="Configurar ferramentas (MCP)">Ferramentas</button>
   </div>
 </header>
+<div class="analise" id="analise" role="status" aria-live="polite" hidden>
+  <svg class="robo" id="analiseRobo" viewBox="0 0 12 10" shape-rendering="crispEdges" aria-hidden="true"></svg>
+  <span id="analiseTxt"></span>
+  <span class="barra" aria-hidden="true"><i id="analiseBar"></i></span>
+</div>
 
 <main id="main"><div class="wrap" id="chat"></div></main>
 
@@ -313,6 +338,8 @@ input:disabled,select:disabled{background:var(--surface-100);color:var(--ink-mut
 <script src="toolbox.js"></script>
 <script src="chart.js"></script>
 <script src="catalog.js"></script>
+<script src="perfil.js"></script>
+<script src="descricao.js"></script>
 <script src="ask.js"></script>
 <script src="report.js"></script>
 <script>
@@ -394,6 +421,7 @@ async function connectTools(){
   const url = store.get('cd2.url') || (st.cfg.mcp && st.cfg.mcp.url) || '';
   const tok = store.get('cd2.tok', true) || '';
   st.catalog = null; st.suggestions = null; st.catalogPromise = null; st.catalogGen++;
+  esconderFaixa();
   setPill('#pMcp', '', 'ferramentas…');
   try{
     if(mode === 'toolbox'){
@@ -540,6 +568,54 @@ async function runTurn(){
 }
 /* ---------- roteiro de relatórios (modo Banco de dados) ---------- */
 // O mapa do banco é lido uma vez por conexão. Sem ele, a pergunta segue pelo laço de agente.
+/* ---------- análise das tabelas (perfil e descrição em segundo plano) ---------- */
+// Quadros do robô de core/robo.txt (roboA e roboB) e o bloco amarelo que ele carrega.
+const ROBO = {
+  q1:['..ggg..', '.ggggg.', '.gcgcg.', '.ggggg.', '..bbb..', '.bbbbb.', 'b.bbb.b', '..bbb..', '.g...g.', '.g...g.'],
+  q2:['..ggg..', '.ggggg.', '.gcgcg.', '.ggggg.', '..bbb..', '.bbbbb.', 'b.bbb.b', '..bbb..', '..g.g..', '..g.g..'],
+  bloco:['yyy', 'yyy']
+};
+const ROBO_COR = { g:'#a1a6ae', b:'#0000ff', c:'#dbff2a', y:'#dbff2a' };
+function pixelArt(linhas, dx, dy){
+  let s = '';
+  linhas.forEach((l, y) => [...l].forEach((ch, x) => { if(ROBO_COR[ch]) s += '<rect x="' + (x + dx) + '" y="' + (y + dy) + '" width="1" height="1" fill="' + ROBO_COR[ch] + '"/>'; }));
+  return s;
+}
+function montarRobo(){
+  $('#analiseRobo').innerHTML = '<g class="q1">' + pixelArt(ROBO.q1, 0, 0) + '</g><g class="q2">' + pixelArt(ROBO.q2, 0, 0) + '</g>'
+    + '<g class="bloco">' + pixelArt(ROBO.bloco, 8, 5) + '</g>';
+}
+function faixa(texto, n, total, sufixo, fim){
+  const f = $('#analise');
+  $('#analiseTxt').textContent = texto + (fim ? '' : ' ' + n + ' de ' + total) + (sufixo || '');
+  $('#analiseBar').style.width = (total ? Math.round(n / total * 100) : 0) + '%';
+  f.classList.toggle('fim', !!fim); f.hidden = false;
+  clearTimeout(st.faixaTimer);
+  if(fim) st.faixaTimer = setTimeout(() => { f.hidden = true; }, 4000);
+}
+function esconderFaixa(){ clearTimeout(st.faixaTimer); $('#analise').hidden = true; }
+// Ao conectar: amostra de cada tabela e papel (segundos), depois a descrição pelo modelo, uma
+// tabela por vez, pausando enquanto uma pergunta roda (st.busy). Tudo na memória da página; trocou
+// de banco (catalogGen mudou), o resultado antigo é descartado.
+async function analisarBanco(client, gen){
+  const cat = st.catalog, vivo = () => gen === st.catalogGen;
+  if(!cat || !vivo()) return;
+  const total = cat.tables.length;
+  faixa('Lendo as tabelas…', 0, total);
+  const comPrazo = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r(null), ms))]);
+  const sample = async nome => {
+    const r = await comPrazo(client.call('db_sample_table', { table_name:nome }).then(CD2Ask.parseRows, () => null), 15000);
+    return r && r.ok ? r.rows : null;
+  };
+  const amostras = await CD2Perfil.amostrar(cat, sample, { vivo, onProgresso:(n, t) => { if(vivo()) faixa('Lendo as tabelas…', n, t); } });
+  if(!vivo()) return;
+  CD2Perfil.analisarCatalogo(cat, amostras);
+  const r = await CD2Descricao.executarFila({ catalog:cat, amostras, vivo, ocupado:() => st.busy,
+    callModel:CD2Ask.modelCaller({ fetch:(...a) => fetch(...a), url:'/v1/chat/completions', useSchema:USE_SCHEMA, schema:CD2Descricao.SCHEMA, schemaName:'tabela', maxTokens:200 }),
+    onProgresso:(n, t) => { if(vivo()) faixa('Entendendo as tabelas…', n, t, ' (dá para ir perguntando)'); } });
+  if(!vivo()) return;
+  faixa(r.parou === 'modelo' ? 'Tabelas lidas: ' + total + ' (o modelo não respondeu para descrevê-las)' : 'Banco entendido: ' + total + ' tabelas', total, total, '', true);
+}
 async function loadCatalog(client, gen){
   let cat = null, sug = null;
   try{
@@ -549,6 +625,7 @@ async function loadCatalog(client, gen){
   if(gen !== st.catalogGen) return;
   st.catalog = cat; st.suggestions = sug;
   if($('#hero')) renderHero();
+  if(cat) analisarBanco(client, gen);
 }
 async function runAsk(pergunta){
   st.busy = true; st.ctl = new AbortController(); toggleBusy();
@@ -845,6 +922,7 @@ function openWelcome(){ const w = $('#welcome'); w.showModal(); w.scrollTop = 0;
 async function boot(){
   openWelcome();
   loadCtlKey();
+  montarRobo();
   try{ st.cfg = await (await fetch('config.json', { cache:'no-store' })).json(); }catch(e){ st.cfg = {}; }
   st.cfg.mcp = st.cfg.mcp || { mode:'demo', name:'MCP', url:'' };
   st.cfg.systemPrompt = st.cfg.systemPrompt || 'Você é um assistente útil. Responda em português do Brasil.';
