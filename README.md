@@ -85,7 +85,7 @@ Plugue um pen drive de 16 GB (USB 3) e rode o gravador do seu sistema:
 
 Ele lista os pen drives, pede confirmação (digite `APAGAR`), formata em exFAT, baixa o llamafile e o modelo para um cache no seu computador, copia tudo, confere os checksums e ejeta. O segundo pen drive não baixa nada de novo. O passo a passo, o jeito manual e a lista de problemas conhecidos estão em [docs/criar-pendrive.md](docs/criar-pendrive.md).
 
-Se preferir fazer na mão: formate em exFAT, copie esta pasta para o pen drive e rode o preparo (`core\prepare-windows.bat` no Windows, `sh core/prepare-unix.sh` no Mac/Linux). O preparo retoma downloads interrompidos e pula o que já estiver completo. Ele grava `CHECKSUMS.sha256`; guarde uma cópia fora do pen drive.
+Se preferir fazer na mão: formate em exFAT, copie o conteúdo desta pasta para a raiz do pen drive (sem `.git`, `docs/`, `ctl/`, `tests/` e os `GRAVAR-*`) e rode o preparo (`core\prepare-windows.bat` no Windows, `sh core/prepare-unix.sh` no Mac/Linux). O preparo retoma downloads interrompidos e pula o que já estiver completo. Ele grava `CHECKSUMS.sha256`; guarde uma cópia fora do pen drive.
 
 Depois de gravado, o pen drive **não precisa de internet**. Só o modo Archeo MCP precisa.
 
@@ -212,7 +212,8 @@ Fluxo de uma atualização:
 1. Ajuste o código e/ou `web/config.json` e suba a mudança aqui (suba o número em `VERSION`).
 2. Num pen drive já preparado, copie por cima só o que mudou. Normalmente basta a pasta `web/` e a pasta `core/`; `bin/` (incluindo `bin/toolbox/` e `bin/ctl/`) e `models/` ficam. Se o `cd2-ctl` mudou de versão, rode o preparo de novo: ele baixa só o que mudou.
 3. Para um pen drive novo: rode o gravador (`GRAVAR-PENDRIVE-*`), que formata, baixa do cache e confere. Ver [docs/criar-pendrive.md](docs/criar-pendrive.md).
-4. Duplicar em série: com um pen drive aprovado, copie a pasta inteira (incluindo `bin/` e `models/`) para os demais, sem rodar o preparo de novo, e compare o `CHECKSUMS.sha256`.
+4. Duplicar em série: com um pen drive aprovado, copie todo o conteúdo da raiz dele (incluindo `bin/` e `models/`) para a raiz dos demais, já formatados em exFAT, sem rodar o preparo de novo, e compare o `CHECKSUMS.sha256`.
+5. Pen drives gravados antes da v0.10.4 guardam tudo dentro da pasta `CD2-HARNESS`. Eles continuam funcionando: abra a pasta e dê dois cliques no `INICIAR`. Para atualizar um deles, copie `web/` e `core/` para dentro dessa pasta, ou regrave o pen drive para ficar no formato novo, com tudo na raiz.
 
 O site do projeto é o `docs/index.html`, publicado pelo GitHub Pages a partir da pasta `/docs` do branch `main` (Settings > Pages > Deploy from a branch). O `docs/.nojekyll` faz o Pages servir os arquivos como estão.
 

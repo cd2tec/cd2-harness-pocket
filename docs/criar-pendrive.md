@@ -29,6 +29,8 @@ Daí ele faz, nesta ordem:
 3. **Copia** tudo direto para a raiz do pen drive, com `bin/` e `models/` já preenchidos. Como o pen drive acabou de ser formatado, não precisa de subpasta: quem abre o pen drive já vê o `INICIAR`.
 4. **Confere** os checksums lendo direto do pen drive, guarda uma cópia do `CHECKSUMS.sha256` fora dele e ejeta.
 
+Pen drives gravados antes da v0.10.4 têm tudo dentro da pasta `CD2-HARNESS`. Eles continuam funcionando: é só abrir essa pasta e dar dois cliques no `INICIAR`. Para deixá-los no formato novo, com tudo na raiz, grave de novo.
+
 No fim, a mensagem "Pronto. Pode tirar o pen drive." Para gravar o próximo, plugue e rode de novo. Leva só o tempo da cópia.
 
 Onde fica o cache:
