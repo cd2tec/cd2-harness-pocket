@@ -172,7 +172,7 @@ Se o launcher morre sem rodar o `cleanup` (console do Windows fechado no X, `kil
   `cd2-ctl-<os>-<arch>[.exe]` mais `SHA256SUMS`.
 - Preparo (`core/prepare-unix.sh` e `core/prepare-windows.ps1`): `CTL_VERSION` fixa (sobrescrevível
   por `CD2_CTL_VERSION`, nunca "latest"), baixa de
-  `https://github.com/cd2tec/cd2-harness-pocket/releases/download/ctl-v<versão>/cd2-ctl-<os>-<arch>[.exe]`
+  `https://github.com/cd2tec/cd2-ia-de-bolso/releases/download/ctl-v<versão>/cd2-ctl-<os>-<arch>[.exe]`
   para `bin/ctl/<os>-<arch>/cd2-ctl[.exe]`, confere com o `SHA256SUMS` do release e inclui no
   `CHECKSUMS.sha256`. Se o arquivo local já tem o SHA-256 esperado, pula; senão apaga e baixa
   inteiro (sem retomar: emendar em cima do binário de outra versão quebraria o checksum). Mesmas plataformas do toolbox (`CD2_TOOLBOX_PLATFORMS` vale para os dois).

@@ -11,7 +11,7 @@
 
 Plugou, clicou, conversou. O harness abre uma janela com a identidade da CD2 e conversa com um modelo de IA rodando no próprio computador, sem instalar nada e sem mandar dados para a nuvem. Quando houver rede, conecta a um MCP do Archeo para consultar dados reais.
 
-[Site do projeto](https://cd2tec.github.io/cd2-harness-pocket/) · [Passo a passo do pen drive](docs/criar-pendrive.md) · [Baixar cd2tech-iadebolso.zip](https://github.com/cd2tec/cd2-harness-pocket/releases/download/iadebolso/cd2tech-iadebolso.zip) · [Dar uma estrela](https://github.com/cd2tec/cd2-harness-pocket)
+[Site do projeto](https://cd2tec.github.io/cd2-ia-de-bolso/) · [Passo a passo do pen drive](docs/criar-pendrive.md) · [Baixar cd2tech-iadebolso.zip](https://github.com/cd2tec/cd2-ia-de-bolso/releases/download/iadebolso/cd2tech-iadebolso.zip) · [Dar uma estrela](https://github.com/cd2tec/cd2-ia-de-bolso)
 
 > **Experimental.** É um modelo pequeno, roda no seu computador e erra. Não é indicado para uso comercial. Montamos este conjunto para mostrar na prática como uma IA específica, pequena e perto do seu dado, já consegue ser útil. Pode baixar, gravar, testar e passar adiante. Se acender uma ideia aí, a [CD2](https://cd2.com.br) pode ajudar no seu projeto de IA.
 >
@@ -21,9 +21,9 @@ Plugou, clicou, conversou. O harness abre uma janela com a identidade da CD2 e c
 
 Feito para Windows, sem precisar entender de tecnologia. Você só precisa de um pen drive de 16 GB ou mais (tudo nele será apagado) e de internet na primeira vez.
 
-### [Baixar cd2tech-iadebolso.zip](https://github.com/cd2tec/cd2-harness-pocket/releases/download/iadebolso/cd2tech-iadebolso.zip)
+### [Baixar cd2tech-iadebolso.zip](https://github.com/cd2tec/cd2-ia-de-bolso/releases/download/iadebolso/cd2tech-iadebolso.zip)
 
-1. **Baixe** o arquivo [cd2tech-iadebolso.zip](https://github.com/cd2tec/cd2-harness-pocket/releases/download/iadebolso/cd2tech-iadebolso.zip).
+1. **Baixe** o arquivo [cd2tech-iadebolso.zip](https://github.com/cd2tec/cd2-ia-de-bolso/releases/download/iadebolso/cd2tech-iadebolso.zip).
 2. **Descompacte:** clique com o botão direito no arquivo baixado e escolha **Extrair tudo**. Vai aparecer a pasta `cd2tech-iadebolso`.
 3. **Espete o pen drive** no computador.
 4. **Grave:** abra a pasta extraída e dê dois cliques em **`GRAVAR-PENDRIVE-Windows.bat`**. Aceite o pedido de permissão do Windows, escolha o pen drive na lista e digite `APAGAR` para confirmar.
@@ -243,6 +243,6 @@ Este código é Apache 2.0 (ver `LICENSE`). O harness baixa, mas não redistribu
 
 O código é aberto, sob Apache 2.0: launchers, interface, o `cd2-ctl` com a guarda de leitura do banco e os scripts do pen drive. Fuça à vontade.
 
-- **Gostou?** [Deixe uma estrela no repositório](https://github.com/cd2tec/cd2-harness-pocket). É o jeito mais simples de dizer que vale continuar.
+- **Gostou?** [Deixe uma estrela no repositório](https://github.com/cd2tec/cd2-ia-de-bolso). É o jeito mais simples de dizer que vale continuar.
 - **Siga a CD2 no GitHub:** [github.com/cd2tec](https://github.com/cd2tec), onde moram este e os outros projetos abertos da CD2.
-- **Achou um bug ou teve uma ideia?** [Abra uma issue](https://github.com/cd2tec/cd2-harness-pocket/issues) ou mande um pull request.
+- **Achou um bug ou teve uma ideia?** [Abra uma issue](https://github.com/cd2tec/cd2-ia-de-bolso/issues) ou mande um pull request.

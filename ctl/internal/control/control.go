@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/dbconf"
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/toolbox"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/dbconf"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/toolbox"
 )
 
 // Estados de /status.

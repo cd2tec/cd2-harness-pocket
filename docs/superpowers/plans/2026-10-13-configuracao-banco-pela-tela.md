@@ -42,7 +42,7 @@
 
 ## Global Constraints
 
-- Go `1.23` ou mais novo, **só biblioteca padrão** (`go.mod` sem `require`). Módulo `github.com/cd2tec/cd2-harness-pocket/ctl`, binário `cd2-ctl` (`cd2-ctl.exe` no Windows).
+- Go `1.23` ou mais novo, **só biblioteca padrão** (`go.mod` sem `require`). Módulo `github.com/cd2tec/cd2-ia-de-bolso/ctl`, binário `cd2-ctl` (`cd2-ctl.exe` no Windows).
 - Plataformas: `windows-amd64`, `darwin-arm64`, `darwin-amd64`, `linux-amd64`. `CD2_TOOLBOX_PLATFORMS` limita toolbox e `cd2-ctl` juntos.
 - Linha de comando: `cd2-ctl --root <raiz do pen drive> --cache <pasta de cache> --harness-port P`. Chave só em `CD2_CTL_KEY`: 64 caracteres hexadecimais. Sem ela, não sobe.
 - Portas: trio P (harness), P+1000 (toolbox), P+2000 (`cd2-ctl`); padrão 8080, 9080, 10080; tudo em `127.0.0.1`. O launcher avança o trio junto.
@@ -54,7 +54,7 @@
 - API: `GET /status`, `POST /config`, `DELETE /config`, `OPTIONS` (preflight). Toda rota exige `Authorization: Bearer <chave>` (comparação em tempo constante; 401). `Origin` só `http://127.0.0.1:P` ou `http://localhost:P` (403); ausente só em `GET`. `Host` só `127.0.0.1:P+2000` ou `localhost:P+2000` (403). `POST` exige `Content-Type: application/json` (415). CORS: `Allow-Origin` só a origem do harness, `Allow-Headers: Authorization, Content-Type`, `Allow-Methods: GET, POST, DELETE`.
 - `/status`: `{estado, motor, host, porta, base, usuario, schema, senha_salva, erro, log}`; `estado` em `sem_banco`, `subindo`, `rodando`, `falhou`. Senha nunca aparece em resposta nenhuma.
 - Validação: motor em `postgres|oracle|mariadb|sqlserver`; host não vazio, até 253, sem espaço; porta 1 a 65535 ou vazia (5432, 1521, 3306, 1433); base e usuário não vazios; senha vazia mantém a salva; schema vazio usa o padrão (Postgres `public`, Oracle usuário em maiúsculas, MariaDB nome da base, SQL Server `dbo`); nenhum campo com quebra de linha ou caractere de controle; corpo até 8 KB. Erro: 400 `{erro: "<campo>: <motivo>"}`.
-- Release: tag `ctl-vX.Y.Z`; assets `cd2-ctl-<os>-<arch>[.exe]` e `SHA256SUMS`; build `CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=X.Y.Z"`. URL: `https://github.com/cd2tec/cd2-harness-pocket/releases/download/ctl-v<versão>/cd2-ctl-<os>-<arch>[.exe]`. `CTL_VERSION` fixa `0.6.0`, sobrescrevível por `CD2_CTL_VERSION`, nunca "latest". Destino `bin/ctl/<os>-<arch>/cd2-ctl[.exe]`, incluído no `CHECKSUMS.sha256`.
+- Release: tag `ctl-vX.Y.Z`; assets `cd2-ctl-<os>-<arch>[.exe]` e `SHA256SUMS`; build `CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=X.Y.Z"`. URL: `https://github.com/cd2tec/cd2-ia-de-bolso/releases/download/ctl-v<versão>/cd2-ctl-<os>-<arch>[.exe]`. `CTL_VERSION` fixa `0.6.0`, sobrescrevível por `CD2_CTL_VERSION`, nunca "latest". Destino `bin/ctl/<os>-<arch>/cd2-ctl[.exe]`, incluído no `CHECKSUMS.sha256`.
 - Nomes: front "Harness Pocket" (`config.json`, título, fallback, selo "IA local · CD2 Harness Pocket"); site "IA de Bolso". Repositório, arquivos, README (título) e banner do terminal não mudam.
 - Texto: português do Brasil, sem emoji, sem travessão. Launchers e stderr do `cd2-ctl` sem acento.
 - `.bat` e `.ps1`: CRLF, ASCII, sem BOM. `.sh` e `.command`: LF.
@@ -115,7 +115,7 @@
 
 **Interfaces:**
 - Consumes: nada.
-- Produces (pacote `github.com/cd2tec/cd2-harness-pocket/ctl/internal/dbconf`):
+- Produces (pacote `github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/dbconf`):
   - `type Config struct { Engine, Host, Port, Name, User, Password, Schema string }` (comparável com `==`)
   - `func (c Config) Env() []string` → `["CD2_DB_ENGINE=...", ..., "CD2_DB_SCHEMA=..."]` sem aspas, na ordem do `db.env`
   - `func Format(c Config) []byte`
@@ -139,7 +139,7 @@ Expected: `go version go1.2x.y darwin/arm64` (1.23 ou mais novo).
 `ctl/go.mod`:
 
 ```
-module github.com/cd2tec/cd2-harness-pocket/ctl
+module github.com/cd2tec/cd2-ia-de-bolso/ctl
 
 go 1.23
 ```
@@ -1005,7 +1005,7 @@ git commit -m "$(printf 'ctl: validacao dos campos do banco e padroes por motor\
 
 **Interfaces:**
 - Consumes: nada.
-- Produces (pacote `github.com/cd2tec/cd2-harness-pocket/ctl/internal/secret`):
+- Produces (pacote `github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/secret`):
   - `func YamlDQ(s string) string`
   - `type Scrubber struct` (implementa `io.Writer`; seguro para uso concorrente; escreve em `out` uma linha completa terminada em `\n` por chamada)
   - `func NewScrubber(out io.Writer, password string) *Scrubber`
@@ -1399,9 +1399,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/dbconf"
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/faketoolbox"
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/secret"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/dbconf"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/faketoolbox"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/secret"
 )
 
 // Com CD2_FAKE_TOOLBOX=1 este binário de teste é o toolbox.
@@ -1631,8 +1631,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/dbconf"
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/secret"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/dbconf"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/secret"
 )
 
 // Mensagens que vão para a tela (campo erro de /status).
@@ -2183,9 +2183,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/dbconf"
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/faketoolbox"
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/toolbox"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/dbconf"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/faketoolbox"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/toolbox"
 )
 
 func TestMain(m *testing.M) {
@@ -2563,8 +2563,8 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/dbconf"
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/toolbox"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/dbconf"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/toolbox"
 )
 
 // Estados de /status.
@@ -2796,8 +2796,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/control"
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/dbconf"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/control"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/dbconf"
 )
 
 const key = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -3041,8 +3041,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/control"
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/dbconf"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/control"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/dbconf"
 )
 
 // MaxBody é o maior corpo aceito em POST /config.
@@ -3330,9 +3330,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/api"
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/control"
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/toolbox"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/api"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/control"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/toolbox"
 )
 
 // version vem do -ldflags "-X main.version=X.Y.Z" no release.
@@ -3723,7 +3723,7 @@ TOOLBOX_BASE="https://storage.googleapis.com/mcp-toolbox-for-databases/v$TOOLBOX
 # cd2-ctl (controle do banco pela tela): versao fixa, baixada do release deste repositorio.
 # CD2_CTL_LOCAL=1 pula o download e usa o compilado por "sh ctl/build.sh" (antes do 1o release).
 CTL_VERSION="${CD2_CTL_VERSION:-0.6.0}"
-CTL_BASE="https://github.com/cd2tec/cd2-harness-pocket/releases/download/ctl-v$CTL_VERSION"
+CTL_BASE="https://github.com/cd2tec/cd2-ia-de-bolso/releases/download/ctl-v$CTL_VERSION"
 if command -v shasum >/dev/null 2>&1; then SUM="shasum -a 256"; else SUM="sha256sum"; fi
 ```
 
@@ -3809,7 +3809,7 @@ $ToolboxBase = "https://storage.googleapis.com/mcp-toolbox-for-databases/v$Toolb
 # cd2-ctl (controle do banco pela tela): versao fixa, baixada do release deste repositorio.
 # CD2_CTL_LOCAL=1 pula o download e usa o binario que ja estiver em bin\ctl (antes do 1o release).
 $CtlVersion = if ($env:CD2_CTL_VERSION) { $env:CD2_CTL_VERSION } else { '0.6.0' }
-$CtlBase = "https://github.com/cd2tec/cd2-harness-pocket/releases/download/ctl-v$CtlVersion"
+$CtlBase = "https://github.com/cd2tec/cd2-ia-de-bolso/releases/download/ctl-v$CtlVersion"
 ```
 
 Troque:

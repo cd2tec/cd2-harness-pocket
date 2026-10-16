@@ -1,4 +1,4 @@
-/* Roteiro de relatórios do Harness Pocket (modo Banco de dados): pergunta -> tabelas candidatas
+/* Roteiro de relatórios da IA de Bolso (modo Banco de dados): pergunta -> tabelas candidatas
    -> uma chamada ao modelo pedindo JSON -> consulta no toolbox -> visual e frase de molde.
    O modelo nunca vê o resultado: todo número na tela vem do banco. Sem DOM. */
 (function(root){

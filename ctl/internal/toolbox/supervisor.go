@@ -16,8 +16,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/dbconf"
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/secret"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/dbconf"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/secret"
 )
 
 // Mensagens que vão para a tela (campo erro de /status).

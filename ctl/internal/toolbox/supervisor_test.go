@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/dbconf"
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/faketoolbox"
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/secret"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/dbconf"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/faketoolbox"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/secret"
 )
 
 // Com CD2_FAKE_TOOLBOX=1 este binário de teste é o toolbox.

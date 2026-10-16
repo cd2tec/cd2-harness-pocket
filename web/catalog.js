@@ -1,4 +1,4 @@
-/* Mapa do banco para o roteiro de relatórios do Harness Pocket: monta o catálogo a partir
+/* Mapa do banco para o roteiro de relatórios da IA de Bolso: monta o catálogo a partir
    do db_catalog, escolhe as tabelas que combinam com a pergunta e sugere perguntas tiradas
    do próprio esquema. Lógica pura, sem modelo e sem DOM. */
 (function(root){

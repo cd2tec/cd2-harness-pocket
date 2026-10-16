@@ -5,7 +5,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path');
 const ler = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
-const LINK = 'https://github.com/cd2tec/cd2-harness-pocket/releases/download/iadebolso/cd2tech-iadebolso.zip';
+const LINK = 'https://github.com/cd2tec/cd2-ia-de-bolso/releases/download/iadebolso/cd2tech-iadebolso.zip';
 
 test('README e site usam o link do cd2tech-iadebolso.zip, não o ZIP automático', () => {
   for(const f of ['README.md', 'docs/index.html']){

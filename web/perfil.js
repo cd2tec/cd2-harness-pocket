@@ -1,4 +1,4 @@
-/* Perfil das tabelas do Harness Pocket: lê as colunas e uma amostra de linhas e diz o papel de
+/* Perfil das tabelas da IA de Bolso: lê as colunas e uma amostra de linhas e diz o papel de
    cada tabela (movimento, itens, cadastro, parametro, vazia ou indefinida) e as colunas úteis.
    Lógica pura e determinística, sem modelo e sem DOM. Só sinais genéricos de ERP (tipo, formato
    dos valores, auditoria, nomes comuns em português e inglês), nunca o nome de um ERP específico. */

@@ -19,7 +19,7 @@ TOOLBOX_BASE="https://storage.googleapis.com/mcp-toolbox-for-databases/v$TOOLBOX
 # cd2-ctl (controle do banco pela tela): versao fixa, baixada do release deste repositorio.
 # CD2_CTL_LOCAL=1 pula o download e usa o compilado por "sh ctl/build.sh" (antes do 1o release).
 CTL_VERSION="${CD2_CTL_VERSION:-0.6.0}"
-CTL_BASE="https://github.com/cd2tec/cd2-harness-pocket/releases/download/ctl-v$CTL_VERSION"
+CTL_BASE="https://github.com/cd2tec/cd2-ia-de-bolso/releases/download/ctl-v$CTL_VERSION"
 if command -v shasum >/dev/null 2>&1; then SUM="shasum -a 256"; else SUM="sha256sum"; fi
 
 # Tamanho do arquivo no servidor (segue redirecionamentos). Vazio se nao der para saber.

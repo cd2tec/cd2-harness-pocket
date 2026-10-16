@@ -1,4 +1,4 @@
-// cd2-ctl: controle do banco de dados do CD2 Harness Pocket. Escuta só em 127.0.0.1:P+3000,
+// cd2-ctl: controle do banco de dados da IA de Bolso da CD2. Escuta só em 127.0.0.1:P+3000,
 // é o único dono do MCP Toolbox (127.0.0.1:P+1000) e grava a conexão no db.env do cache.
 //
 // Uso: CD2_CTL_KEY=<64 hex> cd2-ctl --root <pen drive> --cache <pasta> --harness-port P [--parent-pid N]
@@ -22,9 +22,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/api"
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/control"
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/toolbox"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/api"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/control"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/toolbox"
 )
 
 // parentPollInterval é de quanto em quanto tempo o --parent-pid é conferido.

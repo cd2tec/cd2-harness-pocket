@@ -34,5 +34,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" \
-            --notes "cd2-ctl ${GITHUB_REF_NAME#ctl-v}: controle do banco de dados do Harness Pocket." \
+            --notes "cd2-ctl ${GITHUB_REF_NAME#ctl-v}: controle do banco de dados da IA de Bolso." \
             -R "$GITHUB_REPOSITORY"

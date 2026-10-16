@@ -28,7 +28,7 @@ jobs:
           VERSAO="$(tr -d ' \r\n' < VERSION)"
           if ! gh release view iadebolso -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release create iadebolso --latest=false --title "IA de Bolso" \
-              --notes "Baixe cd2tech-iadebolso.zip, extraia, espete um pen drive de 16 GB e dê dois cliques em GRAVAR-PENDRIVE-Windows.bat. Passo a passo: https://cd2tec.github.io/cd2-harness-pocket/#pendrive" \
+              --notes "Baixe cd2tech-iadebolso.zip, extraia, espete um pen drive de 16 GB e dê dois cliques em GRAVAR-PENDRIVE-Windows.bat. Passo a passo: https://cd2tec.github.io/cd2-ia-de-bolso/#pendrive" \
               -R "$GITHUB_REPOSITORY"
           fi
           gh release upload iadebolso cd2tech-iadebolso.zip --clobber -R "$GITHUB_REPOSITORY"

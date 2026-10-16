@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/dbconf"
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/faketoolbox"
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/toolbox"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/dbconf"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/faketoolbox"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/toolbox"
 )
 
 func TestMain(m *testing.M) {

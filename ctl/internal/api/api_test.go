@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/control"
-	"github.com/cd2tec/cd2-harness-pocket/ctl/internal/dbconf"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/control"
+	"github.com/cd2tec/cd2-ia-de-bolso/ctl/internal/dbconf"
 )
 
 const key = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
