@@ -11,11 +11,28 @@
 
 Plugou, clicou, conversou. O harness abre uma janela com a identidade da CD2 e conversa com um modelo de IA rodando no próprio computador, sem instalar nada e sem mandar dados para a nuvem. Quando houver rede, conecta a um MCP do Archeo para consultar dados reais.
 
-[Site do projeto](https://cd2tec.github.io/cd2-harness-pocket/) · [Passo a passo do pen drive](docs/criar-pendrive.md) · [Baixar ZIP](https://github.com/cd2tec/cd2-harness-pocket/archive/refs/heads/main.zip) · [Dar uma estrela](https://github.com/cd2tec/cd2-harness-pocket)
+[Site do projeto](https://cd2tec.github.io/cd2-harness-pocket/) · [Passo a passo do pen drive](docs/criar-pendrive.md) · [Baixar cd2tech-iadebolso.zip](https://github.com/cd2tec/cd2-harness-pocket/releases/download/iadebolso/cd2tech-iadebolso.zip) · [Dar uma estrela](https://github.com/cd2tec/cd2-harness-pocket)
 
 > **Experimental.** É um modelo pequeno, roda no seu computador e erra. Não é indicado para uso comercial. Montamos este conjunto para mostrar na prática como uma IA específica, pequena e perto do seu dado, já consegue ser útil. Pode baixar, gravar, testar e passar adiante. Se acender uma ideia aí, a [CD2](https://cd2.com.br) pode ajudar no seu projeto de IA.
 >
 > Siga a CD2: [LinkedIn](https://br.linkedin.com/company/cd2tech) · [Instagram](https://www.instagram.com/cd2tech/) · [GitHub](https://github.com/cd2tec) · [Falar com a CD2](https://wa.me/19982355172)
+
+## Crie o seu pen drive em 4 passos
+
+Feito para Windows, sem precisar entender de tecnologia. Você só precisa de um pen drive de 16 GB ou mais (tudo nele será apagado) e de internet na primeira vez.
+
+### [Baixar cd2tech-iadebolso.zip](https://github.com/cd2tec/cd2-harness-pocket/releases/download/iadebolso/cd2tech-iadebolso.zip)
+
+1. **Baixe** o arquivo [cd2tech-iadebolso.zip](https://github.com/cd2tec/cd2-harness-pocket/releases/download/iadebolso/cd2tech-iadebolso.zip).
+2. **Descompacte:** clique com o botão direito no arquivo baixado e escolha **Extrair tudo**. Vai aparecer a pasta `cd2tech-iadebolso`.
+3. **Espete o pen drive** no computador.
+4. **Grave:** abra a pasta extraída e dê dois cliques em **`GRAVAR-PENDRIVE-Windows.bat`**. Aceite o pedido de permissão do Windows, escolha o pen drive na lista e digite `APAGAR` para confirmar.
+
+Na primeira vez ele baixa uns 3,9 GB, então leva alguns minutos, conforme a sua internet. No fim aparece "Pronto. Pode tirar o pen drive." Para usar, espete o pen drive em qualquer computador e dê dois cliques em **`INICIAR-CD2-Windows.bat`**.
+
+> Se aparecer "O Windows protegeu o computador", clique em **Mais informações** e depois em **Executar assim mesmo**.
+
+No Mac, o passo 4 é dar dois cliques em `GRAVAR-PENDRIVE-Mac.command`; no Linux, rodar `sh gravar-pendrive-linux.sh`. Detalhes e problemas conhecidos em [docs/criar-pendrive.md](docs/criar-pendrive.md).
 
 ## O que tem aqui
 
@@ -110,18 +127,13 @@ Ao conectar, o harness lê até 10 linhas de cada tabela (no máximo 2 consultas
 
 ## 3b. Conectar ao Archeo MCP
 
-Botão **Configurações** no topo, escolher "Archeo MCP", informar a URL do MCP (`https://archeo.cd2.com.br/api/mcp`) e clicar em **Entrar com a conta do Archeo**. A janela vai para o consentimento do Archeo, a pessoa autoriza o workspace e volta para o harness já conectado.
+Funciona como configurar qualquer servidor MCP. É preciso ter uma conta no Archeo: [archeo.cd2.com.br](https://archeo.cd2.com.br).
 
-Como funciona por baixo (spec 041 do Archeo): OAuth 2.1 com Authorization Code + PKCE, registro dinâmico do cliente, escopo `mcp:tools:read`. O access token dura 15 minutos e o harness renova sozinho com o refresh token (30 dias, rotacionado a cada uso). Código em `web/oauth.js` e `web/mcp.js`, testes em `tests/`.
+1. Clique em **Configurações** e escolha **Archeo MCP**.
+2. Informe o link do servidor MCP: `https://archeo.cd2.com.br/api/mcp`.
+3. Autentique com a sua conta do Archeo (**Entrar com a conta do Archeo**) ou informe uma chave de acesso.
 
-- **Nada fica no pen drive.** Access e refresh token moram no `sessionStorage`: fechou a aba, acabou o acesso. Só o `client_id` (público, não é segredo) fica no `localStorage` para não registrar o cliente de novo a cada recarga.
-- O Archeo não exibe mais token estático na interface. O campo "Token estático" continua como plano B, caso a operação gere um por fora; ele tem prioridade sobre o login.
-- **Gambiarra consciente:** o consentimento do Archeo só aceita cliente Codex ou Claude Code, e classifica pelo nome. Por isso o harness se registra como `CD2 Harness (Claude)` (constante `CLIENT_NAME` em `web/oauth.js`). Nos grants do workspace ele aparece como Claude Code. Quando o Archeo aceitar um kind próprio, basta trocar o nome.
-- O navegador fala direto com o Archeo, então o servidor precisa liberar as origens do pen drive em **duas** variáveis (o launcher usa 8080 e, se ocupada, sobe até 8099; fixe com `CD2_PORT` ou libere a faixa):
-  - `API_CORS_ORIGINS`: CORS do FastAPI para `/.well-known/*`, `/api/oauth/*` e `/api/mcp`. Ex.: `["http://127.0.0.1:8080","http://localhost:8080"]`
-  - `DATABASE_MCP_BROWSER_ORIGINS`: allowlist do gateway `/api/mcp` contra DNS rebinding. Sem ela a resposta é `403 ORIGIN_REJECTED`, e o harness mostra "o Archeo recusou a origem".
-- Erros que a tela explica: origem recusada (falta a env acima), "sem permissão" (a pessoa não é membro do workspace) e falha de rede ou CORS (falta a primeira env).
-- Para deixar o Archeo como padrão no pen drive, edite `web/config.json` (`mcp.mode` = `"mcp"` e `mcp.url`). Cada pessoa ainda precisa entrar com a própria conta.
+O acesso vale só enquanto a janela estiver aberta e nada é gravado no pen drive. Para deixar o Archeo como padrão, edite `web/config.json` (`mcp.mode` = `"mcp"` e `mcp.url`); cada pessoa ainda entra com a própria conta.
 
 Sem internet ou sem MCP, o modo **Demonstração** funciona offline com dados fictícios, sempre rotulados como tal na resposta da ferramenta.
 
@@ -181,7 +193,7 @@ Regras de texto que valem para qualquer mudança: português do Brasil, frases c
 - [ ] Preparo rodado e `CHECKSUMS.sha256` guardado
 - [ ] Testado em Windows (Intel/AMD), Mac (Apple Silicon) e, se aplicável, Linux, em máquina "limpa"
 - [ ] Testado com antivírus ligado
-- [ ] Origens do pen drive liberadas no Archeo (`API_CORS_ORIGINS` e `DATABASE_MCP_BROWSER_ORIGINS`) e login testado com a conta que vai ser usada
+- [ ] Login no Archeo testado com a conta que vai ser usada
 - [ ] Conta de leitura do banco criada e testada pela tela Configurações num notebook que não é o seu
 - [ ] `node --test` verde na raiz do repo
 - [ ] `report.contact` preenchido em `web/config.json`

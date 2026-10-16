@@ -320,8 +320,8 @@ input:disabled,select:disabled{background:var(--surface-100);color:var(--ink-mut
     <button class="sm primary" id="bLogin">Entrar com a conta do Archeo</button>
     <button class="sm" id="bLogout" style="display:none">Sair da conta</button>
   </div>
-  <label for="mcpTok">Token estático (plano B, opcional)</label>
-  <input type="password" id="mcpTok" placeholder="Bearer token" autocomplete="off">
+  <label for="mcpTok">Chave de acesso (opcional)</label>
+  <input type="password" id="mcpTok" placeholder="Chave de acesso do Archeo" autocomplete="off">
   <div class="hint">O Archeo não mostra mais esse token na interface; use só se a operação gerar um para você. Fica só na memória desta aba e tem prioridade sobre o login.</div>
   </div>
   <div class="row">
@@ -354,15 +354,15 @@ input:disabled,select:disabled{background:var(--surface-100);color:var(--ink-mut
 </dialog>
 
 <div id="printArea" aria-hidden="true"></div>
-<script src="mcp.js?v=0.10.2"></script>
-<script src="oauth.js?v=0.10.2"></script>
-<script src="toolbox.js?v=0.10.2"></script>
-<script src="chart.js?v=0.10.2"></script>
-<script src="catalog.js?v=0.10.2"></script>
-<script src="perfil.js?v=0.10.2"></script>
-<script src="descricao.js?v=0.10.2"></script>
-<script src="ask.js?v=0.10.2"></script>
-<script src="report.js?v=0.10.2"></script>
+<script src="mcp.js?v=0.10.3"></script>
+<script src="oauth.js?v=0.10.3"></script>
+<script src="toolbox.js?v=0.10.3"></script>
+<script src="chart.js?v=0.10.3"></script>
+<script src="catalog.js?v=0.10.3"></script>
+<script src="perfil.js?v=0.10.3"></script>
+<script src="descricao.js?v=0.10.3"></script>
+<script src="ask.js?v=0.10.3"></script>
+<script src="report.js?v=0.10.3"></script>
 <script>
 "use strict";
 const $ = s => document.querySelector(s);
@@ -456,7 +456,7 @@ async function connectTools(){
     }else if(mode === 'mcp'){
       if(!url) throw new Error('Informe a URL do servidor MCP');
       const oauth = oauthFor(url);
-      if(!tok && !oauth.isLoggedIn()) throw new Error('Entre com a conta do Archeo (ou informe um token estático).');
+      if(!tok && !oauth.isLoggedIn()) throw new Error('Entre com a conta do Archeo ou informe uma chave de acesso.');
       // token estático tem prioridade; sem ele, o OAuth renova sozinho e um 401 força a renovação
       const c = new McpClient(url, { token: async () => tok || oauth.getToken(), onUnauthorized: tok ? null : () => oauth.forceRefresh(), origin: location.origin });
       st.tools = await c.init(); st.provider = c;
