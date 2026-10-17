@@ -137,6 +137,8 @@ O acesso vale só enquanto a janela estiver aberta e nada é gravado no pen driv
 
 Sem internet ou sem MCP, o modo **Demonstração** funciona offline com dados fictícios, sempre rotulados como tal na resposta da ferramenta.
 
+A Demonstração também ensina a conectar o banco (`web/demo.js`): perguntas como "Que gráficos você faz com o meu banco?", "Como você entende o meu banco?" e "É seguro conectar?" têm resposta pronta, com gráficos de exemplo de vendas, ruptura e cliente. Cada resultado de ferramenta vira gráfico na tela, e toda resposta termina com o convite para conectar o banco do ERP em Configurações.
+
 ## 3c. Relatórios e gráficos
 
 No modo Banco de dados, cada pergunta vira uma consulta, um gráfico e um relatório. Ao conectar, a IA de Bolso lê o mapa do banco uma vez e sugere quatro perguntas tiradas do próprio esquema do cliente.
