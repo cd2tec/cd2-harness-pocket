@@ -1,6 +1,11 @@
-param([int]$DiskNumber, [string]$Label)
+param([Parameter(Mandatory=$true)][int]$DiskNumber, [Parameter(Mandatory=$true)][string]$Label)
 $ErrorActionPreference = 'Stop'
 try {
+    # Releitura antes de apagar: o numero de disco pode ter mudado de dono.
+    $alvo = Get-Disk -Number $DiskNumber
+    if ($alvo.BusType -notin @('USB', 'SD', 'MMC')) { throw "O disco $DiskNumber nao e um pen drive (barramento $($alvo.BusType)). Nada foi apagado." }
+    if ($alvo.IsBoot -or $alvo.IsSystem) { throw "O disco $DiskNumber e o disco do Windows. Nada foi apagado." }
+    if ($alvo.Size -gt 260000000000) { throw "O disco $DiskNumber e grande demais para ser um pen drive. Nada foi apagado." }
     Set-Disk -Number $DiskNumber -IsOffline $false -ErrorAction SilentlyContinue
     Set-Disk -Number $DiskNumber -IsReadOnly $false -ErrorAction SilentlyContinue
     Clear-Disk -Number $DiskNumber -RemoveData -RemoveOEM -Confirm:$false

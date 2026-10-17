@@ -23,6 +23,7 @@ func fixture(t *testing.T, nome string) []byte {
 type falso struct {
 	respostas map[string][]byte
 	erros     map[string]error
+	seq       map[string][][]byte // respostas em sequência, uma por chamada
 	chamadas  []string
 }
 
@@ -31,6 +32,10 @@ func (f *falso) exec(_ context.Context, nome string, args ...string) ([]byte, er
 	f.chamadas = append(f.chamadas, linha)
 	if err, ok := f.erros[linha]; ok {
 		return nil, err
+	}
+	if q := f.seq[linha]; len(q) > 0 {
+		f.seq[linha] = q[1:]
+		return q[0], nil
 	}
 	if r, ok := f.respostas[linha]; ok {
 		return r, nil
@@ -166,17 +171,37 @@ func TestMacBootViaContainerAPFS(t *testing.T) {
 	}
 }
 
+// apagarFalso prepara as respostas para Apagar de /dev/disk4. A partição
+// formatada monta em mnt (pasta que existe de verdade).
+func apagarFalso(t *testing.T, mnt string) *falso {
+	f := macFalso(t)
+	depois := strings.ReplaceAll(string(fixture(t, "diskutil_info_disk4s1_depois.plist")), "/Volumes/CD2", mnt)
+	f.respostas["diskutil unmountDisk force /dev/disk4"] = nil
+	f.respostas["diskutil eraseDisk ExFAT CD2 MBR /dev/disk4"] = []byte("Finished erase on disk4\n")
+	f.respostas["diskutil info -plist /dev/disk4s1"] = []byte(depois)
+	return f
+}
+
+func temErase(f *falso) bool {
+	for _, c := range f.chamadas {
+		if strings.Contains(c, "eraseDisk") || strings.Contains(c, "unmountDisk") {
+			return true
+		}
+	}
+	return false
+}
+
 func TestMacApagarComandos(t *testing.T) {
-	f := &falso{respostas: map[string][]byte{
-		"diskutil unmountDisk force /dev/disk4":       nil,
-		"diskutil eraseDisk ExFAT CD2 MBR /dev/disk4": []byte("Finished erase on disk4\n"),
-		"diskutil info -plist /dev/disk4s1":           fixture(t, "diskutil_info_disk4s1_depois.plist"),
-	}}
-	mnt, err := NovoMac(f.exec).Apagar(context.Background(), "/dev/disk4", "CD2")
+	mnt := t.TempDir()
+	f := apagarFalso(t, mnt)
+	got, err := NovoMac(f.exec).Apagar(context.Background(), "/dev/disk4", "CD2")
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := []string{
+		"diskutil info -plist /dev/disk4",
+		"diskutil info -plist /",
+		"diskutil apfs list -plist",
 		"diskutil unmountDisk force /dev/disk4",
 		"diskutil eraseDisk ExFAT CD2 MBR /dev/disk4",
 		"diskutil info -plist /dev/disk4s1",
@@ -184,30 +209,82 @@ func TestMacApagarComandos(t *testing.T) {
 	if !reflect.DeepEqual(f.chamadas, want) {
 		t.Fatalf("chamadas: %v", f.chamadas)
 	}
-	if mnt != "/Volumes/CD2" {
-		t.Fatalf("montagem %q", mnt)
+	if got != mnt {
+		t.Fatalf("montagem %q", got)
+	}
+}
+
+func TestMacApagarRecusaInterno(t *testing.T) {
+	f := apagarFalso(t, t.TempDir())
+	interno := strings.Replace(string(fixture(t, "diskutil_info_disk4.plist")), "<key>Internal</key>\n\t<false/>", "<key>Internal</key>\n\t<true/>", 1)
+	if !strings.Contains(interno, "<true/>") {
+		t.Fatal("fixture não tem a chave Internal esperada")
+	}
+	f.respostas["diskutil info -plist /dev/disk4"] = []byte(interno)
+	if _, err := NovoMac(f.exec).Apagar(context.Background(), "/dev/disk4", "CD2"); err == nil || temErase(f) {
+		t.Fatalf("disco interno tem de ser recusado sem apagar: %v %v", err, f.chamadas)
+	}
+}
+
+func TestMacApagarRecusaBoot(t *testing.T) {
+	f := apagarFalso(t, t.TempDir())
+	// "/" no container disk6, que mora em disk5: apagar disk5 é apagar o sistema.
+	raiz := strings.ReplaceAll(string(fixture(t, "diskutil_info_raiz.plist")), "<string>disk3</string>", "<string>disk6</string>")
+	f.respostas["diskutil info -plist /"] = []byte(raiz)
+	if _, err := NovoMac(f.exec).Apagar(context.Background(), "/dev/disk5", "CD2"); err == nil || temErase(f) {
+		t.Fatalf("disco de boot tem de ser recusado sem apagar: %v %v", err, f.chamadas)
+	}
+}
+
+func TestMacApagarRecusaGrande(t *testing.T) {
+	f := apagarFalso(t, t.TempDir())
+	if _, err := NovoMac(f.exec).Apagar(context.Background(), "/dev/disk7", "CD2"); err == nil || temErase(f) {
+		t.Fatalf("disco acima do limite tem de ser recusado: %v %v", err, f.chamadas)
+	}
+}
+
+func TestMacApagarRecusaIDERotuloInvalidos(t *testing.T) {
+	for _, id := range []string{"disk4", "/dev/disk4s1", "/dev/disk4;x", "/dev/rdisk4", ""} {
+		f := apagarFalso(t, t.TempDir())
+		if _, err := NovoMac(f.exec).Apagar(context.Background(), id, "CD2"); err == nil || len(f.chamadas) != 0 {
+			t.Errorf("id %q: %v %v", id, err, f.chamadas)
+		}
+	}
+	for _, r := range []string{"", "cd2", "CD2 COM NOME LONGO", "A'B", "CD2;"} {
+		f := apagarFalso(t, t.TempDir())
+		if _, err := NovoMac(f.exec).Apagar(context.Background(), "/dev/disk4", r); err == nil || len(f.chamadas) != 0 {
+			t.Errorf("rótulo %q: %v %v", r, err, f.chamadas)
+		}
 	}
 }
 
 func TestMacApagarMontaSeNaoMontou(t *testing.T) {
-	sem := strings.ReplaceAll(string(fixture(t, "diskutil_info_disk4s1_depois.plist")), "/Volumes/CD2", "")
-	f := &falso{respostas: map[string][]byte{
-		"diskutil unmountDisk force /dev/disk4":       nil,
-		"diskutil eraseDisk ExFAT CD2 MBR /dev/disk4": nil,
-		"diskutil info -plist /dev/disk4s1":           []byte(sem),
-		"diskutil mount /dev/disk4s1":                 nil,
-	}}
-	_, _ = NovoMac(f.exec).Apagar(context.Background(), "/dev/disk4", "CD2")
-	if len(f.chamadas) != 5 || f.chamadas[3] != "diskutil mount /dev/disk4s1" {
+	mnt := t.TempDir()
+	f := apagarFalso(t, mnt)
+	sem := strings.ReplaceAll(string(fixture(t, "diskutil_info_disk4s1_depois.plist")), "/Volumes/CD2", "/nao/existe")
+	f.seq = map[string][][]byte{"diskutil info -plist /dev/disk4s1": {[]byte(sem), f.respostas["diskutil info -plist /dev/disk4s1"]}}
+	f.respostas["diskutil mount /dev/disk4s1"] = nil
+	got, err := NovoMac(f.exec).Apagar(context.Background(), "/dev/disk4", "CD2")
+	if err != nil || got != mnt {
+		t.Fatalf("%q %v", got, err)
+	}
+	if !contem(f.chamadas, "diskutil mount /dev/disk4s1") {
 		t.Fatalf("chamadas: %v", f.chamadas)
 	}
 }
 
-func TestMacApagarFalhaDoEraseDisk(t *testing.T) {
-	f := &falso{
-		respostas: map[string][]byte{"diskutil unmountDisk force /dev/disk4": nil},
-		erros:     map[string]error{"diskutil eraseDisk ExFAT CD2 MBR /dev/disk4": fmt.Errorf("saiu 1")},
+func TestMacApagarMontagemInexistenteDaErro(t *testing.T) {
+	f := apagarFalso(t, "/nao/existe/mesmo")
+	f.respostas["diskutil mount /dev/disk4s1"] = nil
+	if _, err := NovoMac(f.exec).Apagar(context.Background(), "/dev/disk4", "CD2"); err == nil {
+		t.Fatal("montagem que não é pasta deve dar erro")
 	}
+}
+
+func TestMacApagarFalhaDoEraseDisk(t *testing.T) {
+	f := apagarFalso(t, t.TempDir())
+	delete(f.respostas, "diskutil eraseDisk ExFAT CD2 MBR /dev/disk4")
+	f.erros = map[string]error{"diskutil eraseDisk ExFAT CD2 MBR /dev/disk4": fmt.Errorf("saiu 1")}
 	if _, err := NovoMac(f.exec).Apagar(context.Background(), "/dev/disk4", "CD2"); err == nil {
 		t.Fatal("esperava erro")
 	}

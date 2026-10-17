@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -12,6 +13,11 @@ import (
 )
 
 // Sempre -plist: a saída em texto do diskutil muda com o idioma do sistema.
+
+var (
+	reIDMac     = regexp.MustCompile(`^/dev/disk[0-9]+$`)
+	reRotuloMac = regexp.MustCompile(`^[A-Z0-9 _-]{1,11}$`)
+)
 
 type macSistema struct{ x Executor }
 
@@ -69,6 +75,7 @@ type macInfo struct {
 	TotalSize       int64  `plist:"TotalSize"`
 	MountPoint      string `plist:"MountPoint"`
 	ParentWholeDisk string `plist:"ParentWholeDisk"`
+	Internal        bool   `plist:"Internal"`
 }
 
 // lerInfoMac lê "diskutil info -plist <disco>".
@@ -158,6 +165,36 @@ func lerContainersMac(p []byte) (map[string][]string, error) {
 	return m, nil
 }
 
+// sistemaMac devolve os discos físicos onde o macOS em uso mora e os papéis
+// APFS de cada disco. O "/" pode morar num container sintetizado; o boot de
+// verdade é o disco físico dele.
+func (m macSistema) sistemaMac(ctx context.Context) (boot map[string]bool, papeis map[string][]string, err error) {
+	raiz, err := m.x(ctx, "diskutil", "info", "-plist", "/")
+	if err != nil {
+		return nil, nil, fmt.Errorf("não consegui saber qual é o disco do sistema: %w", err)
+	}
+	disco, err := lerBootMac(raiz)
+	if err != nil {
+		return nil, nil, err
+	}
+	apfsPlist, err := m.x(ctx, "diskutil", "apfs", "list", "-plist")
+	if err != nil {
+		return nil, nil, fmt.Errorf("não consegui ler os volumes APFS: %w", err)
+	}
+	if papeis, err = lerApfsMac(apfsPlist); err != nil {
+		return nil, nil, err
+	}
+	containers, err := lerContainersMac(apfsPlist)
+	if err != nil {
+		return nil, nil, err
+	}
+	boot = map[string]bool{disco: true}
+	for _, f := range containers[disco] {
+		boot[f] = true
+	}
+	return boot, papeis, nil
+}
+
 func (m macSistema) Listar(ctx context.Context) ([]Bruto, error) {
 	saida, err := m.x(ctx, "diskutil", "list", "-plist", "external", "physical")
 	if err != nil {
@@ -175,30 +212,9 @@ func (m macSistema) Listar(ctx context.Context) ([]Bruto, error) {
 		return nil, err
 	}
 
-	raiz, err := m.x(ctx, "diskutil", "info", "-plist", "/")
-	if err != nil {
-		return nil, fmt.Errorf("não consegui saber qual é o disco do sistema: %w", err)
-	}
-	boot, err := lerBootMac(raiz)
+	bootFisicos, papeis, err := m.sistemaMac(ctx)
 	if err != nil {
 		return nil, err
-	}
-	apfsPlist, err := m.x(ctx, "diskutil", "apfs", "list", "-plist")
-	if err != nil {
-		return nil, fmt.Errorf("não consegui ler os volumes APFS: %w", err)
-	}
-	papeis, err := lerApfsMac(apfsPlist)
-	if err != nil {
-		return nil, err
-	}
-	containers, err := lerContainersMac(apfsPlist)
-	if err != nil {
-		return nil, err
-	}
-	// O "/" pode morar num container; o boot de verdade é o disco físico dele.
-	bootFisicos := map[string]bool{boot: true}
-	for _, f := range containers[boot] {
-		bootFisicos[f] = true
 	}
 
 	var brutos []Bruto
@@ -233,6 +249,40 @@ func (m macSistema) Listar(ctx context.Context) ([]Bruto, error) {
 }
 
 func (m macSistema) Apagar(ctx context.Context, id, rotulo string) (string, error) {
+	if !reIDMac.MatchString(id) {
+		return "", fmt.Errorf("identificador de disco inválido: %q", id)
+	}
+	if !reRotuloMac.MatchString(rotulo) {
+		return "", fmt.Errorf("rótulo inválido: %q", rotulo)
+	}
+	// Última checagem antes de apagar: o disco ainda é um externo, pequeno
+	// o bastante e não é o do sistema.
+	infoDisco, err := m.x(ctx, "diskutil", "info", "-plist", id)
+	if err != nil {
+		return "", fmt.Errorf("não consegui ler o disco %s: %w", id, err)
+	}
+	var i macInfo
+	if _, err := plist.Unmarshal(infoDisco, &i); err != nil {
+		return "", fmt.Errorf("info do diskutil ilegível: %w", err)
+	}
+	if i.Internal {
+		return "", fmt.Errorf("%s é um disco interno. Nada foi apagado", id)
+	}
+	tam := i.TotalSize
+	if tam == 0 {
+		tam = i.Size
+	}
+	if tam > LimiteBytes {
+		return "", fmt.Errorf("%s é grande demais para ser um pen drive. Nada foi apagado", id)
+	}
+	boot, _, err := m.sistemaMac(ctx)
+	if err != nil {
+		return "", err
+	}
+	if boot[discoInteiro(id)] {
+		return "", fmt.Errorf("%s é o disco do sistema. Nada foi apagado", id)
+	}
+
 	// Falhar ao desmontar não impede o eraseDisk: ele mesmo tenta desmontar.
 	_, _ = m.x(ctx, "diskutil", "unmountDisk", "force", id)
 	if out, err := m.x(ctx, "diskutil", "eraseDisk", "ExFAT", rotulo, "MBR", id); err != nil {
@@ -243,7 +293,7 @@ func (m macSistema) Apagar(ctx context.Context, id, rotulo string) (string, erro
 	if err != nil {
 		return "", err
 	}
-	if mnt == "" {
+	if !ehDir(mnt) {
 		if _, err := m.x(ctx, "diskutil", "mount", part); err != nil {
 			return "", fmt.Errorf("formatei, mas não consegui montar %s: %w", part, err)
 		}
@@ -251,10 +301,18 @@ func (m macSistema) Apagar(ctx context.Context, id, rotulo string) (string, erro
 			return "", err
 		}
 	}
-	if mnt == "" {
+	if !ehDir(mnt) {
 		return "", fmt.Errorf("formatei, mas não achei o ponto de montagem de %s", part)
 	}
 	return mnt, nil
+}
+
+func ehDir(p string) bool {
+	if p == "" {
+		return false
+	}
+	st, err := os.Stat(p)
+	return err == nil && st.IsDir()
 }
 
 func (m macSistema) montagem(ctx context.Context, part string) (string, error) {

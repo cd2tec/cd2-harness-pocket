@@ -2,10 +2,26 @@ package discos
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"strings"
 	"testing"
+	"unicode/utf16"
 )
+
+// decodificar desfaz o -EncodedCommand: base64 de UTF-16LE.
+func decodificar(t *testing.T, b64 string) string {
+	t.Helper()
+	b, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil || len(b)%2 != 0 {
+		t.Fatalf("base64 inválido: %v", err)
+	}
+	u := make([]uint16, len(b)/2)
+	for i := range u {
+		u[i] = uint16(b[2*i]) | uint16(b[2*i+1])<<8
+	}
+	return string(utf16.Decode(u))
+}
 
 func TestWindowsUmDiscoObjeto(t *testing.T) {
 	got, err := lerDiscosWindows(fixture(t, "windows_um_disco.json"))
@@ -62,7 +78,7 @@ func TestWindowsListarChamaPowerShell(t *testing.T) {
 	if err != nil || len(got) != 2 {
 		t.Fatalf("%+v %v", got, err)
 	}
-	if !strings.Contains(args[len(args)-1], "Get-Disk") {
+	if !strings.Contains(decodificar(t, args[len(args)-1]), "Get-Disk") {
 		t.Fatalf("o script de listar devia estar no -Command: %v", args)
 	}
 }
@@ -80,34 +96,57 @@ func TestWindowsApagarChamaPowerShell(t *testing.T) {
 	if mnt != `E:\` {
 		t.Fatalf("montagem %q", mnt)
 	}
-	if len(args) != 6 || args[0] != "powershell" || args[1] != "-NoProfile" || args[2] != "-ExecutionPolicy" ||
-		args[3] != "Bypass" || args[4] != "-Command" {
+	if len(args) != 7 || args[0] != "powershell" || args[1] != "-NoProfile" || args[2] != "-NonInteractive" ||
+		args[3] != "-ExecutionPolicy" || args[4] != "Bypass" || args[5] != "-EncodedCommand" {
 		t.Fatalf("args: %q", args)
 	}
-	cmd := args[5]
+	cmd := decodificar(t, args[6])
 	// O script embutido vai inteiro, dentro de & { ... }, seguido dos parâmetros.
 	if !strings.HasPrefix(cmd, "& { ") || !strings.Contains(cmd, strings.TrimSpace(apagarPS1)) ||
 		!strings.HasSuffix(cmd, "} -DiskNumber 2 -Label 'CD2'") {
-		t.Fatalf("-Command inesperado:\n%s", cmd)
+		t.Fatalf("comando inesperado:\n%s", cmd)
 	}
 }
 
-func TestWindowsApagarRecusaIDInvalidoERotuloComAspas(t *testing.T) {
+func TestWindowsApagarRecusaIDERotuloInvalidos(t *testing.T) {
 	chamou := false
 	x := func(context.Context, string, ...string) ([]byte, error) { chamou = true; return []byte("E"), nil }
-	if _, err := NovoWindows(x).Apagar(context.Background(), "2; calc", "CD2"); err == nil || chamou {
-		t.Fatal("ID que não é número tem de ser recusado sem chamar o PowerShell")
+	for _, id := range []string{"2; calc", "", "-1", "abc"} {
+		if _, err := NovoWindows(x).Apagar(context.Background(), id, "CD2"); err == nil || chamou {
+			t.Fatalf("ID %q tem de ser recusado sem chamar o PowerShell", id)
+		}
 	}
-	var cmd string
-	y := func(_ context.Context, _ string, a ...string) ([]byte, error) {
-		cmd = a[len(a)-1]
-		return []byte("F"), nil
+	for _, r := range []string{"", "cd2", "O'NEIL", "NOME MUITO LONGO", "A;B"} {
+		if _, err := NovoWindows(x).Apagar(context.Background(), "2", r); err == nil || chamou {
+			t.Fatalf("rótulo %q tem de ser recusado sem chamar o PowerShell", r)
+		}
 	}
-	if _, err := NovoWindows(y).Apagar(context.Background(), "2", "O'Neil"); err != nil {
-		t.Fatal(err)
+}
+
+func TestWindowsApagarSoAceitaLetraExata(t *testing.T) {
+	for _, saida := range []string{"E:", "EF", "1", "Formatando...\r\nE\r\n", "E\r\naviso", "\r\n"} {
+		x := func(context.Context, string, ...string) ([]byte, error) { return []byte(saida), nil }
+		mnt, err := NovoWindows(x).Apagar(context.Background(), "2", "CD2")
+		if saida == "Formatando...\r\nE\r\n" {
+			if err != nil || mnt != `E:\` {
+				t.Errorf("%q: %q %v", saida, mnt, err)
+			}
+			continue
+		}
+		if err == nil {
+			t.Errorf("saída %q deveria dar erro, veio %q", saida, mnt)
+		}
 	}
-	if !strings.HasSuffix(cmd, "-Label 'O''Neil'") {
-		t.Fatalf("aspas simples devem ser dobradas: %s", cmd)
+}
+
+func TestWindowsDiscoSemNumberOuSizeDaErro(t *testing.T) {
+	for _, js := range []string{
+		`{"FriendlyName":"X","Size":32015679488,"IsBoot":false}`,
+		`[{"Number":2,"FriendlyName":"X","IsBoot":false}]`,
+	} {
+		if _, err := lerDiscosWindows([]byte(js)); err == nil {
+			t.Errorf("deveria dar erro: %s", js)
+		}
 	}
 }
 
@@ -124,7 +163,10 @@ func TestWindowsApagarSemLetraDaErro(t *testing.T) {
 
 func TestWindowsEjetar(t *testing.T) {
 	var cmd string
-	x := func(_ context.Context, _ string, a ...string) ([]byte, error) { cmd = a[len(a)-1]; return nil, nil }
+	x := func(_ context.Context, _ string, a ...string) ([]byte, error) {
+		cmd = decodificar(t, a[len(a)-1])
+		return nil, nil
+	}
 	if err := NovoWindows(x).Ejetar(context.Background(), "2", `E:\`); err != nil {
 		t.Fatal(err)
 	}
