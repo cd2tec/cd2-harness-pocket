@@ -30,6 +30,11 @@ func Arquivo(ctx context.Context, c *http.Client, url, destino string, esperado 
 	if c == nil {
 		c = http.DefaultClient
 	}
+	if esperado.SHA256 == "" && esperado.Bytes == 0 {
+		// Sem SHA nem tamanho no manifesto: pergunta o tamanho por HEAD, como o
+		// remote_size do core/prepare-unix.sh. Se falhar, segue sem tamanho.
+		esperado.Bytes = tamanhoRemoto(ctx, c, url)
+	}
 	if st, err := os.Stat(destino); err == nil {
 		switch {
 		case esperado.Bytes > 0 && st.Size() > esperado.Bytes:
@@ -68,6 +73,24 @@ func Arquivo(ctx context.Context, c *http.Client, url, destino string, esperado 
 		}
 	}
 	return errConf
+}
+
+// tamanhoRemoto devolve o Content-Length de um HEAD, ou 0 se não souber.
+func tamanhoRemoto(ctx context.Context, c *http.Client, url string) int64 {
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
+	if err != nil {
+		return 0
+	}
+	req.Header.Set("User-Agent", "cd2-harness")
+	resp, err := c.Do(req)
+	if err != nil {
+		return 0
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || resp.ContentLength <= 0 {
+		return 0
+	}
+	return resp.ContentLength
 }
 
 // baixar faz uma passada: retoma do tamanho atual do destino, se houver.
@@ -151,7 +174,8 @@ func baixar(ctx context.Context, c *http.Client, url, destino string, esperado m
 }
 
 // Conferir só confere o que já está em disco, sem rede (modo cache).
-// Com SHA, confere o SHA; sem SHA, confere Bytes quando informado.
+// Com SHA, confere o SHA; sem SHA, confere Bytes quando informado; sem nenhum
+// dos dois, aceita qualquer arquivo não vazio.
 func Conferir(destino string, esperado manifesto.Arquivo) error {
 	st, err := os.Stat(destino)
 	if err != nil {
@@ -161,8 +185,8 @@ func Conferir(destino string, esperado manifesto.Arquivo) error {
 		return fmt.Errorf("%w: %s tem %d bytes, esperado %d", ErrConferencia, destino, st.Size(), esperado.Bytes)
 	}
 	if esperado.SHA256 == "" {
-		if esperado.Bytes == 0 {
-			return fmt.Errorf("%w: %s sem SHA nem tamanho para conferir", ErrConferencia, destino)
+		if esperado.Bytes == 0 && st.Size() == 0 {
+			return fmt.Errorf("%w: %s está vazio", ErrConferencia, destino)
 		}
 		return nil
 	}

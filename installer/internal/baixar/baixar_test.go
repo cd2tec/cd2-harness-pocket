@@ -26,6 +26,13 @@ func conteudo(n int, semente byte) []byte {
 	return b
 }
 
+func escrever(t *testing.T, destino string, b []byte) {
+	t.Helper()
+	if err := os.WriteFile(destino, b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func shaDe(b []byte) string {
 	s := sha256.Sum256(b)
 	return hex.EncodeToString(s[:])
@@ -76,7 +83,7 @@ func TestRetomaPelaMetade(t *testing.T) {
 	corpo := conteudo(1<<20, 1)
 	s := novoServidor(t, corpo)
 	destino := filepath.Join(t.TempDir(), "a.bin")
-	os.WriteFile(destino, corpo[:300<<10], 0o644)
+	escrever(t, destino, corpo[:300<<10])
 	err := Arquivo(context.Background(), s.Client(), s.URL, destino,
 		manifesto.Arquivo{SHA256: shaDe(corpo), Bytes: int64(len(corpo))}, nil)
 	if err != nil {
@@ -95,7 +102,7 @@ func TestPulaSeCompleto(t *testing.T) {
 	corpo := conteudo(1<<20, 1)
 	s := novoServidor(t, corpo)
 	destino := filepath.Join(t.TempDir(), "a.bin")
-	os.WriteFile(destino, corpo, 0o644)
+	escrever(t, destino, corpo)
 	err := Arquivo(context.Background(), s.Client(), s.URL, destino,
 		manifesto.Arquivo{SHA256: shaDe(corpo), Bytes: int64(len(corpo))}, nil)
 	if err != nil {
@@ -110,7 +117,7 @@ func TestMetadeDeOutraVersao(t *testing.T) {
 	corpo := conteudo(1<<20, 1)
 	s := novoServidor(t, corpo)
 	destino := filepath.Join(t.TempDir(), "a.bin")
-	os.WriteFile(destino, conteudo(300<<10, 9), 0o644)
+	escrever(t, destino, conteudo(300<<10, 9))
 	err := Arquivo(context.Background(), s.Client(), s.URL, destino,
 		manifesto.Arquivo{SHA256: shaDe(corpo), Bytes: int64(len(corpo))}, nil)
 	if err != nil {
@@ -129,7 +136,7 @@ func TestExistenteMaiorQueOEsperado(t *testing.T) {
 	corpo := conteudo(1<<20, 1)
 	s := novoServidor(t, corpo)
 	destino := filepath.Join(t.TempDir(), "a.bin")
-	os.WriteFile(destino, conteudo(2<<20, 9), 0o644)
+	escrever(t, destino, conteudo(2<<20, 9))
 	err := Arquivo(context.Background(), s.Client(), s.URL, destino,
 		manifesto.Arquivo{SHA256: shaDe(corpo), Bytes: int64(len(corpo))}, nil)
 	if err != nil {
@@ -201,5 +208,79 @@ func TestConferirSemRede(t *testing.T) {
 	err := Conferir(filepath.Join(t.TempDir(), "nao-existe"), manifesto.Arquivo{SHA256: "ab"})
 	if !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestSemSHASemBytesUsaHEAD(t *testing.T) {
+	corpo := conteudo(1<<20, 1)
+	s := novoServidor(t, corpo)
+	destino := filepath.Join(t.TempDir(), "a.bin")
+	escrever(t, destino, corpo)
+	if err := Arquivo(context.Background(), s.Client(), s.URL, destino, manifesto.Arquivo{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if n := s.gets.Load(); n != 1 {
+		t.Errorf("requisições = %d, esperado só o HEAD", n)
+	}
+	if r := <-s.ranges; r != "" {
+		t.Errorf("Range = %q", r)
+	}
+}
+
+func TestSemSHASemBytesSemHEAD(t *testing.T) {
+	corpo := conteudo(5000, 1)
+	var gets atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodHead {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		gets.Add(1)
+		http.ServeContent(w, r, "x.bin", time.Time{}, bytes.NewReader(corpo))
+	}))
+	defer srv.Close()
+	destino := filepath.Join(t.TempDir(), "a.bin")
+	if err := Arquivo(context.Background(), srv.Client(), srv.URL, destino, manifesto.Arquivo{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile(destino)
+	if !bytes.Equal(got, corpo) || gets.Load() != 1 {
+		t.Errorf("conteúdo igual=%v GETs=%d", bytes.Equal(got, corpo), gets.Load())
+	}
+}
+
+func TestConferirSemEsperado(t *testing.T) {
+	dir := t.TempDir()
+	cheio := filepath.Join(dir, "cheio")
+	vazio := filepath.Join(dir, "vazio")
+	escrever(t, cheio, []byte("x"))
+	escrever(t, vazio, nil)
+	if err := Conferir(cheio, manifesto.Arquivo{}); err != nil {
+		t.Errorf("não vazio: %v", err)
+	}
+	if err := Conferir(vazio, manifesto.Arquivo{}); !errors.Is(err, ErrConferencia) {
+		t.Errorf("vazio: %v", err)
+	}
+}
+
+func TestServidorIgnoraRange(t *testing.T) {
+	corpo := conteudo(1<<20, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "1048576")
+		if r.Method != http.MethodHead {
+			w.Write(corpo)
+		}
+	}))
+	defer srv.Close()
+	destino := filepath.Join(t.TempDir(), "a.bin")
+	escrever(t, destino, corpo[:300<<10])
+	err := Arquivo(context.Background(), srv.Client(), srv.URL, destino,
+		manifesto.Arquivo{SHA256: shaDe(corpo), Bytes: int64(len(corpo))}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile(destino)
+	if !bytes.Equal(got, corpo) {
+		t.Fatal("deveria recomeçar do zero")
 	}
 }
