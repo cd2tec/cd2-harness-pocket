@@ -5,9 +5,11 @@ package discos
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"path/filepath"
+	"strings"
 )
 
 const (
@@ -30,6 +32,8 @@ const (
 	Ok      Situacao = "ok"
 	Aviso   Situacao = "aviso"
 	Pequeno Situacao = "pequeno"
+	// Proprio: o instalador está rodando deste disco; apagar o mataria no meio.
+	Proprio Situacao = "proprio"
 )
 
 // Bruto é o disco como o sistema operacional o descreve.
@@ -51,7 +55,10 @@ type Disco struct {
 	Situacao Situacao `json:"situacao"`
 	Arquivos int      `json:"arquivos"`
 	MaisDe   bool     `json:"maisDe"` // parou de contar em 10.000
-	Rotulo   string   `json:"rotulo"` // "SanDisk 32 GB"
+	// SemAcesso: a raiz de alguma montagem não pôde ser lida (no Mac, sem a
+	// autorização de volume removível). Arquivos não quer dizer vazio.
+	SemAcesso bool   `json:"semAcesso"`
+	Rotulo    string `json:"rotulo"` // "SanDisk 32 GB"
 }
 
 // Sistema é a ponte com o sistema operacional. As implementações ficam
@@ -77,8 +84,8 @@ func Filtrar(b []Bruto) []Bruto {
 
 // Descrever monta o Disco da tela. Sempre conta arquivos, mesmo no
 // disco pequeno: é barato e a tela mostra.
-func Descrever(b Bruto, contar func(montagens []string) (int, bool)) Disco {
-	n, mais := contar(b.Montagens)
+func Descrever(b Bruto, contar func(montagens []string) (n int, maisDe, semAcesso bool)) Disco {
+	n, mais, sem := contar(b.Montagens)
 	sit := Ok
 	switch {
 	case b.Bytes < MinimoBytes:
@@ -87,13 +94,14 @@ func Descrever(b Bruto, contar func(montagens []string) (int, bool)) Disco {
 		sit = Aviso
 	}
 	return Disco{
-		ID:       b.ID,
-		Nome:     b.Nome,
-		Bytes:    b.Bytes,
-		Situacao: sit,
-		Arquivos: n,
-		MaisDe:   mais,
-		Rotulo:   rotulo(b.Nome, b.Bytes),
+		ID:        b.ID,
+		Nome:      b.Nome,
+		Bytes:     b.Bytes,
+		Situacao:  sit,
+		Arquivos:  n,
+		MaisDe:    mais,
+		SemAcesso: sem,
+		Rotulo:    rotulo(b.Nome, b.Bytes),
 	}
 }
 
@@ -107,12 +115,20 @@ func rotulo(nome string, bytes int64) string {
 }
 
 // ContarArquivos conta arquivos regulares, recursivamente, em todas as
-// montagens somadas. Ignora erros de permissão e pastas que não existem.
-// Para em 10.000 e devolve (10000, true) quando há mais que isso.
-func ContarArquivos(montagens []string) (n int, maisDe bool) {
+// montagens somadas. Subpasta ilegível e montagem que não existe são puladas.
+// Raiz de montagem que existe e não pôde ser lida liga semAcesso: a contagem
+// dela não é zero, é desconhecida. Para em 10.000 e devolve (10000, true, ...)
+// quando há mais que isso.
+func ContarArquivos(montagens []string) (n int, maisDe, semAcesso bool) {
 	for _, m := range montagens {
-		_ = filepath.WalkDir(m, func(_ string, e fs.DirEntry, err error) error {
+		_ = filepath.WalkDir(m, func(p string, e fs.DirEntry, err error) error {
 			if err != nil {
+				if p == m {
+					if !errors.Is(err, fs.ErrNotExist) {
+						semAcesso = true
+					}
+					return fs.SkipDir
+				}
 				// Subpasta ilegível: segue adiante sem ela.
 				if e != nil && e.IsDir() {
 					return fs.SkipDir
@@ -128,10 +144,52 @@ func ContarArquivos(montagens []string) (n int, maisDe bool) {
 			return nil
 		})
 		if n > limiteContagem {
-			return limiteContagem, true
+			return limiteContagem, true, semAcesso
 		}
 	}
-	return n, false
+	return n, false, semAcesso
+}
+
+// NasMontagens diz se caminho fica dentro de alguma das montagens. Os dois
+// lados passam por EvalSymlinks quando dá (no Mac, /var é /private/var).
+func NasMontagens(montagens []string, caminho string) bool {
+	if caminho == "" {
+		return false
+	}
+	caminho = resolver(caminho)
+	for _, m := range montagens {
+		if m == "" {
+			continue
+		}
+		rel, err := filepath.Rel(resolver(m), caminho)
+		if err != nil {
+			continue
+		}
+		if rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
+}
+
+// resolver devolve o caminho absoluto, sem links simbólicos na parte que
+// existe: sobe até achar um ancestral que existe, resolve e recoloca o resto.
+func resolver(p string) string {
+	if a, err := filepath.Abs(p); err == nil {
+		p = a
+	}
+	resto := ""
+	for atual := p; ; {
+		if r, err := filepath.EvalSymlinks(atual); err == nil {
+			return filepath.Join(r, resto)
+		}
+		pai := filepath.Dir(atual)
+		if pai == atual {
+			return p
+		}
+		resto = filepath.Join(filepath.Base(atual), resto)
+		atual = pai
+	}
 }
 
 // Mesmo diz se dois discos são o mesmo: ID, Nome e Bytes iguais.

@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log"
 	"regexp"
 	"strconv"
 	"strings"
@@ -85,8 +86,11 @@ func lerDiscosWindows(js []byte) ([]Bruto, error) {
 	}
 	var saida []Bruto
 	for _, d := range lista {
+		// Sem número ou tamanho (leitor de cartão vazio, por exemplo) o disco
+		// é pulado: não aparece e não derruba a lista dos outros.
 		if d.Number == nil || d.Size == nil {
-			return nil, fmt.Errorf("lista de discos sem Number ou Size")
+			log.Printf("discos: pulei %q, veio sem Number ou Size", d.FriendlyName)
+			continue
 		}
 		b := Bruto{
 			ID:      strconv.FormatInt(*d.Number, 10),

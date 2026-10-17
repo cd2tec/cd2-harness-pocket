@@ -56,6 +56,25 @@ func TestWindowsLista(t *testing.T) {
 	}
 }
 
+// Disco com Size ou Number nulo (leitor de cartão sem cartão, por exemplo) é
+// pulado; os outros seguem.
+func TestWindowsPulaDiscoSemTamanho(t *testing.T) {
+	js := `[{"Number": 2, "FriendlyName": "SanDisk", "Size": 32015679488, "DriveLetters": ["E"]},
+		{"Number": 3, "FriendlyName": "Leitor", "Size": null, "DriveLetters": []},
+		{"Number": null, "FriendlyName": "Fantasma", "Size": 8000000000}]`
+	got, err := lerDiscosWindows([]byte(js))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].ID != "2" {
+		t.Fatalf("veio %+v", got)
+	}
+	um, err := lerDiscosWindows([]byte(`{"Number": 3, "FriendlyName": "Leitor", "Size": null}`))
+	if err != nil || len(um) != 0 {
+		t.Fatalf("objeto único sem Size: %+v %v", um, err)
+	}
+}
+
 func TestWindowsVazio(t *testing.T) {
 	for _, entrada := range []string{"", "  \r\n", "[]", "\ufeff[]"} {
 		got, err := lerDiscosWindows([]byte(entrada))
@@ -139,13 +158,13 @@ func TestWindowsApagarSoAceitaLetraExata(t *testing.T) {
 	}
 }
 
-func TestWindowsDiscoSemNumberOuSizeDaErro(t *testing.T) {
+func TestWindowsDiscoSemNumberOuSizeEhPulado(t *testing.T) {
 	for _, js := range []string{
 		`{"FriendlyName":"X","Size":32015679488,"IsBoot":false}`,
 		`[{"Number":2,"FriendlyName":"X","IsBoot":false}]`,
 	} {
-		if _, err := lerDiscosWindows([]byte(js)); err == nil {
-			t.Errorf("deveria dar erro: %s", js)
+		if got, err := lerDiscosWindows([]byte(js)); err != nil || len(got) != 0 {
+			t.Errorf("%s: deveria ser pulado, veio %+v %v", js, got, err)
 		}
 	}
 }

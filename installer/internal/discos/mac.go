@@ -3,6 +3,7 @@ package discos
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -220,13 +221,17 @@ func (m macSistema) Listar(ctx context.Context) ([]Bruto, error) {
 	var brutos []Bruto
 	for _, d := range inteiros {
 		id := "/dev/" + d
+		// Disco que não dá para ler é pulado: não aparece (nunca é tratado
+		// como seguro) e não derruba a lista dos outros.
 		info, err := m.x(ctx, "diskutil", "info", "-plist", id)
 		if err != nil {
-			return nil, fmt.Errorf("não consegui ler o disco %s: %w", d, err)
+			log.Printf("discos: pulei %s, o diskutil info falhou: %v", d, err)
+			continue
 		}
 		nome, bytes, _, err := lerInfoMac(info)
 		if err != nil {
-			return nil, err
+			log.Printf("discos: pulei %s: %v", d, err)
+			continue
 		}
 		b := Bruto{ID: id, Nome: nome, Bytes: bytes, Boot: bootFisicos[d], Montagens: montagens[d]}
 		for _, papel := range papeis[d] {

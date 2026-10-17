@@ -152,6 +152,41 @@ func TestMacListarDiscoLimpoAparece(t *testing.T) {
 	}
 }
 
+// Um disco externo cujo "diskutil info" falha (ou vem ilegível) é pulado:
+// não aparece e não derruba a lista dos outros.
+func TestMacListarPulaDiscoIlegivel(t *testing.T) {
+	for _, quebra := range []string{"erro", "ilegivel"} {
+		f := macFalso(t)
+		if quebra == "erro" {
+			f.erros = map[string]error{"diskutil info -plist /dev/disk5": fmt.Errorf("exit status 1")}
+		} else {
+			f.respostas["diskutil info -plist /dev/disk5"] = []byte("isto não é plist")
+		}
+		brutos, err := NovoMac(f.exec).Listar(context.Background())
+		if err != nil {
+			t.Fatalf("%s: %v", quebra, err)
+		}
+		var ids []string
+		for _, b := range brutos {
+			ids = append(ids, b.ID)
+		}
+		if strings.Join(ids, ",") != "/dev/disk4,/dev/disk7" {
+			t.Fatalf("%s: discos %v", quebra, ids)
+		}
+	}
+}
+
+// Erro geral continua erro: sem a lista ou sem os volumes APFS não há o que mostrar.
+func TestMacListarErroGeral(t *testing.T) {
+	for _, cmd := range []string{"diskutil list -plist external physical", "diskutil apfs list -plist"} {
+		f := macFalso(t)
+		f.erros = map[string]error{cmd: fmt.Errorf("exit status 1")}
+		if _, err := NovoMac(f.exec).Listar(context.Background()); err == nil {
+			t.Errorf("%s falhando deveria ser erro", cmd)
+		}
+	}
+}
+
 func TestMacBootViaContainerAPFS(t *testing.T) {
 	// "/" vive no container disk6, cuja loja física é disk5s2: o boot é disk5.
 	f := macFalso(t)
