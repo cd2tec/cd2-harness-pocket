@@ -26,9 +26,9 @@ function Find-Cd2Starter {
     foreach ($d in $usb) {
         $parts = @(Get-Partition -DiskNumber $d.Number -ErrorAction SilentlyContinue | Where-Object { $_.DriveLetter })
         foreach ($p in $parts) {
-            $root = "$($p.DriveLetter):\"
-            $bat = Join-Path $root 'INICIAR-CD2-Windows.bat'
-            $exe = Join-Path $root 'bin\llamafile.exe'
+            $volume = "$($p.DriveLetter):\"
+            $bat = Join-Path $volume 'INICIAR-CD2-Windows.bat'
+            $exe = Join-Path $volume 'bin\llamafile.exe'
             if ((Test-Path -LiteralPath $bat) -and (Test-Path -LiteralPath $exe)) { return $bat }
         }
     }
