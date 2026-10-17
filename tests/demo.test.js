@@ -65,3 +65,18 @@ test('roteiro em texto corrido sai sem marcação e com os gráficos citados', (
   assert.ok(!t.includes('**'));
   assert.match(t, /Gráfico fictício: Sobre ruptura/);
 });
+
+test('instrução do roteiro leva os fatos sem marcação e cita os gráficos de exemplo', () => {
+  const i = D.instrucao(D.roteiro('Que gráficos você faz?'));
+  assert.match(i, /Fatos:/);
+  assert.ok(!i.includes('**'));
+  assert.match(i, /sobre ruptura \("Quais produtos da curva A/);
+  const s = D.instrucao(D.roteiro('É seguro conectar?'));
+  assert.match(s, /somente leitura/);
+  assert.doesNotMatch(s, /gráficos de exemplo/);
+});
+
+test('instrução do roteiro: fecho obrigatório e o que evitar', () => {
+  assert.match(D.instrucao(D.roteiro('Como você entende o meu banco?')), /Termine a resposta dizendo.*vários minutos/);
+  assert.match(D.instrucao(D.roteiro('É seguro conectar?')), /Evite dizer que é 100% seguro/);
+});

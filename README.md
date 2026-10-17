@@ -137,7 +137,7 @@ O acesso vale só enquanto a janela estiver aberta e nada é gravado no pen driv
 
 Sem internet ou sem MCP, o modo **Demonstração** funciona offline com dados fictícios, sempre rotulados como tal na resposta da ferramenta.
 
-A Demonstração também ensina a conectar o banco (`web/demo.js`): perguntas como "Que gráficos você faz com o meu banco?", "Como você entende o meu banco?" e "É seguro conectar?" têm resposta pronta, com gráficos de exemplo de vendas, ruptura e cliente. Cada resultado de ferramenta vira gráfico na tela, e toda resposta termina com o convite para conectar o banco do ERP em Configurações.
+A Demonstração também ensina a conectar o banco (`web/demo.js`): para perguntas como "Que gráficos você faz com o meu banco?", "Como você entende o meu banco?" e "É seguro conectar?", o modelo recebe os fatos do roteiro e escreve a resposta com as palavras dele, seguida de gráficos de exemplo de vendas, ruptura e cliente. Se o modelo não responder, entra a resposta pronta. A conversa abre com uma saudação brasileira e um comentário sobre o momento (madrugada, almoço, sexta, fim de mês, estação), sorteados em `web/momento.js` pelo relógio do computador. Cada resultado de ferramenta vira gráfico na tela, e toda resposta termina com o convite para conectar o banco do ERP em Configurações.
 
 ## 3c. Relatórios e gráficos
 
