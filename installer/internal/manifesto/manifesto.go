@@ -54,15 +54,24 @@ func Ler(r io.Reader) (*Manifesto, error) {
 		{"versao", m.Versao},
 		{"zip.url", m.Zip.URL},
 		{"zip.sha256", m.Zip.SHA256},
+		// Sem o SHA do motor, um llamafile antigo e menor na cache seria
+		// retomado com Range e passaria na conferência só pelo tamanho.
+		{"llamafile.url", m.Llamafile.URL},
+		{"llamafile.sha256", m.Llamafile.SHA256},
 		{"modelo.url", m.Modelo.URL},
 		{"modelo_nome", m.ModeloNome},
 		{"toolbox.versao", m.Toolbox.Versao},
+		{"toolbox.base", m.Toolbox.Base},
 		{"ctl.versao", m.Ctl.Versao},
+		{"ctl.base", m.Ctl.Base},
 	}
 	for _, o := range obrigatorios {
 		if o.valor == "" {
 			return nil, fmt.Errorf("manifesto incompleto: falta %s", o.nome)
 		}
+	}
+	if len(m.Toolbox.Plataformas) == 0 {
+		return nil, fmt.Errorf("manifesto incompleto: falta toolbox.plataformas")
 	}
 	return &m, nil
 }

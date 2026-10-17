@@ -28,17 +28,35 @@ jobs:
           go-version-file: installer/go.mod
           cache: false
       - name: Montar o manifesto.json
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          # Mesma consulta do core/prepare-unix.sh, com a mesma URL de reserva.
+          # Mesma consulta do core/prepare-unix.sh, com a mesma URL de reserva. Com o token, a API não
+          # cai no limite de pedidos anônimos, que o runner compartilhado esgota fácil.
           FALLBACK_BIN_URL="$(sed -n 's/^FALLBACK_BIN_URL="\(.*\)"$/\1/p' core/prepare-unix.sh)"
-          LLAMAFILE_URL="$(curl -fsSL -H 'User-Agent: cd2-harness' https://api.github.com/repos/mozilla-ai/llamafile/releases/latest \
+          LLAMAFILE_URL="$(curl -fsSL -H 'User-Agent: cd2-harness' -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/mozilla-ai/llamafile/releases/latest \
             | grep -Eo 'https://[^"]+/llamafile-[0-9]+(\.[0-9]+)+"' | tr -d '"' | head -n 1 || true)"
           if [ -z "$LLAMAFILE_URL" ]; then echo "Não consegui resolver a última release; usando a URL de reserva."; LLAMAFILE_URL="$FALLBACK_BIN_URL"; fi
           MODELO_URL="$(sed -n 's/^MODEL_URL="${CD2_MODEL_URL:-\(.*\)}"$/\1/p' core/prepare-unix.sh)"
-          tamanho() { curl -sIL -H 'User-Agent: cd2-harness' "$1" | tr -d '\r' | awk 'tolower($1) == "content-length:" { v = $2 } END { print v }'; }
-          LLAMAFILE_BYTES="$(tamanho "$LLAMAFILE_URL")"
-          MODELO_BYTES="$(tamanho "$MODELO_URL")"
-          if [ -z "$LLAMAFILE_BYTES" ] || [ -z "$MODELO_BYTES" ]; then echo "Não consegui ler o tamanho do llamafile ou do modelo."; exit 1; fi
+          # O motor é baixado aqui para o manifesto levar o SHA-256: sem ele, um llamafile antigo e menor
+          # na cache do instalador seria retomado e passaria na conferência só pelo tamanho.
+          MOTOR="$RUNNER_TEMP/llamafile"
+          curl -fsSL -H 'User-Agent: cd2-harness' -o "$MOTOR" "$LLAMAFILE_URL"
+          LLAMAFILE_SHA256="$(sha256sum "$MOTOR" | cut -d ' ' -f 1)"
+          LLAMAFILE_BYTES="$(stat -c %s "$MOTOR")"
+          rm -f "$MOTOR"
+          if [ "$LLAMAFILE_BYTES" -le 0 ]; then echo "O llamafile baixado veio vazio."; exit 1; fi
+          # Tamanho pelo HEAD; -f faz um 404 falhar em vez de devolver o tamanho da página de erro.
+          tamanho() {
+            local h v
+            # O curl roda sozinho: num pipe, sem pipefail, a falha dele sumiria atrás do awk.
+            h="$(curl -fsIL -H 'User-Agent: cd2-harness' "$1")" || return 1
+            v="$(printf '%s\n' "$h" | tr -d '\r' | awk 'tolower($1) == "content-length:" { v = $2 } END { print v }')"
+            case "$v" in ''|*[!0-9]*) return 1 ;; esac
+            [ "$v" -gt 0 ] || return 1
+            echo "$v"
+          }
+          MODELO_BYTES="$(tamanho "$MODELO_URL")" || { echo "Não consegui ler o tamanho do modelo."; exit 1; }
           (cd installer && go run ./cmd/manifesto \
             -prepare-unix ../core/prepare-unix.sh \
             -prepare-windows ../core/prepare-windows.ps1 \
@@ -46,6 +64,7 @@ jobs:
             -zip ../cd2tech-iadebolso.zip \
             -zip-url "https://github.com/${{ github.repository }}/releases/download/iadebolso/cd2tech-iadebolso.zip" \
             -llamafile-url "$LLAMAFILE_URL" \
+            -llamafile-sha256 "$LLAMAFILE_SHA256" \
             -llamafile-bytes "$LLAMAFILE_BYTES" \
             -modelo-bytes "$MODELO_BYTES") > manifesto.json
           cat manifesto.json

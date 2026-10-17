@@ -93,9 +93,10 @@ func novoAmbiente(t *testing.T) *ambiente {
 	a := &ambiente{cache: t.TempDir(), gets: map[string]int{}}
 	zipB := criarZip(t)
 	modelo := []byte("modelo-conteudo-grande")
+	motor := []byte("llamafile-conteudo")
 	a.arquivos = map[string][]byte{
 		"/zip":       zipB,
-		"/llamafile": []byte("llamafile-conteudo"),
+		"/llamafile": motor,
 		"/modelo":    modelo,
 	}
 	var sums strings.Builder
@@ -129,7 +130,7 @@ func novoAmbiente(t *testing.T) *ambiente {
 	a.m = &manifesto.Manifesto{
 		Versao:     "0.13.0",
 		Zip:        manifesto.Arquivo{URL: a.srv.URL + "/zip", SHA256: sha(zipB), Bytes: int64(len(zipB))},
-		Llamafile:  manifesto.Arquivo{URL: a.srv.URL + "/llamafile"},
+		Llamafile:  manifesto.Arquivo{URL: a.srv.URL + "/llamafile", SHA256: sha(motor), Bytes: int64(len(motor))},
 		Modelo:     manifesto.Arquivo{URL: a.srv.URL + "/modelo", SHA256: sha(modelo)},
 		ModeloNome: "modelo.gguf",
 	}
@@ -216,6 +217,26 @@ func TestMontarPreservaBinENoResto(t *testing.T) {
 	}
 	if !existe(filepath.Join(stage, "CHECKSUMS.sha256")) {
 		t.Error("CHECKSUMS.sha256 sumiu")
+	}
+}
+
+// Um bin/llamafile antigo e menor na cache é retomado com Range e fica com o
+// tamanho certo; só o SHA do manifesto pega o motor corrompido.
+func TestMotorAntigoMenorNaCacheEhTrocado(t *testing.T) {
+	a := novoAmbiente(t)
+	stage, err := a.montar(t, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	llama := filepath.Join(stage, "bin", "llamafile")
+	os.WriteFile(llama, []byte("motor-velho"), 0o755)
+	if _, err := a.montar(t, false); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{llama, llama + ".exe"} {
+		if b, _ := os.ReadFile(p); string(b) != "llamafile-conteudo" {
+			t.Errorf("%s ficou com %q", filepath.Base(p), b)
+		}
 	}
 }
 
@@ -327,7 +348,6 @@ func TestMontarEmiteEventos(t *testing.T) {
 func TestBytesParaBaixar(t *testing.T) {
 	a := novoAmbiente(t)
 	a.m.Modelo.Bytes = 22
-	a.m.Llamafile.Bytes = 18
 	total := a.m.Zip.Bytes + 22 + 18
 	if got := BytesParaBaixar(a.m, a.cache); got != total {
 		t.Fatalf("got %d, want %d", got, total)

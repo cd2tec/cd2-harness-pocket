@@ -160,9 +160,10 @@ func novoAmbiente(t *testing.T) *ambiente {
 	a := &ambiente{t: t, cache: t.TempDir(), falhas: map[string]bool{}}
 	zipB := criarZip(t)
 	modelo := []byte("modelo-conteudo-grande")
+	motor := []byte("llamafile-conteudo")
 	arquivos := map[string][]byte{
 		"/zip":       zipB,
-		"/llamafile": []byte("llamafile-conteudo"),
+		"/llamafile": motor,
 		"/modelo":    modelo,
 	}
 	var sums strings.Builder
@@ -217,7 +218,7 @@ func novoAmbiente(t *testing.T) *ambiente {
 	a.m = &manifesto.Manifesto{
 		Versao:     "0.13.0",
 		Zip:        manifesto.Arquivo{URL: a.srv.URL + "/zip", SHA256: sha(zipB), Bytes: int64(len(zipB))},
-		Llamafile:  manifesto.Arquivo{URL: a.srv.URL + "/llamafile"},
+		Llamafile:  manifesto.Arquivo{URL: a.srv.URL + "/llamafile", SHA256: sha(motor), Bytes: int64(len(motor))},
 		Modelo:     manifesto.Arquivo{URL: a.srv.URL + "/modelo", SHA256: sha(modelo), Bytes: int64(len(modelo))},
 		ModeloNome: "modelo.gguf",
 	}

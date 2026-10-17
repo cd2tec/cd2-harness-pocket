@@ -14,7 +14,7 @@ import (
 const manifestoValido = `{
   "versao": "0.13.0",
   "zip": {"url": "https://exemplo.test/cd2.zip", "sha256": "abc", "bytes": 10},
-  "llamafile": {"url": "https://exemplo.test/llamafile", "bytes": 20},
+  "llamafile": {"url": "https://exemplo.test/llamafile", "sha256": "aaa", "bytes": 20},
   "modelo": {"url": "https://exemplo.test/modelo.gguf", "sha256": "def", "bytes": 30},
   "modelo_nome": "modelo.gguf",
   "toolbox": {"versao": "1.14.0", "base": "https://exemplo.test/toolbox", "plataformas": ["windows-amd64"]},
@@ -28,6 +28,28 @@ func TestLerRecusaManifestoIncompleto(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "zip") {
 		t.Fatalf("o erro deveria citar zip: %v", err)
+	}
+}
+
+// Sem SHA do llamafile, um motor antigo e menor na cache seria retomado com
+// Range, ficaria com o tamanho certo e passaria na conferência corrompido.
+func TestLerExigeCamposDoMotorToolboxECtl(t *testing.T) {
+	casos := map[string][2]string{
+		"llamafile.url":       {`"url": "https://exemplo.test/llamafile", `, ``},
+		"llamafile.sha256":    {`"sha256": "aaa", `, ``},
+		"toolbox.base":        {`"base": "https://exemplo.test/toolbox"`, `"base": ""`},
+		"toolbox.plataformas": {`["windows-amd64"]`, `[]`},
+		"ctl.base":            {`"base": "https://exemplo.test/ctl"`, `"base": ""`},
+	}
+	for campo, troca := range casos {
+		js := strings.Replace(manifestoValido, troca[0], troca[1], 1)
+		if js == manifestoValido {
+			t.Fatalf("%s: a troca não achou o trecho", campo)
+		}
+		_, err := Ler(strings.NewReader(js))
+		if err == nil || !strings.Contains(err.Error(), campo) {
+			t.Errorf("%s: esperava erro citando o campo, veio %v", campo, err)
+		}
 	}
 }
 
