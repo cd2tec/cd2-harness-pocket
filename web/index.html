@@ -126,6 +126,20 @@ main{flex:1;overflow-y:auto;padding:var(--space-8) 0}
 .msg{margin:0 0 var(--space-6);display:flex;flex-direction:column;gap:var(--space-2)}
 .who{display:flex;align-items:center;gap:var(--space-2);font:500 12px/16px var(--font-sans);letter-spacing:2.4px;text-transform:uppercase;color:var(--ink-muted)}
 .who svg{height:16px;width:auto}
+/* Avatar do chat: mascote num selo redondo. Parado pisca e mexe a antena; falando sai do bolso e mexe a boca. */
+.avatar{display:inline-flex;flex:none;width:32px;height:32px;border-radius:50%;background:var(--surface-raised);border:2px solid var(--brand);overflow:hidden;box-sizing:border-box}
+.who .avatar svg{width:100%;height:100%;display:block}
+.avatar .lente{animation:mascPisca 4s steps(1) infinite}
+.avatar .ponta{animation:mascAntena 2.4s steps(1) infinite}
+.avatar .rob{transform:translateY(1px)} .avatar .boca{opacity:0}
+@keyframes avSobe{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px)}}
+@keyframes avBoca{0%,49%{opacity:0}50%,100%{opacity:1}}
+@keyframes avAntena{0%,49%{fill:#dbff2a}50%,100%{fill:#ffffff}}
+.msg.falando .avatar{border-color:var(--accent);box-shadow:0 0 0 2px var(--brand)}
+.msg.falando .avatar .rob{animation:avSobe .6s steps(2) infinite}
+.msg.falando .avatar .boca{animation:avBoca .3s steps(1) infinite}
+.msg.falando .avatar .ponta{animation:avAntena .5s steps(1) infinite}
+@media (prefers-reduced-motion:reduce){.avatar .lente,.avatar .ponta,.msg.falando .avatar .rob,.msg.falando .avatar .boca,.msg.falando .avatar .ponta{animation:none}.msg.falando .avatar .rob{transform:none}}
 .msg.user .who{align-self:flex-end}
 .msg.user .body{align-self:flex-end;background:var(--surface-brand);color:var(--on-brand);border-radius:var(--radius-md);border-bottom-right-radius:0;padding:var(--space-3) var(--space-4);max-width:85%;white-space:pre-wrap}
 .msg.assistant .body{white-space:pre-wrap;word-wrap:break-word}
@@ -226,6 +240,14 @@ input:disabled,select:disabled{background:var(--surface-100);color:var(--ink-mut
 .tbl{max-height:360px;overflow:auto} .tbl table{border-collapse:collapse;width:100%;font-size:13px}
 .tbl th{position:sticky;top:0;background:var(--surface-100);text-align:left}
 .tbl th,.tbl td{padding:4px 8px;border-bottom:1px solid rgba(13,18,51,.08)} .tbl td.n{text-align:right;font-variant-numeric:tabular-nums}
+.answer.demo{margin:0 0 var(--space-6)} .roteiro .answer.demo{margin:var(--space-2) 0 var(--space-4)}
+.demo-top{display:flex;align-items:center;gap:var(--space-2);margin-bottom:var(--space-2);font:700 13px/20px var(--font-sans)}
+.demo-q{margin:0 0 var(--space-2);color:var(--ink-muted);font-style:italic}
+.roteiro p{margin:0 0 var(--space-3)} .roteiro ol,.roteiro ul{margin:0 0 var(--space-3);padding-left:var(--space-6)} .roteiro li{margin-bottom:var(--space-1)}
+.convite{display:flex;flex-direction:column;align-items:flex-start;gap:var(--space-2);margin:0 0 var(--space-6);padding:var(--space-4);background:var(--surface-raised);border:1px solid rgba(13,18,51,.12);border-left:4px solid var(--brand);border-radius:var(--radius-md)}
+.convite b{font:700 16px/22px var(--font-sans)} .convite p{margin:0;max-width:64ch;color:var(--ink-muted);font:400 14px/22px var(--font-sans)}
+.convite .acts{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-top:var(--space-1)}
+.hero .convite{margin-top:var(--space-6)} .hero .convite p{font:400 15px/24px var(--font-sans)}
 .msg .chips{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-top:var(--space-3)}
 #printArea{display:none}
 @media print{
@@ -354,15 +376,16 @@ input:disabled,select:disabled{background:var(--surface-100);color:var(--ink-mut
 </dialog>
 
 <div id="printArea" aria-hidden="true"></div>
-<script src="mcp.js?v=0.10.4"></script>
-<script src="oauth.js?v=0.10.4"></script>
-<script src="toolbox.js?v=0.10.4"></script>
-<script src="chart.js?v=0.10.4"></script>
-<script src="catalog.js?v=0.10.4"></script>
-<script src="perfil.js?v=0.10.4"></script>
-<script src="descricao.js?v=0.10.4"></script>
-<script src="ask.js?v=0.10.4"></script>
-<script src="report.js?v=0.10.4"></script>
+<script src="mcp.js?v=0.11.0"></script>
+<script src="oauth.js?v=0.11.0"></script>
+<script src="toolbox.js?v=0.11.0"></script>
+<script src="chart.js?v=0.11.0"></script>
+<script src="catalog.js?v=0.11.0"></script>
+<script src="perfil.js?v=0.11.0"></script>
+<script src="descricao.js?v=0.11.0"></script>
+<script src="ask.js?v=0.11.0"></script>
+<script src="report.js?v=0.11.0"></script>
+<script src="demo.js?v=0.11.0"></script>
 <script>
 "use strict";
 const $ = s => document.querySelector(s);
@@ -397,7 +420,6 @@ function splitThink(raw, reasoning){
 function scrollDown(){ const m = $('#main'); m.scrollTop = m.scrollHeight; }
 const TAG = { ok:'concluido', err:'atencao', gold:'melhoria', '':'backlog' };
 function setPill(id, cls, text){ const p = $(id); p.className = 'tag tag--' + (TAG[cls || ''] || 'backlog'); p.lastElementChild.textContent = text; p.title = text; }
-const SYMBOL = '<svg viewBox="129 91 329 312" aria-hidden="true" class="logo"><path class="li" d="M256.2 397.7C188.1 397.6 132.7 341.8 133.3 273.5C133.9 205.8 190.2 151.7 257.9 151.7L330 151.7C330 151.7 330.1 151.7 330.1 151.8C330.1 182.7 305 207.8 274.1 207.8L257.5 207.8C220.8 207.8 190 236.8 189.4 273.4C188.7 310.9 218.9 341.6 256.2 341.6C256.3 341.6 256.3 341.6 256.3 341.7L256.3 397.6C256.3 397.6 256.3 397.7 256.2 397.7"/><path class="lt" d="M328.4 341.6L256.3 341.6C256.3 341.6 256.3 341.6 256.3 341.6C256.3 310.6 281.3 285.6 312.3 285.6L328.9 285.6C365.5 285.6 396.3 256.5 397 219.9C397.6 182.4 367.4 151.7 330.1 151.7C330.1 151.7 330 151.7 330 151.6L330 95.7C330 95.7 330.1 95.6 330.1 95.6C398.3 95.7 453.7 151.5 453 219.8C452.4 287.5 396.2 341.6 328.4 341.6"/></svg>';
 
 /* ---------- MCP (web/mcp.js) e OAuth do Archeo (web/oauth.js) ---------- */
 function cfgUrl(){ return store.get('cd2.url') || (st.cfg.mcp && st.cfg.mcp.url) || ''; }
@@ -416,25 +438,8 @@ async function handleOAuthReturn(){
   }catch(e){ clean(); addNote('Login no Archeo falhou: ' + (e.message || e) + netHint(e), true); }
 }
 
-/* ---------- demo provider (dados fictícios, funciona offline) ---------- */
-const DEMO_TAG = '[DADOS FICTÍCIOS DE DEMONSTRAÇÃO]\n';
-const demo = {
-  async init(){ return [
-    { name:'vendas_por_departamento', description:'Vendas do mês por departamento do supermercado (demonstração).', inputSchema:{ type:'object', properties:{}, required:[] } },
-    { name:'perdas_do_mes', description:'Maiores perdas (quebras) do mês por motivo (demonstração).', inputSchema:{ type:'object', properties:{}, required:[] } },
-    { name:'rupturas_criticas', description:'Produtos de curva A em ruptura nas lojas (demonstração).', inputSchema:{ type:'object', properties:{ limite:{ type:'integer', description:'Quantidade máxima de itens' } }, required:[] } }
-  ]; },
-  async call(name, a){
-    if(name === 'vendas_por_departamento') return DEMO_TAG + 'Departamento | Venda (R$) | Margem\nMercearia | 1.842.300 | 24,1%\nBebidas | 1.215.870 | 27,8%\nHortifruti | 934.110 | 31,5%\nAçougue | 1.402.560 | 22,9%\nPadaria | 611.420 | 38,2%\nLimpeza | 702.980 | 29,4%';
-    if(name === 'perdas_do_mes') return DEMO_TAG + 'Motivo | Perda (R$) | % da venda\nVencimento | 118.400 | 1,12%\nAvaria | 64.250 | 0,61%\nQuebra operacional | 41.900 | 0,40%\nAjuste de inventário (não identificada) | 96.700 | 0,92%';
-    if(name === 'rupturas_criticas'){
-      const all = ['Arroz 5kg tipo 1 (loja 03)','Óleo de soja 900ml (loja 01)','Leite integral 1L (loja 07)','Café torrado 500g (loja 03)','Detergente 500ml (loja 05)'];
-      const n = Math.max(1, Math.min(all.length, parseInt(a && a.limite) || 3));
-      return DEMO_TAG + all.slice(0, n).map((x, i) => (i + 1) + '. ' + x).join('\n');
-    }
-    throw new Error('Ferramenta desconhecida: ' + name);
-  }
-};
+/* ---------- demo provider (web/demo.js: dados fictícios, funciona offline) ---------- */
+const demo = { async init(){ return CD2Demo.TOOLS; }, async call(name, a){ return CD2Demo.call(name, a); } };
 
 /* ---------- conexão com as ferramentas ---------- */
 async function connectTools(){
@@ -518,7 +523,8 @@ async function streamCompletion(messages, onUpdate, signal){
 /* ---------- UI de mensagens ---------- */
 function addMsg(role){
   const el = document.createElement('div'); el.className = 'msg ' + role;
-  el.innerHTML = '<div class="who">' + (role === 'user' ? 'Você' : SYMBOL + 'CD2') + '</div>';
+  el.innerHTML = '<div class="who">' + (role === 'user' ? 'Você' : avatarSvg() + 'CD2') + '</div>';
+  if(role !== 'user') el.classList.add('falando');
   $('#chat').appendChild(el); scrollDown(); return el;
 }
 function addUser(text){ const el = addMsg('user'); const b = document.createElement('div'); b.className = 'body'; b.textContent = text; el.appendChild(b); }
@@ -533,7 +539,7 @@ function newAssistant(){
       if(p.think){ think.style.display = ''; think.querySelector('.inner').textContent = p.think; }
       body.innerHTML = md(p.content); scrollDown();
     },
-    done(){ const s = think.querySelector('summary'); s.textContent = 'Raciocínio'; }
+    done(){ const s = think.querySelector('summary'); s.textContent = 'Raciocínio'; el.classList.remove('falando'); }
   };
 }
 function addToolCard(name, args){
@@ -553,7 +559,8 @@ async function runTurn(){
   try{
     for(let step = 0; step < MAX_STEPS; step++){
       const ui = newAssistant();
-      const res = await streamCompletion([{ role:'system', content:st.cfg.systemPrompt }].concat(st.messages), p => ui.update(p), st.ctl.signal);
+      const sys = st.cfg.systemPrompt + (st.provider === demo ? CD2Demo.PROMPT : '');
+      const res = await streamCompletion([{ role:'system', content:sys }].concat(st.messages), p => ui.update(p), st.ctl.signal);
       ui.done();
       if(!res.content && !res.calls.length) ui.body.textContent = '(sem resposta do modelo)';
       const msg = { role:'assistant', content:res.content || '' };
@@ -577,10 +584,12 @@ async function runTurn(){
         }
         if(out.length > MAX_TOOL_CHARS) out = out.slice(0, MAX_TOOL_CHARS) + '\n[…resultado truncado]';
         card.finish(out, failed);
+        if(!failed && st.provider === demo){ const g = CD2Demo.grafico(c.function.name, args); if(g) $('#chat').appendChild(demoCard(g)); scrollDown(); }
         st.messages.push({ role:'tool', tool_call_id:c.id, content:out });
       }
       if(step === MAX_STEPS - 1) addNote('Limite de passos de ferramentas atingido.');
     }
+    if(st.provider === demo) $('#chat').appendChild(convite());
   }catch(e){
     if(e.name !== 'AbortError') addNote('Erro: ' + (e.message || e), true); else addNote('Interrompido.');
   }finally{
@@ -634,12 +643,23 @@ const PIADAS = [
   'Eu não esqueço nada... até fechar a janela.',
   'Meu lugar favorito no banco? A tabela de vendas, claro.'
 ];
-function montarMascote(){
-  const px = (linhas, dy, cls) => { let s = ''; linhas.forEach((l, y) => [...l].forEach((ch, x) => {
+function pixelsMascote(linhas, dy, cls){
+  let s = '';
+  linhas.forEach((l, y) => [...l].forEach((ch, x) => {
     if(!MASCOTE_COR[ch]) return;
     const c = ch === 'w' ? ' class="lente"' : (ch === 'y' && y === 0 && cls === 'rob') ? ' class="ponta"' : '';
-    s += '<rect x="' + x + '" y="' + (y + dy) + '" width="1" height="1" fill="' + MASCOTE_COR[ch] + '"' + c + '/>'; })); return s; };
-  $('#mascoteSvg').innerHTML = '<g class="rob">' + px(MASCOTE.rob, 0, 'rob') + '</g>' + px(MASCOTE.bolso, 8, 'bolso');
+    s += '<rect x="' + x + '" y="' + (y + dy) + '" width="1" height="1" fill="' + MASCOTE_COR[ch] + '"' + c + '/>'; }));
+  return s;
+}
+function montarMascote(){
+  $('#mascoteSvg').innerHTML = '<g class="rob">' + pixelsMascote(MASCOTE.rob, 0, 'rob') + '</g>' + pixelsMascote(MASCOTE.bolso, 8, 'bolso');
+}
+// Avatar do chat: o mascote num selo redondo. A boca (linha 6, entre as bochechas) só aparece
+// falando; o robô fica atrás do bolso, que esconde a parte de baixo quando ele afunda.
+function avatarSvg(){
+  return '<span class="avatar" aria-hidden="true"><svg viewBox="-2 -1.5 15 15" shape-rendering="crispEdges">'
+    + '<g class="rob">' + pixelsMascote(MASCOTE.rob, 0, 'rob') + '<rect class="boca" x="4" y="6" width="3" height="1" fill="' + MASCOTE_COR.k + '"/></g>'
+    + pixelsMascote(MASCOTE.bolso, 8, 'bolso') + '</svg></span>';
 }
 function piada(){
   const b = $('#balao');
@@ -763,15 +783,58 @@ function printPerfil(){
     contato:(st.cfg.report && st.cfg.report.contact) || '', logoSvg:$('.topbar .logo').outerHTML });
   window.print();
 }
+/* ---------- modo Demonstração: gráficos, roteiro e convite para conectar o banco ---------- */
+function demoCard(g, sobre, pergunta){
+  const card = document.createElement('div'); card.className = 'answer demo';
+  const top = document.createElement('div'); top.className = 'demo-top';
+  top.innerHTML = '<span class="tag tag--melhoria">Dados fictícios</span>';
+  if(sobre){ const b = document.createElement('b'); b.textContent = sobre; top.appendChild(b); }
+  card.appendChild(top);
+  if(pergunta){ const q = document.createElement('p'); q.className = 'demo-q'; q.textContent = '“' + pergunta + '”'; card.appendChild(q); }
+  const h = document.createElement('h3'); h.textContent = g.titulo; card.appendChild(h);
+  const f = document.createElement('p'); f.className = 'frase'; f.textContent = g.frase; card.appendChild(f);
+  const viz = document.createElement('div'); viz.className = 'viz';
+  viz.innerHTML = CD2Chart.render(g.visual, g.colunas, g.linhas, { x:g.x, y:g.y }); card.appendChild(viz);
+  return card;
+}
+// Caixa que leva para Configurações já no modo de banco de dados.
+function convite(){
+  const d = document.createElement('div'); d.className = 'convite';
+  d.innerHTML = '<span class="tag tag--melhoria">Modo Demonstração</span><b></b><p></p><div class="acts"></div>';
+  d.querySelector('b').textContent = CD2Demo.CONVITE.titulo; d.querySelector('p').textContent = CD2Demo.CONVITE.texto;
+  const acts = d.querySelector('.acts');
+  const bc = document.createElement('button'); bc.className = 'sm primary'; bc.textContent = 'Conectar meu banco de dados'; bc.onclick = () => openCfg('toolbox');
+  acts.appendChild(bc);
+  for(const [rotulo, pergunta] of [['É seguro?', 'É seguro conectar no meu banco?'], ['Como você aprende o banco?', 'Como você entende o meu banco?']]){
+    const b = document.createElement('button'); b.className = 'sm'; b.textContent = rotulo; b.onclick = () => send(pergunta); acts.appendChild(b);
+  }
+  return d;
+}
+function renderRoteiro(pergunta, r){
+  const el = addMsg('assistant'), body = document.createElement('div'); body.className = 'body roteiro'; el.appendChild(body);
+  for(const b of r.blocos){
+    if(b.p){ const p = document.createElement('p'); p.innerHTML = md(b.p); body.appendChild(p); }
+    else if(b.lista){
+      const l = document.createElement(b.numerada ? 'ol' : 'ul');
+      for(const x of b.lista){ const li = document.createElement('li'); li.innerHTML = md(x); l.appendChild(li); }
+      body.appendChild(l);
+    }else if(b.grafico){ const g = CD2Demo.grafico(b.grafico, b.args); if(g) body.appendChild(demoCard(g, b.sobre, b.pergunta)); }
+  }
+  body.appendChild(convite());
+  st.messages.push({ role:'user', content:pergunta }, { role:'assistant', content:CD2Demo.texto(r) });
+  setTimeout(() => el.classList.remove('falando'), 1600);
+  scrollDown();
+}
 function addNote(t, err){
   const d = document.createElement('div'); d.className = 'notice' + (err ? ' err' : '');
   if(err){ const tg = document.createElement('span'); tg.className = 'tag tag--atencao'; tg.textContent = 'Atenção'; d.appendChild(tg); }
   d.appendChild(document.createTextNode(t));
   $('#chat').appendChild(d); scrollDown();
 }
+function calarAvatares(){ document.querySelectorAll('.msg.falando').forEach(m => m.classList.remove('falando')); }
 function toggleBusy(){
   $('#bSend').style.display = st.busy ? 'none' : ''; $('#bStop').style.display = st.busy ? '' : 'none'; $('#input').disabled = st.busy;
-  if(!st.busy) $('#input').focus();
+  if(!st.busy){ $('#input').focus(); calarAvatares(); }
 }
 function send(text){
   text = (text || $('#input').value).trim(); if(!text || st.busy) return;
@@ -779,7 +842,9 @@ function send(text){
   const hero = $('#hero'); if(hero) hero.remove();
   addUser(text);
   const mode = store.get('cd2.mode') || (st.cfg.mcp && st.cfg.mcp.mode) || 'demo';
-  if(mode === 'toolbox' && st.catalogPromise) runAsk(text);
+  const rot = (st.provider === demo) ? CD2Demo.roteiro(text) : null;
+  if(rot) renderRoteiro(text, rot);
+  else if(mode === 'toolbox' && st.catalogPromise) runAsk(text);
   else{ st.messages.push({ role:'user', content:text }); runTurn(); }
 }
 function renderHero(){
@@ -793,6 +858,7 @@ function renderHero(){
   for(const s of sug){
     const b = document.createElement('button'); b.className = 'chip'; b.textContent = s; b.onclick = () => send(s); h.querySelector('.chips').appendChild(b);
   }
+  if(mode === 'demo') h.insertBefore(convite(), h.querySelector('.sub'));
   c.appendChild(h);
 }
 function newChat(){ if(st.ctl) st.ctl.abort(); st.messages = []; renderHero(); }
@@ -880,8 +946,8 @@ function renderToolbox(){
   $('#bDbOff').style.display = (on && cs && cs.motor) ? '' : 'none';
   $('#bPerfilPdf').style.display = st.catalog ? '' : 'none';
 }
-function openCfg(){
-  const mode = store.get('cd2.mode') || (st.cfg.mcp && st.cfg.mcp.mode) || 'demo';
+function openCfg(forcar){
+  const mode = (typeof forcar === 'string' && forcar) || store.get('cd2.mode') || (st.cfg.mcp && st.cfg.mcp.mode) || 'demo';
   document.querySelectorAll('input[name=mode]').forEach(r => r.checked = (r.value === mode));
   $('#mcpUrl').value = store.get('cd2.url') || (st.cfg.mcp && st.cfg.mcp.url) || '';
   $('#mcpTok').value = store.get('cd2.tok', true) || '';
@@ -1001,7 +1067,7 @@ async function boot(){
 $('#bSend').onclick = () => send();
 $('#bStop').onclick = () => st.ctl && st.ctl.abort();
 $('#bNew').onclick = newChat;
-$('#bCfg').onclick = openCfg;
+$('#bCfg').onclick = () => openCfg();
 $('#cfgClose').onclick = () => $('#dlg').close();
 $('#cfgSave').onclick = saveCfg;
 $('#wOk').onclick = () => { $('#welcome').close(); $('#input').focus(); };

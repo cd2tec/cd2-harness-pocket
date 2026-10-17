@@ -74,6 +74,21 @@ start_server() {  # $@ = flags extras (GPU)
   PID=$!
 }
 
+# So volta com o servidor morto: a tentativa seguinte usa a mesma porta. Num Mac de 8 GB o llamafile
+# carregando pode levar mais que 1 s para sair do TERM; depois de 10 s vai KILL.
+parar_servidor() {
+  [ -n "$PID" ] || return 0
+  kill "$PID" 2>/dev/null
+  n=0
+  while kill -0 "$PID" 2>/dev/null; do
+    n=$((n + 1))
+    [ "$n" -eq 20 ] && kill -9 "$PID" 2>/dev/null
+    [ "$n" -ge 30 ] && break
+    sleep 0.5
+  done
+  PID=""
+}
+
 # robo de carregamento: le o modelo em pedacos (progresso real) e anima enquanto o servidor sobe
 . "$ROOT/core/robo-unix.sh"
 robo_init
@@ -83,9 +98,10 @@ robo_ler "$MODEL" || say "[AVISO] Nao consegui ler o modelo antes de subir o ser
 start_server -ngl 999
 if ! robo_esperar "$URL" "$PID" 240; then
   robo_aviso "Aceleracao por GPU indisponivel, tentando so com CPU..."
-  kill "$PID" 2>/dev/null; sleep 1
+  parar_servidor
+  cp "$LOG" "$CACHE/server-gpu.log" 2>/dev/null  # o start_server zera o log; o da GPU explica a troca
   start_server --gpu disable -ngl 0
-  robo_esperar "$URL" "$PID" 240 || { robo_fim erro "O modelo nao subiu."; die "O servidor nao iniciou. Log completo: $LOG"; }
+  robo_esperar "$URL" "$PID" 240 || { robo_fim erro "O modelo nao subiu."; die "O servidor nao iniciou. Logs: $LOG e $CACHE/server-gpu.log"; }
 fi
 robo_fim ok "Pronto: $URL"
 say ""
