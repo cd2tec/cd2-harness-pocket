@@ -21,6 +21,9 @@ type Progresso func(feitos, total int64)
 // ErrConferencia indica que o arquivo em disco não bate com o manifesto.
 var ErrConferencia = errors.New("arquivo baixado não confere")
 
+// ErrHTTP indica status HTTP inesperado no download.
+var ErrHTTP = errors.New("status HTTP inesperado")
+
 // Arquivo baixa url em destino. Pula se já estiver completo (SHA confere, ou
 // Bytes bate quando não há SHA). Retoma pela metade com Range; se o servidor
 // ignorar o Range (200), recomeça do zero. Se a conferência falhar no fim,
@@ -128,7 +131,7 @@ func baixar(ctx context.Context, c *http.Client, url, destino string, esperado m
 		// O que há em disco já cobre tudo; a conferência decide.
 		return nil
 	default:
-		return fmt.Errorf("download de %s: %s", url, resp.Status)
+		return fmt.Errorf("%w: download de %s: %s", ErrHTTP, url, resp.Status)
 	}
 
 	total := esperado.Bytes

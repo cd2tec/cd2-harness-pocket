@@ -242,7 +242,7 @@ func baixarSomas(ctx context.Context, c *http.Client, url, destino string) error
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("download de %s: %s", url, resp.Status)
+		return fmt.Errorf("%w: download de %s: %s", baixar.ErrHTTP, url, resp.Status)
 	}
 	corpo, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {

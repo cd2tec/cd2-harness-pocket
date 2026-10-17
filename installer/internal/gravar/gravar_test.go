@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -42,6 +43,7 @@ type falso struct {
 	pasta    string // pasta que faz o papel do volume gravado
 	apagar   error
 	ejetar   error
+	aoListar func() // chamado depois de cada Listar (o teste cancela aqui)
 }
 
 func (f *falso) registrar(s string) {
@@ -65,10 +67,17 @@ func (f *falso) Listar(context.Context) ([]discos.Bruto, error) {
 		i = len(f.listas) - 1
 	}
 	f.chamadas++
-	return f.listas[i], nil
+	l, hook := f.listas[i], f.aoListar
+	if hook != nil {
+		defer hook()
+	}
+	return l, nil
 }
 
-func (f *falso) Apagar(_ context.Context, id, rotulo string) (string, error) {
+func (f *falso) Apagar(ctx context.Context, id, rotulo string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err // cancelado: nada é apagado e nada é registrado
+	}
 	f.registrar("Apagar " + id + " " + rotulo)
 	if f.apagar != nil {
 		return "", f.apagar
@@ -312,9 +321,13 @@ func TestDiscoMudou(t *testing.T) {
 func TestRemovidoNoMeio(t *testing.T) {
 	a := novoAmbiente(t)
 	fora := filepath.Dir(a.sis.pasta)
-	tirado := false
+	tirado, copiando := false, 0
 	err := Gravar(context.Background(), a.opcoes(), func(e Evento) {
-		if e.Etapa == "copiando" && !tirado {
+		if e.Etapa == "copiando" {
+			copiando++
+		}
+		// Segundo evento de cópia: já houve bytes copiados.
+		if copiando == 2 && !tirado {
 			tirado = true
 			os.RemoveAll(fora)
 			os.WriteFile(fora, []byte("x"), 0o644)
@@ -361,6 +374,66 @@ func TestCancelarAntesEDepois(t *testing.T) {
 			t.Fatal("deveria ter apagado antes de cancelar")
 		}
 	})
+}
+
+func TestCancelarEntreReconferenciaEApagar(t *testing.T) {
+	a := novoAmbiente(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	a.sis.aoListar = cancel
+	var copiou bool
+	err := Gravar(ctx, a.opcoes(), func(e Evento) {
+		if e.Etapa == "copiando" {
+			copiou = true
+		}
+	})
+	if got := fraseDe(t, err); got != fraseCancelouAntes {
+		t.Fatalf("frase = %q", got)
+	}
+	if a.sis.contem("Apagar") || copiou {
+		t.Fatalf("apagou ou anunciou cópia: %v", a.sis.copia())
+	}
+}
+
+func TestEtapaNovaSempreEmite(t *testing.T) {
+	a := novoAmbiente(t)
+	vistas := map[string]bool{}
+	if err := Gravar(context.Background(), a.opcoes(), func(e Evento) { vistas[e.Etapa] = true }); err != nil {
+		t.Fatal(err)
+	}
+	for _, et := range []string{"baixando", "copiando", "conferindo", "pronto"} {
+		if !vistas[et] {
+			t.Errorf("etapa %s sem evento", et)
+		}
+	}
+	// Direto no andamento: troca de etapa e de frase vencem o passo mínimo.
+	var n int
+	ad := &andamento{agora: time.Now, ev: func(Evento) { n++ }, baixar: 1000, copiar: 1000}
+	ad.publicar("copiando", "a", 0, 10, 0, false)
+	ad.publicar("copiando", "a", 1, 10000000, 0, false) // dentro do passo: não sai
+	ad.publicar("conferindo", "b", 1, 10000000, 0, false)
+	ad.publicar("conferindo", "c", 1, 10000000, 0, false)
+	if n != 3 {
+		t.Fatalf("eventos = %d, esperava 3", n)
+	}
+}
+
+func TestGuardarChecksumsFalhaNaoEhErro(t *testing.T) {
+	a := novoAmbiente(t)
+	t.Cleanup(func() { os.Chmod(a.cache, 0o755) })
+	var ultimo Evento
+	err := Gravar(context.Background(), a.opcoes(), func(e Evento) {
+		if e.Etapa == "conferindo" {
+			os.Chmod(a.cache, 0o555)
+		}
+		ultimo = e
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ultimo.Etapa != "pronto" || !a.sis.contem("Ejetar") {
+		t.Fatalf("último = %+v, log %v", ultimo, a.sis.copia())
+	}
 }
 
 func TestFracaoCresce(t *testing.T) {
@@ -463,7 +536,9 @@ func TestFrases(t *testing.T) {
 	}{
 		{"sem manifesto", frasePreparo(manifesto.ErrSemManifesto), "Não consegui baixar o que falta. Confira a internet e tente de novo. Nada foi apagado."},
 		{"falta internet", frasePreparo(fmt.Errorf("zip: %w", preparo.ErrFaltaInternet)), "Não consegui baixar o que falta. Confira a internet e tente de novo. Nada foi apagado."},
-		{"http 500", frasePreparo(errors.New("modelo: download de http://x/m: 500 Internal Server Error")), "Não consegui baixar o que falta. Confira a internet e tente de novo. Nada foi apagado."},
+		{"http 500", frasePreparo(fmt.Errorf("modelo: %w: download de x: 500", baixar.ErrHTTP)), "Não consegui baixar o que falta. Confira a internet e tente de novo. Nada foi apagado."},
+		{"corte no corpo", frasePreparo(fmt.Errorf("modelo: %w", io.ErrUnexpectedEOF)), "Não consegui baixar o que falta. Confira a internet e tente de novo. Nada foi apagado."},
+		{"texto parecido não é rede", frasePreparo(errors.New("download de algo")), "Não deu certo. Tente de novo."},
 		{"conferência", frasePreparo(fmt.Errorf("modelo: %w", baixar.ErrConferencia)), "Um arquivo chegou com defeito duas vezes. Tente de novo daqui a pouco. Nada foi apagado."},
 		{"antivírus", fmt.Sprintf(fraseAntivirus, `C:\cache`), `O antivírus removeu o motor da IA. Libere a pasta C:\cache no antivírus e tente de novo. Nada foi apagado.`},
 		{"disco mudou", fraseDiscoMudou, "O pen drive mudou desde que você escolheu. Escolha de novo. Nada foi apagado."},
@@ -474,7 +549,7 @@ func TestFrases(t *testing.T) {
 		{"cancelou depois", fraseCancelouApos, "Gravação cancelada. O pen drive ficou incompleto. Grave de novo antes de usar."},
 		{"ejetar", fraseProntoSem, "Pronto. Ejete o pen drive pelo sistema antes de tirar."},
 		{"não mapeado no preparo", frasePreparo(errors.New("disco cheio")), "Não deu certo. Tente de novo."},
-		{"não mapeado na cópia", fraseGravacao(errors.New("erro qualquer")), "Não deu certo. Tente de novo."},
+		{"não mapeado depois de apagar", fraseGravacao(errors.New("erro qualquer")), "Não deu certo. O pen drive ficou incompleto. Grave de novo antes de usar."},
 		{"copiando", fraseCopiando, "Copiando para o pen drive"},
 		{"conferindo", fraseConferindo, "Conferindo o que foi gravado"},
 		{"baixando", fraseBaixando("modelo", 1_600_000_000, 3_900_000_000), "Baixando o modelo (1,6 de 3,9 GB)"},

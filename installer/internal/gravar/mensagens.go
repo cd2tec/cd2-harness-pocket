@@ -3,6 +3,7 @@ package gravar
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"strings"
@@ -30,6 +31,7 @@ const (
 	fraseCancelouAntes = "Gravação cancelada. Nada foi apagado."
 	fraseCancelouApos  = "Gravação cancelada. O pen drive ficou incompleto. Grave de novo antes de usar."
 	fraseGenerica      = "Não deu certo. Tente de novo."
+	fraseGenericaApos  = "Não deu certo. O pen drive ficou incompleto. Grave de novo antes de usar."
 )
 
 // nomeDoItem traduz o Item do preparo para o que a pessoa lê.
@@ -62,12 +64,13 @@ func fraseBaixando(item string, feitos, total int64) string {
 	return fmt.Sprintf("Baixando %s (%s de %s GB)", nome, gb(feitos), gb(total))
 }
 
-// ehRede diz se o erro veio da rede. O pacote baixar devolve falha de status
-// HTTP como erro de texto ("download de <url>: <status>"), sem tipo próprio.
+// ehRede diz se o erro veio da rede: falha de conexão, corte no meio do
+// corpo ou status HTTP inesperado.
 func ehRede(err error) bool {
 	var ue *url.Error
 	var ne net.Error
-	return errors.As(err, &ue) || errors.As(err, &ne) || strings.Contains(err.Error(), "download de ")
+	return errors.As(err, &ue) || errors.As(err, &ne) ||
+		errors.Is(err, baixar.ErrHTTP) || errors.Is(err, io.ErrUnexpectedEOF)
 }
 
 // frasePreparo traduz um erro de Obter ou Montar (nada foi apagado ainda).
@@ -81,7 +84,7 @@ func frasePreparo(err error) string {
 	return fraseGenerica
 }
 
-// fraseGravacao traduz um erro de Copiar ou Conferir.
+// fraseGravacao traduz um erro de Copiar ou Conferir (o disco já foi apagado).
 func fraseGravacao(err error) string {
 	switch {
 	case errors.Is(err, pendrive.ErrRemovido):
@@ -89,5 +92,5 @@ func fraseGravacao(err error) string {
 	case errors.Is(err, pendrive.ErrDiferente):
 		return fraseDiferente
 	}
-	return fraseGenerica
+	return fraseGenericaApos
 }

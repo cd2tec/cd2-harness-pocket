@@ -104,8 +104,10 @@ type andamento struct {
 	baixar, copiar int64
 	ultima         float64 // maior fração já calculada
 	etapa          string
+	etapaEmitida   string
 	inicio         time.Time
 	amostras       []amostra // janela (instante, bytes feitos) da etapa atual
+	ultimaFrase    string
 	emitiu         bool
 	emitida        float64
 }
@@ -134,6 +136,8 @@ func (a *andamento) publicar(etapa, frase string, feitos, total, base int64, for
 		a.amostras = a.amostras[1:]
 	}
 
+	forcar = forcar || etapa != a.etapaEmitida || frase != a.ultimaFrase
+	a.etapaEmitida, a.ultimaFrase = etapa, frase
 	if !forcar && a.emitiu && f-a.emitida < passoMinimo {
 		return
 	}
@@ -239,13 +243,17 @@ func Gravar(ctx context.Context, o Opcoes, ev func(Evento)) error {
 	if err := reconferir(ctx, o); err != nil {
 		return falha(fraseDiscoMudou, err)
 	}
+	// Cancelar nesta janela ainda não apagou nada.
+	if err := ctx.Err(); err != nil {
+		return falha("", err)
+	}
 
-	apagou = true
-	a.publicar("copiando", fraseCopiando, 0, total, a.baixar, true)
 	montagem, err := o.Sistema.Apagar(ctx, o.Disco.ID, rotuloDisco)
 	if err != nil {
 		return falha(fraseFormatar, err)
 	}
+	apagou = true
+	a.publicar("copiando", fraseCopiando, 0, total, a.baixar, true)
 	if err := pendrive.Copiar(ctx, stage, montagem, func(f, t int64) {
 		a.publicar("copiando", fraseCopiando, f, t, a.baixar, false)
 	}); err != nil {
@@ -256,9 +264,8 @@ func Gravar(ctx context.Context, o Opcoes, ev func(Evento)) error {
 	}); err != nil {
 		return falha(fraseGravacao(err), err)
 	}
-	if _, err := pendrive.GuardarChecksums(montagem, o.Cache, agora()); err != nil {
-		return falha(fraseGravacao(err), err)
-	}
+	// Guardar os checksums na cache não é erro: o pen drive já foi conferido.
+	_, _ = pendrive.GuardarChecksums(montagem, o.Cache, agora())
 	if err := o.Sistema.Ejetar(ctx, o.Disco.ID, montagem); err != nil {
 		a.pronto(fraseProntoSem)
 		return nil
