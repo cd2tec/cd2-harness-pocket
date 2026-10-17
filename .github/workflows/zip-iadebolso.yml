@@ -63,3 +63,58 @@ jobs:
           gh release edit iadebolso --title "IA de Bolso $VERSAO" --latest=false -R "$GITHUB_REPOSITORY"
           # O manifesto sobe depois do ZIP, em sequência: ele nunca aponta para o SHA de um ZIP que ainda não está lá.
           gh release upload iadebolso manifesto.json --clobber -R "$GITHUB_REPOSITORY"
+
+  # Instaladores desktop (Wails). Rodam depois do job zip, que garante a release iadebolso.
+  # O CLI do Wails 2.10.1 não compila com o Go mais novo ("package context without types"),
+  # por isso o Go fica fixado em 1.23.x nestes dois jobs.
+  instalador-mac:
+    needs: zip
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+          cache: false
+      - name: Instalar o Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.10.1
+      - name: Compilar o app universal
+        working-directory: installer
+        run: |
+          VERSAO="$(tr -d ' \r\n' < ../VERSION)"
+          wails build -clean -trimpath -platform darwin/universal -ldflags "-X main.versao=$VERSAO"
+      - name: Assinar (ad hoc) e montar o dmg
+        working-directory: installer/build/bin
+        run: |
+          # O Apple Silicon exige ao menos a assinatura ad hoc para abrir o app.
+          codesign --force --deep -s - "CD2 IA de Bolso.app"
+          hdiutil create -volname "CD2 IA de Bolso" -srcfolder "CD2 IA de Bolso.app" -ov -format UDZO CD2-IA-de-Bolso-Mac.dmg
+      - name: Publicar na release iadebolso
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload iadebolso installer/build/bin/CD2-IA-de-Bolso-Mac.dmg --clobber -R "$GITHUB_REPOSITORY"
+
+  instalador-windows:
+    needs: zip
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+          cache: false
+      - name: Instalar o Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.10.1
+      - name: Compilar o exe (pede administrador pelo manifesto)
+        working-directory: installer
+        run: |
+          VERSAO="$(tr -d ' \r\n' < ../VERSION)"
+          wails build -clean -trimpath -platform windows/amd64 -webview2 embed -ldflags "-X main.versao=$VERSAO"
+          mv build/bin/CD2-IA-de-Bolso.exe build/bin/CD2-IA-de-Bolso-Windows.exe
+      - name: Publicar na release iadebolso
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload iadebolso installer/build/bin/CD2-IA-de-Bolso-Windows.exe --clobber -R "$GITHUB_REPOSITORY"

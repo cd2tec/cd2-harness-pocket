@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	goruntime "runtime"
 	"sync"
 	"time"
 
@@ -109,6 +110,41 @@ func (a *App) rodar(ctx context.Context, cancel context.CancelFunc, o gravar.Opc
 	a.mu.Unlock()
 	cancel()
 	a.emitir(a.ctx, "fim", fim)
+}
+
+// Gravando diz se há uma gravação em andamento.
+func (a *App) Gravando() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.cancelar != nil
+}
+
+// antesDeFechar roda quando a pessoa tenta fechar a janela. Devolve true para
+// impedir o fechamento. Com gravação em andamento, pergunta antes; se a pessoa
+// insistir, cancela a gravação e deixa fechar.
+func (a *App) antesDeFechar(ctx context.Context) bool {
+	if !a.Gravando() {
+		return false
+	}
+	// No Windows o Wails ignora os rótulos e mostra Sim/Não (devolve "Yes"/"No"),
+	// com "No" como padrão. No Mac valem os rótulos.
+	padrao := "Continuar gravando"
+	if goruntime.GOOS == "windows" {
+		padrao = "No"
+	}
+	r, err := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
+		Type:          runtime.QuestionDialog,
+		Title:         "CD2 IA de Bolso",
+		Message:       "A gravação ainda não terminou. Se fechar agora, o pen drive pode ficar incompleto. Fechar mesmo assim?",
+		Buttons:       []string{"Continuar gravando", "Fechar"},
+		DefaultButton: padrao,
+		CancelButton:  padrao,
+	})
+	if err != nil || (r != "Fechar" && r != "Yes") {
+		return true
+	}
+	a.Cancelar()
+	return false
 }
 
 // Cancelar interrompe a gravação em andamento, se houver.

@@ -27,6 +27,7 @@ func main() {
 		BackgroundColour: &options.RGBA{R: 242, G: 242, B: 242, A: 255},
 		AssetServer:      &assetserver.Options{Assets: telas},
 		OnStartup:        app.iniciar,
+		OnBeforeClose:    app.antesDeFechar,
 		Bind:             []interface{}{app},
 	})
 	if err != nil {

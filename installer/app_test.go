@@ -142,6 +142,29 @@ func TestSegundoGravarEnquantoUmRodaDevolveErroECancelarPara(t *testing.T) {
 	e.esperarFim(t)
 }
 
+func TestGravandoRefletePeloEstadoDaGravacao(t *testing.T) {
+	e := novoEmissor()
+	solta := make(chan struct{})
+	a := appDeTeste(e, func(context.Context, gravar.Opcoes, func(gravar.Evento)) error {
+		<-solta
+		return nil
+	})
+	if a.Gravando() {
+		t.Fatal("sem gravação, Gravando deveria ser false")
+	}
+	if err := a.Gravar(disco); err != nil {
+		t.Fatal(err)
+	}
+	if !a.Gravando() {
+		t.Fatal("com gravação rodando, Gravando deveria ser true")
+	}
+	close(solta)
+	e.esperarFim(t)
+	if a.Gravando() {
+		t.Fatal("depois do fim, Gravando deveria voltar a false")
+	}
+}
+
 func TestCancelarSemGravacaoNaoFazNada(t *testing.T) {
 	a := appDeTeste(novoEmissor(), nil)
 	a.Cancelar()
