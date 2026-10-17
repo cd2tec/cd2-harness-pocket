@@ -4,6 +4,7 @@
 (function(){
 "use strict";
 const F = window.CD2Fluxo;
+const M = window.CD2Mascote;
 const $ = id => document.getElementById(id);
 const esc = F.escapar;
 
@@ -99,6 +100,7 @@ const telas = {
   },
   gravando: {
     montar: () => '<h1 tabindex="-1" id="titulo"></h1>'
+      + '<div class="pista"><span class="boneco" id="robo">' + M.roboSvg() + '</span></div>'
       + '<div class="barra" role="progressbar" aria-label="Andamento da gravação" aria-valuemin="0" aria-valuemax="100" id="barra"><i></i></div>'
       + '<p class="frase" id="frase"></p>'
       + '<p class="restante" id="restante"></p>'
@@ -109,6 +111,8 @@ const telas = {
       $('titulo').textContent = F.tituloGravando(e.progresso);
       $('barra').setAttribute('aria-valuenow', String(p));
       $('barra').firstElementChild.style.width = p + '%';
+      // O robô anda junto com a ponta da barra, sem sair pelas bordas.
+      $('robo').style.left = 'clamp(21px, ' + p + '%, calc(100% - 21px))';
       $('frase').textContent = e.frase;
       const r = F.textoRestante(e.progresso ? e.progresso.restante : -1);
       $('restante').textContent = r;
@@ -116,7 +120,8 @@ const telas = {
     },
   },
   pronto: {
-    montar: e => '<div class="final"><div class="selo ok">' + ICONE_OK + '</div>'
+    montar: e => '<div class="final"><div class="vitoria"><div class="selo ok">' + ICONE_OK + '</div>'
+      + '<span class="boneco">' + M.mascoteSvg() + '</span></div>'
       + '<h1 tabindex="-1">' + esc(F.tituloPronto(e.frase)) + '</h1></div>'
       + '<div class="acoes"><button type="button" class="btn primario" data-acao="outro">Gravar outro</button></div>',
     atualizar: () => {},
@@ -136,7 +141,7 @@ function discoEscolhido(e){
 
 function listaDeDiscos(e){
   if(!e.discos.length){
-    return '<div class="procurando" role="status"><span class="pulso" aria-hidden="true"></span>' + esc(F.textoProcurando(e)) + '</div>';
+    return '<div class="procurando espera" role="status"><span class="boneco">' + M.mascoteSvg() + '</span>' + esc(F.textoProcurando(e)) + '</div>';
   }
   let h = '<div class="lista" role="radiogroup" aria-label="Pen drives encontrados">';
   for(const d of e.discos){
@@ -225,7 +230,19 @@ async function procurar(){
 
 // ---------- eventos da página ----------
 
+// Mascote do topo: uma piada por clique, que some sozinha depois de uns segundos.
+let ultimaPiada = -1, tempoBalao = null;
+function contarPiada(){
+  ultimaPiada = M.piada(ultimaPiada);
+  const b = $('balao');
+  b.textContent = M.PIADAS[ultimaPiada];
+  b.hidden = false;
+  clearTimeout(tempoBalao);
+  tempoBalao = setTimeout(() => { b.hidden = true; }, 4500);
+}
+
 document.addEventListener('click', ev => {
+  if(ev.target.closest('#mascote')) return contarPiada();
   const b = ev.target.closest('[data-acao]');
   if(!b || b.disabled) return;
   const acao = b.dataset.acao;
@@ -260,6 +277,7 @@ function noWails(){
 }
 
 function iniciar(){
+  $('mascote').innerHTML = M.mascoteSvg();
   if(window.go && window.go.main && window.go.main.App) backend = backendWails();
   else { backend = backendDemo(); $('demo').hidden = false; }
   backend.ouvir('progresso', ev => despachar({ tipo: 'progresso', evento: ev }));

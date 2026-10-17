@@ -76,10 +76,7 @@ p{margin:0}
 .disco:disabled b{color:var(--ink-muted)}
 .nota{display:flex;gap:var(--space-2);align-items:flex-start;padding:var(--space-2) var(--space-3);border-radius:var(--radius-sm);background:var(--atencao-soft);border-left:3px solid var(--atencao);color:var(--atencao-ink);font:600 13px/18px var(--font-sans)}
 
-.procurando{display:flex;align-items:center;gap:var(--space-3);margin-top:var(--space-4);padding:var(--space-4);border:1px dashed var(--border);border-radius:var(--radius-md);background:var(--surface-raised);color:var(--ink-muted);font-weight:600}
-.pulso{flex:none;position:relative;width:12px;height:12px;border-radius:50%;background:var(--brand)}
-.pulso::after{content:"";position:absolute;inset:0;border-radius:50%;background:var(--brand);animation:pulso 1.6s ease-out infinite}
-@keyframes pulso{0%{transform:scale(1);opacity:.5}100%{transform:scale(2.6);opacity:0}}
+.procurando{display:flex;align-items:center;gap:var(--space-4);margin-top:var(--space-4);padding:var(--space-4);border:1px dashed var(--border);border-radius:var(--radius-md);background:var(--surface-raised);color:var(--ink-muted);font-weight:600}
 
 /* ---------- Tela 2: confirmar ---------- */
 .alerta{margin-top:var(--space-4);padding:var(--space-4);border-radius:var(--radius-md);background:var(--atencao-soft);border:1px solid #f3cf93;color:var(--ink);font:500 15px/22px var(--font-sans)}
@@ -106,7 +103,53 @@ p{margin:0}
 .selo.erro{background:var(--erro-soft);color:var(--erro)}
 .final .texto{max-width:440px}
 
+/* ---------- Bonecos (mascote.js) ---------- */
+/* Mascote do topo: pisca, mexe a antena, espia no hover e conta uma piada no clique, como no app. */
+.mascote-area{position:relative;display:flex;align-items:center}
+.mascote{all:unset;display:block;width:24px;height:33px;cursor:pointer;flex:none}
+.mascote:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:var(--radius-sm)}
+.mascote svg,.boneco svg{width:100%;height:100%;display:block;overflow:visible}
+.mascote .rob{transition:transform .15s}
+.mascote:hover .rob,.mascote:focus-visible .rob{transform:translateY(-1px)}
+@keyframes mascPisca{0%,92%,100%{opacity:1}94%,98%{opacity:0}}
+@keyframes mascAntena{0%,60%,100%{fill:#dbff2a}70%,90%{fill:#a1a6ae}}
+.mascote .lente,.boneco .lente{animation:mascPisca 4s steps(1) infinite}
+.mascote .ponta,.boneco .ponta{animation:mascAntena 2.4s steps(1) infinite}
+.balao{position:absolute;left:-6px;top:calc(100% + 6px);z-index:20;width:max-content;max-width:260px;padding:var(--space-2) var(--space-3);border-radius:var(--radius-md);background:var(--ink);color:#fff;font:500 12px/16px var(--font-sans);box-shadow:0 6px 18px rgba(13,18,51,.18)}
+.balao::before{content:"";position:absolute;left:12px;top:-5px;border:5px solid transparent;border-top:0;border-bottom-color:var(--ink)}
+.balao[hidden]{display:none}
+
+/* Tela 1 sem pen drive: o mascote espia para fora do bolso, esperando. */
+.boneco{flex:none;display:block}
+.espera .boneco{width:36px;height:49px}
+@keyframes espiar{0%,35%{transform:translateY(4px)}45%,80%{transform:translateY(0)}90%,100%{transform:translateY(4px)}}
+.espera .rob{animation:espiar 3.2s ease-in-out infinite}
+
+/* Tela 3: o robô do terminal anda sobre a barra, levando o bloco até o pen drive. */
+.pista{position:relative;height:34px;margin-top:var(--space-3)}
+.pista + .barra{margin-top:2px}
+.pista .boneco{position:absolute;bottom:0;width:41px;height:34px;left:0;transform:translateX(-50%);transition:left .4s ease}
+@keyframes roboA{0%,49%{visibility:visible}50%,100%{visibility:hidden}}
+@keyframes roboB{0%,49%{visibility:hidden}50%,100%{visibility:visible}}
+@keyframes roboBloco{0%,49%{transform:translateY(0)}50%,100%{transform:translateY(-1px)}}
+.pista .q1{animation:roboA .6s steps(1) infinite}
+.pista .q2{animation:roboB .6s steps(1) infinite}
+.pista .bloco{animation:roboBloco .6s steps(1) infinite}
+
+/* Tela 4: o mascote sai do bolso e comemora ao lado do selo. */
+.vitoria{display:flex;align-items:flex-end;gap:var(--space-3);margin-bottom:var(--space-4)}
+.vitoria .selo{margin-bottom:0}
+.vitoria .boneco{width:40px;height:55px}
+@keyframes pulinho{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+.vitoria .rob{animation:pulinho .7s ease-in-out infinite}
+.vitoria .ponta{animation:none}
+
 @media (prefers-reduced-motion:reduce){
-  .pulso::after{animation:none}
   .barra i,.etapas li,.btn,.disco{transition:none}
+  .mascote .lente,.mascote .ponta,.boneco .lente,.boneco .ponta,.espera .rob,.vitoria .rob,.pista .q1,.pista .q2,.pista .bloco{animation:none}
+  .mascote .rob,.pista .boneco{transition:none}
+  .mascote:hover .rob{transform:none}
+  .pista .q2{visibility:hidden}
+  .espera .rob{transform:none}
+  .vitoria .rob{transform:translateY(-1px)}
 }

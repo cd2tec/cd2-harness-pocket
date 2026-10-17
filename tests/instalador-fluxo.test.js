@@ -260,5 +260,5 @@ test('o HTML tem os textos exatos e nenhum emoji ou travessão', () => {
   }
   assert.doesNotMatch(tudo, /[—–]/, 'sem travessão');
   assert.doesNotMatch(tudo, /\p{Extended_Pictographic}/u, 'sem emoji');
-  assert.match(html, /<script src="fluxo\.js"><\/script>\s*<script src="tela\.js"><\/script>/);
+  assert.match(html, /<script src="fluxo\.js"><\/script>\s*<script src="mascote\.js"><\/script>\s*<script src="tela\.js"><\/script>/);
 });
