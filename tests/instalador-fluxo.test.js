@@ -14,7 +14,7 @@ const ateConfirmar = () => rodar({ tipo: 'discos', lista: [ok] }, { tipo: 'conti
 const ateGravando = () => [{ tipo: 'marcar', valor: true }, { tipo: 'gravar' }].reduce(F.passo, ateConfirmar());
 
 test('estado inicial', () => {
-  assert.deepEqual(F.inicial(), { tela: 'plugue', discos: [], escolhido: null, podeApagar: false, progresso: null, frase: '' });
+  assert.deepEqual(F.inicial(), { tela: 'plugue', discos: [], escolhido: null, podeApagar: false, progresso: null, frase: '', falhas: 0 });
 });
 
 test('sem discos não dá para continuar', () => {
@@ -46,6 +46,53 @@ test('dois discos: nenhum escolhido até escolher', () => {
   const e2 = F.passo(e, { tipo: 'escolher', id: 'disk6' });
   assert.equal(e2.escolhido, 'disk6');
   assert.equal(F.podeContinuar(e2), true);
+});
+
+const proprio = { id: 'disk8', nome: 'Kingston', bytes: 32e9, situacao: 'proprio', arquivos: 2, maisDe: false, rotulo: 'Kingston 32 GB' };
+
+test('o pen drive de onde o instalador roda não pode ser escolhido', () => {
+  const e = rodar({ tipo: 'discos', lista: [proprio] });
+  assert.equal(e.escolhido, null);
+  assert.equal(F.podeContinuar(e), false);
+  assert.deepEqual(F.passo(rodar({ tipo: 'discos', lista: [ok, proprio] }), { tipo: 'escolher', id: 'disk8' }).escolhido, null);
+  assert.equal(F.escolhivel(proprio), false);
+  assert.equal(F.escolhivel(ok), true);
+  assert.equal(F.escolhivel({ ...ok, situacao: 'desconhecida' }), false);
+});
+
+test('nota de cada situação na lista de discos', () => {
+  assert.equal(F.textoSituacao(pequeno), 'Pequeno demais: precisa de pelo menos 4 GB.');
+  assert.equal(F.textoSituacao(proprio), 'O instalador está rodando deste pen drive. Copie o instalador para o computador e abra de lá.');
+  assert.equal(F.textoSituacao(ok), '');
+  assert.equal(F.textoSituacao(aviso), '');
+});
+
+test('cinco falhas seguidas de ListarDiscos trocam o procurando pelo aviso', () => {
+  const falha = { tipo: 'falhaListar' };
+  let e = rodar(falha, falha, falha, falha);
+  assert.equal(e.falhas, 4);
+  assert.equal(F.textoProcurando(e), 'Procurando pen drive...');
+  e = F.passo(e, falha);
+  assert.equal(F.textoProcurando(e), 'Não consegui ver os discos. Tire o pen drive e plugue de novo.');
+  // Continua tentando: uma lista que chega zera a contagem.
+  e = F.passo(e, { tipo: 'discos', lista: [] });
+  assert.equal(e.falhas, 0);
+  assert.equal(F.textoProcurando(e), 'Procurando pen drive...');
+});
+
+test('depois de cinco falhas a lista velha some', () => {
+  const falha = { tipo: 'falhaListar' };
+  const e = rodar({ tipo: 'discos', lista: [ok] }, falha, falha, falha, falha, falha);
+  assert.deepEqual(e.discos, []);
+  assert.equal(e.escolhido, null);
+  assert.equal(F.podeContinuar(e), false);
+  // Uma falha só não mexe na lista.
+  assert.equal(rodar({ tipo: 'discos', lista: [ok] }, falha).escolhido, 'disk4');
+});
+
+test('falhaListar fora da tela plugue não muda o estado', () => {
+  const g = ateGravando();
+  assert.deepEqual(F.passo(g, { tipo: 'falhaListar' }), g);
 });
 
 test('escolher disco pequeno não muda o estado', () => {
@@ -157,6 +204,13 @@ test('texto dos arquivos na confirmação', () => {
   assert.equal(F.textoArquivos({ ...ok, arquivos: 10000, maisDe: true }), 'O pen drive <b>SanDisk 32 GB</b> tem mais de 10.000 arquivos. Eles vão sumir.');
 });
 
+test('sem acesso aos arquivos, a confirmação não diz que está vazio', () => {
+  assert.equal(F.textoArquivos({ ...ok, arquivos: 0, semAcesso: true }),
+    'Não consegui ver os arquivos do pen drive <b>SanDisk 32 GB</b>. Tudo que estiver nele será apagado.');
+  assert.equal(F.textoArquivos({ ...ok, arquivos: 0, semAcesso: true, rotulo: '<x>' }),
+    'Não consegui ver os arquivos do pen drive <b>&lt;x&gt;</b>. Tudo que estiver nele será apagado.');
+});
+
 test('o rótulo é escapado na confirmação', () => {
   assert.equal(F.textoArquivos({ ...ok, rotulo: 'A<b>&"' }), 'O pen drive <b>A&lt;b&gt;&amp;&quot;</b> tem 3 arquivos. Eles vão sumir.');
 });
@@ -188,6 +242,8 @@ test('textos fixos das telas', () => {
   assert.equal(F.TEXTOS.procurando, 'Procurando pen drive...');
   assert.equal(F.TEXTOS.pequeno, 'Pequeno demais: precisa de pelo menos 4 GB.');
   assert.equal(F.TEXTOS.aviso, 'Funciona, mas um de 16 GB ou mais é melhor.');
+  assert.equal(F.TEXTOS.proprio, 'O instalador está rodando deste pen drive. Copie o instalador para o computador e abra de lá.');
+  assert.equal(F.TEXTOS.semDiscos, 'Não consegui ver os discos. Tire o pen drive e plugue de novo.');
 });
 
 test('o HTML tem os textos exatos e nenhum emoji ou travessão', () => {

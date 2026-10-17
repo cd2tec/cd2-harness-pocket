@@ -26,5 +26,7 @@
         <string>{{.Info.Copyright}}</string>
         <key>CFBundleDisplayName</key>
         <string>CD2 IA de Bolso</string>
+        <key>NSRemovableVolumesUsageDescription</key>
+        <string>O instalador precisa ver o pen drive para mostrar o que tem nele e gravar a IA de Bolso.</string>
     </dict>
 </plist>

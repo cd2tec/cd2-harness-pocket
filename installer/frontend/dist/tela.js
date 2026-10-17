@@ -20,21 +20,23 @@ function backendWails(){
 }
 
 // Demonstração: dois discos (um bom e um pequeno) e uma gravação simulada de uns 10 segundos.
-// Variações pelo endereço: ?demo=um, ?demo=aviso, ?demo=nenhum, ?demo=muitos, ?demo=erro.
+// Variações pelo endereço: ?demo=um, ?demo=aviso, ?demo=nenhum, ?demo=muitos, ?demo=erro, ?demo=falha.
 function backendDemo(){
   const modo = new URLSearchParams(location.search).get('demo') || '';
   const bom = { id: 'disk4', nome: 'SanDisk Ultra', bytes: 32e9, situacao: 'ok', arquivos: 3, maisDe: false, rotulo: 'SanDisk 32 GB' };
   const aviso = { id: 'disk6', nome: 'Multilaser', bytes: 8e9, situacao: 'aviso', arquivos: 0, maisDe: false, rotulo: 'Multilaser 8 GB' };
   const pequeno = { id: 'disk5', nome: 'Kingston', bytes: 2e9, situacao: 'pequeno', arquivos: 12, maisDe: false, rotulo: 'Kingston 2 GB' };
   const cheio = { id: 'disk7', nome: 'Sony', bytes: 64e9, situacao: 'ok', arquivos: 10000, maisDe: true, rotulo: 'Sony 64 GB' };
-  const lista = { um: [bom], aviso: [aviso], nenhum: [], muitos: [bom, aviso, pequeno, cheio] }[modo] || [bom, pequeno];
+  const proprio = { id: 'disk8', nome: 'Kingston', bytes: 32e9, situacao: 'proprio', arquivos: 2, maisDe: false, rotulo: 'Kingston 32 GB' };
+  const fechado = { id: 'disk9', nome: 'Lexar', bytes: 32e9, situacao: 'ok', arquivos: 0, maisDe: false, semAcesso: true, rotulo: 'Lexar 32 GB' };
+  const lista = { um: [bom], aviso: [aviso], nenhum: [], muitos: [bom, aviso, pequeno, cheio, proprio, fechado] }[modo] || [bom, pequeno];
   const ouvintes = {};
   const emitir = (nome, dado) => (ouvintes[nome] || []).forEach(fn => fn(dado));
   let relogio = null, fracao = 0;
   const gb = x => x.toFixed(1).replace('.', ',');
   function fim(ok, frase){ clearInterval(relogio); relogio = null; emitir('fim', { ok, frase }); }
   return {
-    listar: () => new Promise(r => setTimeout(() => r(lista.map(d => ({ ...d }))), 300)),
+    listar: () => new Promise((r, rej) => setTimeout(() => modo === 'falha' ? rej('sem discos') : r(lista.map(d => ({ ...d }))), 300)),
     gravar: () => {
       if(relogio) return Promise.reject('Já tem uma gravação em andamento.');
       fracao = 0;
@@ -134,17 +136,18 @@ function discoEscolhido(e){
 
 function listaDeDiscos(e){
   if(!e.discos.length){
-    return '<div class="procurando" role="status"><span class="pulso" aria-hidden="true"></span>' + esc(F.TEXTOS.procurando) + '</div>';
+    return '<div class="procurando" role="status"><span class="pulso" aria-hidden="true"></span>' + esc(F.textoProcurando(e)) + '</div>';
   }
   let h = '<div class="lista" role="radiogroup" aria-label="Pen drives encontrados">';
   for(const d of e.discos){
-    const pequeno = d.situacao === 'pequeno';
+    const bloqueado = !F.escolhivel(d);
+    const nota = F.textoSituacao(d);
     const marcado = d.id === e.escolhido;
     h += '<button type="button" class="disco" role="radio" aria-checked="' + marcado + '"'
-      + (pequeno ? ' disabled' : '') + ' data-acao="escolher" data-id="' + esc(d.id) + '" data-foco="disco:' + esc(d.id) + '">'
+      + (bloqueado ? ' disabled' : '') + ' data-acao="escolher" data-id="' + esc(d.id) + '" data-foco="disco:' + esc(d.id) + '">'
       + '<span class="marca" aria-hidden="true"></span>' + ICONE_PENDRIVE
       + '<span class="nome"><b>' + esc(d.rotulo) + '</b>'
-      + (pequeno ? '<small>' + esc(F.TEXTOS.pequeno) + '</small>' : '') + '</span></button>';
+      + (nota ? '<small>' + esc(nota) + '</small>' : '') + '</span></button>';
     if(marcado && d.situacao === 'aviso') h += '<p class="nota">' + esc(F.TEXTOS.aviso) + '</p>';
   }
   return h + '</div>';
@@ -202,7 +205,8 @@ function comecarGravacao(){
 }
 
 // Busca os discos a cada 1,5 s, só na tela plugue e sem duas buscas ao mesmo tempo. Erro na busca
-// não trava nada: a tela segue em "Procurando pen drive..." e tenta de novo.
+// não trava nada: a tela segue em "Procurando pen drive..." e tenta de novo; depois de cinco erros
+// seguidos, avisa que não consegue ver os discos (e continua tentando).
 let buscando = false, proxima = null;
 async function procurar(){
   clearTimeout(proxima);
@@ -212,7 +216,7 @@ async function procurar(){
     const lista = await backend.listar();
     despachar({ tipo: 'discos', lista: Array.isArray(lista) ? lista : [] });
   } catch(_){
-    // tenta de novo na próxima volta
+    despachar({ tipo: 'falhaListar' });
   } finally {
     buscando = false;
     if(estado.tela === 'plugue') proxima = setTimeout(procurar, 1500);
