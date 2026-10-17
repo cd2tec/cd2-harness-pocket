@@ -79,8 +79,20 @@ Write-Host ''
 Write-Host "== 2/4 Formatando o disco $($disk.Number) em exFAT ($Label)"
 Set-Disk -Number $disk.Number -IsOffline $false -ErrorAction SilentlyContinue
 Set-Disk -Number $disk.Number -IsReadOnly $false -ErrorAction SilentlyContinue
-try { Clear-Disk -Number $disk.Number -RemoveData -RemoveOEM -Confirm:$false } catch { }
-try { Initialize-Disk -Number $disk.Number -PartitionStyle MBR } catch { Die "Nao consegui iniciar o disco: $($_.Exception.Message)" }
+try {
+    Clear-Disk -Number $disk.Number -RemoveData -RemoveOEM -Confirm:$false
+} catch {
+    Die "Nao consegui apagar o disco: $($_.Exception.Message)"
+}
+# Clear-Disk apaga as particoes, mas o disco pode continuar inicializado em MBR.
+# Initialize-Disk so aceita disco cru (RAW); num pen drive ja usado o Windows recusa.
+$disk = Get-Disk -Number $disk.Number
+if ($disk.PartitionStyle -eq 'RAW') {
+    try { Initialize-Disk -Number $disk.Number -PartitionStyle MBR }
+    catch { Die "Nao consegui iniciar o disco: $($_.Exception.Message)" }
+} elseif ($disk.PartitionStyle -ne 'MBR') {
+    Die "O disco ficou em $($disk.PartitionStyle). O pen drive precisa estar em MBR para exFAT."
+}
 $part = New-Partition -DiskNumber $disk.Number -UseMaximumSize -IsActive -AssignDriveLetter
 Format-Volume -Partition $part -FileSystem exFAT -NewFileSystemLabel $Label -Confirm:$false | Out-Null
 $letter = $null
