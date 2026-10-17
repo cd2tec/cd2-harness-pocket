@@ -157,7 +157,7 @@ func Montar(ctx context.Context, c *http.Client, m *manifesto.Manifesto, cache s
 		}
 	}
 
-	if err := GerarChecksums(stage); err != nil {
+	if err := GerarChecksums(stage, m.ModeloNome); err != nil {
 		return "", err
 	}
 	return stage, nil

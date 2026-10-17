@@ -45,19 +45,17 @@ func LerChecksums(caminho string) ([]Linha, error) {
 	return ls, sc.Err()
 }
 
-// GerarChecksums escreve <stage>/CHECKSUMS.sha256 com bin/llamafile, os
-// arquivos de models/, cada toolbox e cada cd2-ctl, em ordem alfabética.
-func GerarChecksums(stage string) error {
+// GerarChecksums escreve <stage>/CHECKSUMS.sha256 com bin/llamafile,
+// models/<modeloNome>, cada toolbox e cada cd2-ctl, em ordem alfabética.
+// Outros arquivos de models/ (um .DS_Store, por exemplo) ficam de fora, como
+// no script: o Copiar pula lixo e a conferência no pen drive falharia.
+func GerarChecksums(stage, modeloNome string) error {
 	var caminhos []string
 	if _, err := os.Stat(filepath.Join(stage, "bin", "llamafile")); err == nil {
 		caminhos = append(caminhos, "bin/llamafile")
 	}
-	if es, err := os.ReadDir(filepath.Join(stage, "models")); err == nil {
-		for _, e := range es {
-			if e.Type().IsRegular() {
-				caminhos = append(caminhos, "models/"+e.Name())
-			}
-		}
+	if st, err := os.Stat(filepath.Join(stage, "models", modeloNome)); modeloNome != "" && err == nil && st.Mode().IsRegular() {
+		caminhos = append(caminhos, "models/"+modeloNome)
 	}
 	for _, par := range [][2]string{{"bin/toolbox", "toolbox"}, {"bin/ctl", "cd2-ctl"}} {
 		raiz := filepath.Join(stage, filepath.FromSlash(par[0]))

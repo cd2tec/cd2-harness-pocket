@@ -396,6 +396,35 @@ func TestChecksumsFormato(t *testing.T) {
 	}
 }
 
+// O Copiar pula .DS_Store e ._*; se entrassem no CHECKSUMS, toda gravação
+// falharia na conferência. Como o script, só models/<modelo> entra.
+func TestChecksumsSoListaOModeloAtual(t *testing.T) {
+	a := novoAmbiente(t)
+	stage, err := a.montar(t, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range []string{".DS_Store", "._modelo.gguf", "LEIA.txt"} {
+		os.WriteFile(filepath.Join(stage, "models", n), []byte("lixo"), 0o644)
+	}
+	if _, err := a.montar(t, false); err != nil {
+		t.Fatal(err)
+	}
+	ls, err := LerChecksums(filepath.Join(stage, "CHECKSUMS.sha256"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var modelos []string
+	for _, l := range ls {
+		if strings.HasPrefix(l.Caminho, "models/") {
+			modelos = append(modelos, l.Caminho)
+		}
+	}
+	if strings.Join(modelos, "|") != "models/modelo.gguf" {
+		t.Fatalf("models no CHECKSUMS: %v", modelos)
+	}
+}
+
 func TestLerChecksums(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "c.sha256")
 	os.WriteFile(p, []byte("aa  bin/x\nbb *bin/y\n\n"), 0o644)
