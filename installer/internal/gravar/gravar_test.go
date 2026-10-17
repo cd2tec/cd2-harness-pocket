@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -43,6 +44,7 @@ type falso struct {
 	pasta    string // pasta que faz o papel do volume gravado
 	apagar   error
 	ejetar   error
+	aoApagar func() // chamado dentro do Apagar, antes de ele falhar
 	aoListar func() // chamado depois de cada Listar (o teste cancela aqui)
 }
 
@@ -79,6 +81,10 @@ func (f *falso) Apagar(ctx context.Context, id, rotulo string) (string, error) {
 		return "", err // cancelado: nada é apagado e nada é registrado
 	}
 	f.registrar("Apagar " + id + " " + rotulo)
+	if f.aoApagar != nil {
+		f.aoApagar()
+		return "", errors.New("processo morto no meio")
+	}
 	if f.apagar != nil {
 		return "", f.apagar
 	}
@@ -395,6 +401,25 @@ func TestCancelarEntreReconferenciaEApagar(t *testing.T) {
 	}
 }
 
+func TestCancelarDuranteApagar(t *testing.T) {
+	a := novoAmbiente(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	a.sis.aoApagar = cancel
+	var copiou bool
+	err := Gravar(ctx, a.opcoes(), func(e Evento) {
+		if e.Etapa == "copiando" {
+			copiou = true
+		}
+	})
+	if got := fraseDe(t, err); got != fraseCancelouApos {
+		t.Fatalf("frase = %q", got)
+	}
+	if copiou {
+		t.Fatal("anunciou cópia sem o Apagar ter dado certo")
+	}
+}
+
 func TestEtapaNovaSempreEmite(t *testing.T) {
 	a := novoAmbiente(t)
 	vistas := map[string]bool{}
@@ -419,6 +444,9 @@ func TestEtapaNovaSempreEmite(t *testing.T) {
 }
 
 func TestGuardarChecksumsFalhaNaoEhErro(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("chmod não impede escrita no Windows nem para root")
+	}
 	a := novoAmbiente(t)
 	t.Cleanup(func() { os.Chmod(a.cache, 0o755) })
 	var ultimo Evento

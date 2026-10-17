@@ -248,11 +248,13 @@ func Gravar(ctx context.Context, o Opcoes, ev func(Evento)) error {
 		return falha("", err)
 	}
 
+	// Daqui em diante o disco pode estar apagado, mesmo se Apagar falhar ou
+	// for cancelado no meio.
+	apagou = true
 	montagem, err := o.Sistema.Apagar(ctx, o.Disco.ID, rotuloDisco)
 	if err != nil {
 		return falha(fraseFormatar, err)
 	}
-	apagou = true
 	a.publicar("copiando", fraseCopiando, 0, total, a.baixar, true)
 	if err := pendrive.Copiar(ctx, stage, montagem, func(f, t int64) {
 		a.publicar("copiando", fraseCopiando, f, t, a.baixar, false)

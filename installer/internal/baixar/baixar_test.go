@@ -284,3 +284,15 @@ func TestServidorIgnoraRange(t *testing.T) {
 		t.Fatal("deveria recomeçar do zero")
 	}
 }
+
+func TestStatus500EhErrHTTP(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "quebrou", http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+	err := Arquivo(context.Background(), srv.Client(), srv.URL, filepath.Join(t.TempDir(), "a.bin"),
+		manifesto.Arquivo{SHA256: shaDe([]byte("x")), Bytes: 1}, nil)
+	if !errors.Is(err, ErrHTTP) {
+		t.Fatalf("err = %v, esperava ErrHTTP", err)
+	}
+}
