@@ -1,6 +1,7 @@
 # ZIP da IA de Bolso para download fácil: a cada push no main, monta cd2tech-iadebolso.zip (pasta
 # cd2tech-iadebolso, fins de linha do .gitattributes, sem testes nem specs) e troca o arquivo da
-# release fixa "iadebolso". O link de download nunca muda. A release não vira "latest", para não
+# release fixa "iadebolso" e publica o manifesto.json (versões, URLs e SHA-256) que o instalador
+# desktop lê. O link de download nunca muda. A release não vira "latest", para não
 # disputar com as releases do cd2-ctl.
 name: zip iadebolso
 on:
@@ -19,7 +20,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Montar o ZIP
         run: |
-          git archive --format=zip --prefix=cd2tech-iadebolso/ -o cd2tech-iadebolso.zip HEAD -- . ':!tests' ':!docs/superpowers' ':!.github'
+          git archive --format=zip --prefix=cd2tech-iadebolso/ -o cd2tech-iadebolso.zip HEAD -- . ':!tests' ':!docs/superpowers' ':!.github' ':!installer'
           unzip -l cd2tech-iadebolso.zip | tail -1
       - name: Publicar na release iadebolso
         env:
@@ -33,3 +34,33 @@ jobs:
           fi
           gh release upload iadebolso cd2tech-iadebolso.zip --clobber -R "$GITHUB_REPOSITORY"
           gh release edit iadebolso --title "IA de Bolso $VERSAO" --latest=false -R "$GITHUB_REPOSITORY"
+      # O manifesto sobe depois do ZIP: assim ele nunca aponta para o SHA de um ZIP que ainda não está lá.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: installer/go.mod
+          cache: false
+      - name: Montar e publicar o manifesto.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Mesma consulta do core/prepare-unix.sh, com a mesma URL de reserva.
+          FALLBACK_BIN_URL="$(sed -n 's/^FALLBACK_BIN_URL="\(.*\)"$/\1/p' core/prepare-unix.sh)"
+          LLAMAFILE_URL="$(curl -fsSL -H 'User-Agent: cd2-harness' https://api.github.com/repos/mozilla-ai/llamafile/releases/latest \
+            | grep -Eo 'https://[^"]+/llamafile-[0-9]+(\.[0-9]+)+"' | tr -d '"' | head -n 1 || true)"
+          if [ -z "$LLAMAFILE_URL" ]; then echo "Não consegui resolver a última release; usando a URL de reserva."; LLAMAFILE_URL="$FALLBACK_BIN_URL"; fi
+          MODELO_URL="$(sed -n 's/^MODEL_URL="${CD2_MODEL_URL:-\(.*\)}"$/\1/p' core/prepare-unix.sh)"
+          tamanho() { curl -sIL -H 'User-Agent: cd2-harness' "$1" | tr -d '\r' | awk 'tolower($1) == "content-length:" { v = $2 } END { print v }'; }
+          LLAMAFILE_BYTES="$(tamanho "$LLAMAFILE_URL")"
+          MODELO_BYTES="$(tamanho "$MODELO_URL")"
+          if [ -z "$LLAMAFILE_BYTES" ] || [ -z "$MODELO_BYTES" ]; then echo "Não consegui ler o tamanho do llamafile ou do modelo."; exit 1; fi
+          (cd installer && go run ./cmd/manifesto \
+            -prepare-unix ../core/prepare-unix.sh \
+            -prepare-windows ../core/prepare-windows.ps1 \
+            -version-file ../VERSION \
+            -zip ../cd2tech-iadebolso.zip \
+            -zip-url "https://github.com/${{ github.repository }}/releases/download/iadebolso/cd2tech-iadebolso.zip" \
+            -llamafile-url "$LLAMAFILE_URL" \
+            -llamafile-bytes "$LLAMAFILE_BYTES" \
+            -modelo-bytes "$MODELO_BYTES") > manifesto.json
+          cat manifesto.json
+          gh release upload iadebolso manifesto.json --clobber -R "$GITHUB_REPOSITORY"
