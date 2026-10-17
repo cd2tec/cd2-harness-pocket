@@ -62,23 +62,26 @@ function call(name, a){
 
 // Instrução extra para o modelo no modo Demonstração.
 const PROMPT = ' Você está no modo Demonstração: as ferramentas devolvem dados fictícios de um supermercado de exemplo. '
-  + 'Deixe claro que os números são fictícios. A tela já mostra o gráfico de cada resultado de ferramenta: comente o que chama atenção em até três frases, sem repetir a tabela. '
+  + 'A tela já mostra o gráfico de cada resultado de ferramenta: diga que os números são fictícios e comente em até duas frases o que mais chama atenção, conferindo cada número na tabela antes de citar. '
   + 'Você é a IA de Bolso da CD2, feita para analisar ERPs de varejo; com o banco de dados conectado em Configurações, a mesma pergunta usa os dados reais da loja.';
 
 // Roteiro: perguntas de orientação com resposta pronta. Cada bloco é um parágrafo (p), uma lista
 // (lista, numerada ou não) ou um gráfico de exemplo (grafico, com a pergunta que o geraria).
 const ROTEIRO = [
-  { id:'seguranca', casa:/segur|somente leitura|so leitura|apagar|estragar|perig|alterar meus dados/, blocos:[
+  { id:'seguranca', casa:/segur|somente leitura|so leitura|apagar|estragar|perig|alterar meus dados/,
+    evite:'dizer que é 100% seguro ou dar garantia absoluta; fale das travas',
+    fecho:'a trava extra é o TI criar um usuário do banco só de leitura para mim', blocos:[
     { p:'Pode conectar sem medo: eu não consigo estragar nada no seu banco.' },
     { lista:[
-      'Todas as minhas ferramentas de banco de dados são **somente leitura**. Não existe nenhuma ferramenta de escrita: eu não tenho como apagar, alterar ou inserir dados.',
+      'Eu **leio** os dados do banco, mas **não escrevo** nada: todas as minhas ferramentas de banco de dados são somente leitura. Não existe ferramenta de escrita, então eu não apago, não altero e não insiro dados.',
       'Antes de rodar, cada consulta passa por uma trava que só deixa passar **SELECT**. Qualquer outra coisa é recusada.',
       'Consulta que demora demais é cancelada, para não pesar no banco da loja.',
       'O modelo de IA roda aqui, neste computador. A senha do banco fica guardada só nesta máquina e nunca volta para a tela.'
     ] },
-    { p:'Mesmo com essas travas, a recomendação é conectar com um **usuário somente leitura**, criado pelo TI só para mim. É a trava extra, do lado do banco: se um dia eu tentar escrever, o próprio banco diz não.' }
+    { p:'Mesmo com essas travas, a recomendação é que o TI da empresa crie um **usuário do banco só de leitura** para eu usar. É a trava extra, do lado do banco: se um dia alguém tentar escrever por mim, o próprio banco recusa.' }
   ] },
-  { id:'aprendizado', casa:/entende|aprend|como (voce|vc) (le|funciona)|como funciona|demora|quanto tempo|inteligente|estud/, blocos:[
+  { id:'aprendizado', casa:/entende|aprend|como (voce|vc) (le|funciona)|como funciona|demora|quanto tempo|inteligente|estud/,
+    fecho:'isso pode levar vários minutos, dependendo do computador e de quantas tabelas o ERP tem; dá para ir perguntando enquanto isso, e a faixa com o robozinho no topo da tela mostra o progresso', blocos:[
     { p:'Quando você conecta o banco, eu faço como um funcionário novo no primeiro dia: dou uma volta pela loja antes de responder.' },
     { lista:[
       'Listo **todas as tabelas** do ERP.',
@@ -103,7 +106,8 @@ const ROTEIRO = [
     ] },
     { p:'Com o banco conectado, as ferramentas viram outras: eu listo as tabelas do seu ERP, leio a estrutura de cada uma e monto a consulta para responder qualquer pergunta sobre os seus dados, não só essas cinco.' }
   ] },
-  { id:'conectar', casa:/conect|configur|ligar|banco de dados|meu banco|meu erp|dados reais|de verdade/, blocos:[
+  { id:'conectar', casa:/conect|configur|ligar|banco de dados|meu banco|meu erp|dados reais|de verdade/,
+    fecho:'o ideal é usar um usuário do banco só de leitura', blocos:[
     { p:'Para eu trabalhar com os números da sua loja, é rápido:' },
     { lista:[
       'Clique em **Configurações**, no topo da tela.',
@@ -134,9 +138,21 @@ function texto(r){
     : '[Gráfico fictício: ' + b.sobre + ', "' + b.pergunta + '"]').join('\n\n');
 }
 
+// Instrução para o modelo responder uma pergunta do roteiro em prosa própria, com os fatos dele.
+function instrucao(r){
+  const limpo = x => x.replace(/\*\*/g, '');
+  const fatos = r.blocos.filter(b => !b.grafico).map(b => b.p ? limpo(b.p) : b.lista.map((x, i) => (b.numerada ? (i + 1) + '. ' : '- ') + limpo(x)).join('\n')).join('\n');
+  const graficos = r.blocos.filter(b => b.grafico).map(b => b.sobre.toLowerCase() + ' ("' + b.pergunta + '")');
+  return ' Para esta pergunta, responda com os fatos abaixo, reescritos com as suas palavras, em prosa curta e calorosa, de até oito frases, sem deixar nenhum fato de fora;'
+    + ' se forem passos, use uma lista numerada. Mantenha o sentido exato de cada fato, sem exagerar nem inverter nada, sem prometer 100% ou garantia absoluta, e não invente nada além deles.\nFatos:\n' + fatos
+    + (r.evite ? '\nEvite ' + r.evite + '.' : '')
+    + (r.fecho ? '\nTermine a resposta dizendo, com as suas palavras, que ' + r.fecho + '.' : '')
+    + (graficos.length ? '\nLogo abaixo da sua resposta a tela mostra gráficos de exemplo, com dados fictícios: ' + graficos.join('; ') + '. Convide a pessoa a olhar.' : '');
+}
+
 const CONVITE = { titulo:'Quer ver isso com os números da sua loja?',
   texto:'A IA de Bolso foi feita para analisar ERPs de varejo. Conecte o banco de dados do seu ERP em Configurações, de preferência com um usuário somente leitura.' };
 
-const api = { TAG, TOOLS, PROMPT, ROTEIRO, CONVITE, call, grafico, roteiro, texto, norm };
+const api = { TAG, TOOLS, PROMPT, ROTEIRO, CONVITE, call, grafico, roteiro, texto, instrucao, norm };
 if(typeof module !== 'undefined' && module.exports) module.exports = api; else root.CD2Demo = api;
 })(typeof window !== 'undefined' ? window : globalThis);

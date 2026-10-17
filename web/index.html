@@ -376,16 +376,17 @@ input:disabled,select:disabled{background:var(--surface-100);color:var(--ink-mut
 </dialog>
 
 <div id="printArea" aria-hidden="true"></div>
-<script src="mcp.js?v=0.11.0"></script>
-<script src="oauth.js?v=0.11.0"></script>
-<script src="toolbox.js?v=0.11.0"></script>
-<script src="chart.js?v=0.11.0"></script>
-<script src="catalog.js?v=0.11.0"></script>
-<script src="perfil.js?v=0.11.0"></script>
-<script src="descricao.js?v=0.11.0"></script>
-<script src="ask.js?v=0.11.0"></script>
-<script src="report.js?v=0.11.0"></script>
-<script src="demo.js?v=0.11.0"></script>
+<script src="mcp.js?v=0.12.0"></script>
+<script src="oauth.js?v=0.12.0"></script>
+<script src="toolbox.js?v=0.12.0"></script>
+<script src="chart.js?v=0.12.0"></script>
+<script src="catalog.js?v=0.12.0"></script>
+<script src="perfil.js?v=0.12.0"></script>
+<script src="descricao.js?v=0.12.0"></script>
+<script src="ask.js?v=0.12.0"></script>
+<script src="report.js?v=0.12.0"></script>
+<script src="demo.js?v=0.12.0"></script>
+<script src="momento.js?v=0.12.0"></script>
 <script>
 "use strict";
 const $ = s => document.querySelector(s);
@@ -485,9 +486,11 @@ async function connectTools(){
 const toOpenAITools = () => st.tools.map(t => ({ type:'function', function:{ name:t.name, description:t.description || '', parameters:t.inputSchema || { type:'object', properties:{} } } }));
 
 /* ---------- streaming do modelo ---------- */
-async function streamCompletion(messages, onUpdate, signal){
-  const body = { model:'cd2', messages, stream:true, temperature:0.6, top_p:0.95 };
-  const tools = toOpenAITools(); if(tools.length){ body.tools = tools; body.tool_choice = 'auto'; }
+// o.semFerramentas: não oferece ferramentas; o.temperatura: padrão 0,6.
+async function streamCompletion(messages, onUpdate, signal, o){
+  o = o || {};
+  const body = { model:'cd2', messages, stream:true, temperature:o.temperatura || 0.6, top_p:0.95 };
+  const tools = o.semFerramentas ? [] : toOpenAITools(); if(tools.length){ body.tools = tools; body.tool_choice = 'auto'; }
   const r = await fetch('/v1/chat/completions', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(body), signal });
   if(!r.ok) throw new Error('Modelo respondeu HTTP ' + r.status + ': ' + (await r.text()).slice(0, 300));
   const reader = r.body.getReader(), dec = new TextDecoder();
@@ -554,14 +557,24 @@ function addToolCard(name, args){
 }
 
 /* ---------- laço principal: modelo <-> ferramentas ---------- */
-async function runTurn(){
+// opts.roteiro: pergunta de orientação da Demonstração. O modelo escreve a prosa com os fatos do
+// roteiro; os gráficos de exemplo vêm depois. Se o modelo falhar, entra a resposta pronta.
+async function runTurn(opts){
+  opts = opts || {};
+  const rot = opts.roteiro || null, emDemo = st.provider === demo;
   st.busy = true; st.ctl = new AbortController(); toggleBusy();
+  // Saúda na primeira resposta da conversa e de novo se mudou o período do dia (manhã, almoço...).
+  const agora = new Date(), per = CD2Momento.periodo(agora).id;
+  let primeira = st.periodoSaudado !== per;
+  let ui = null;
   try{
     for(let step = 0; step < MAX_STEPS; step++){
-      const ui = newAssistant();
-      const sys = st.cfg.systemPrompt + (st.provider === demo ? CD2Demo.PROMPT : '');
-      const res = await streamCompletion([{ role:'system', content:sys }].concat(st.messages), p => ui.update(p), st.ctl.signal);
+      ui = newAssistant();
+      const sys = st.cfg.systemPrompt + (emDemo ? CD2Demo.PROMPT + CD2Momento.contexto(agora, { primeira }) + (rot ? CD2Demo.instrucao(rot) : '') : '');
+      const res = await streamCompletion([{ role:'system', content:sys }].concat(st.messages), p => ui.update(p), st.ctl.signal, rot ? { semFerramentas:true, temperatura:0.4 } : null);
       ui.done();
+      if(emDemo){ primeira = false; st.periodoSaudado = per; }
+      if(rot && !res.content){ ui.body.innerHTML = ''; blocosRoteiro(ui.body, rot); st.messages.push({ role:'assistant', content:CD2Demo.texto(rot) }); break; }
       if(!res.content && !res.calls.length) ui.body.textContent = '(sem resposta do modelo)';
       const msg = { role:'assistant', content:res.content || '' };
       if(res.calls.length) msg.tool_calls = res.calls;
@@ -589,9 +602,15 @@ async function runTurn(){
       }
       if(step === MAX_STEPS - 1) addNote('Limite de passos de ferramentas atingido.');
     }
-    if(st.provider === demo) $('#chat').appendChild(convite());
+    if(rot) blocosRoteiro($('#chat'), rot, true);
+    if(emDemo) $('#chat').appendChild(convite());
   }catch(e){
-    if(e.name !== 'AbortError') addNote('Erro: ' + (e.message || e), true); else addNote('Interrompido.');
+    if(rot && e.name !== 'AbortError'){
+      // Sem modelo, a Demonstração continua: a resposta pronta no lugar da prosa.
+      const el = (ui && ui.el) || addMsg('assistant'); const body = el.querySelector('.body') || el;
+      body.innerHTML = ''; body.classList.add('roteiro'); blocosRoteiro(body, rot); body.appendChild(convite());
+      st.messages.push({ role:'assistant', content:CD2Demo.texto(rot) }); scrollDown();
+    }else if(e.name !== 'AbortError') addNote('Erro: ' + (e.message || e), true); else addNote('Interrompido.');
   }finally{
     st.busy = false; st.ctl = null; toggleBusy();
   }
@@ -810,19 +829,18 @@ function convite(){
   }
   return d;
 }
-function renderRoteiro(pergunta, r){
-  const el = addMsg('assistant'), body = document.createElement('div'); body.className = 'body roteiro'; el.appendChild(body);
+// Blocos do roteiro dentro de alvo. soGraficos: só os gráficos de exemplo (depois da prosa do modelo).
+function blocosRoteiro(alvo, r, soGraficos){
   for(const b of r.blocos){
-    if(b.p){ const p = document.createElement('p'); p.innerHTML = md(b.p); body.appendChild(p); }
+    if(b.grafico){ const g = CD2Demo.grafico(b.grafico, b.args); if(g) alvo.appendChild(demoCard(g, b.sobre, b.pergunta)); }
+    else if(soGraficos) continue;
+    else if(b.p){ const p = document.createElement('p'); p.innerHTML = md(b.p); alvo.appendChild(p); }
     else if(b.lista){
       const l = document.createElement(b.numerada ? 'ol' : 'ul');
       for(const x of b.lista){ const li = document.createElement('li'); li.innerHTML = md(x); l.appendChild(li); }
-      body.appendChild(l);
-    }else if(b.grafico){ const g = CD2Demo.grafico(b.grafico, b.args); if(g) body.appendChild(demoCard(g, b.sobre, b.pergunta)); }
+      alvo.appendChild(l);
+    }
   }
-  body.appendChild(convite());
-  st.messages.push({ role:'user', content:pergunta }, { role:'assistant', content:CD2Demo.texto(r) });
-  setTimeout(() => el.classList.remove('falando'), 1600);
   scrollDown();
 }
 function addNote(t, err){
@@ -843,14 +861,15 @@ function send(text){
   addUser(text);
   const mode = store.get('cd2.mode') || (st.cfg.mcp && st.cfg.mcp.mode) || 'demo';
   const rot = (st.provider === demo) ? CD2Demo.roteiro(text) : null;
-  if(rot) renderRoteiro(text, rot);
+  if(rot){ st.messages.push({ role:'user', content:text }); runTurn({ roteiro:rot }); }
   else if(mode === 'toolbox' && st.catalogPromise) runAsk(text);
   else{ st.messages.push({ role:'user', content:text }); runTurn(); }
 }
 function renderHero(){
   const c = $('#chat'); c.innerHTML = '';
   const h = document.createElement('div'); h.className = 'hero'; h.id = 'hero';
-  h.innerHTML = '<span class="eyebrow">IA local · IA de Bolso</span><h1>Olá. Eu sou a IA da <em>CD2</em>.</h1><p></p><span class="eyebrow sub">Experimente perguntar</span><div class="chips"></div>';
+  h.innerHTML = '<span class="eyebrow">IA local · IA de Bolso</span><h1><span class="sauda"></span> Eu sou a IA da <em>CD2</em>.</h1><p></p><span class="eyebrow sub">Experimente perguntar</span><div class="chips"></div>';
+  h.querySelector('.sauda').textContent = CD2Momento.saudacaoCurta(new Date()) + '!';
   h.querySelector('p').textContent = st.cfg.tagline + '. Nada do que você digitar sai deste computador, a não ser consultas às ferramentas que você conectar.';
   const mode = store.get('cd2.mode') || (st.cfg.mcp && st.cfg.mcp.mode) || 'demo';
   const sug = (mode === 'toolbox' && st.suggestions && st.suggestions.length) ? st.suggestions
@@ -861,7 +880,7 @@ function renderHero(){
   if(mode === 'demo') h.insertBefore(convite(), h.querySelector('.sub'));
   c.appendChild(h);
 }
-function newChat(){ if(st.ctl) st.ctl.abort(); st.messages = []; renderHero(); }
+function newChat(){ if(st.ctl) st.ctl.abort(); st.messages = []; st.periodoSaudado = null; renderHero(); }
 
 /* ---------- configurações ---------- */
 function syncCfgBoxes(){
