@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -26,6 +27,29 @@ const rotuloDisco = "CD2"
 
 // sistemaOperacional existe para o teste simular o Windows.
 var sistemaOperacional = runtime.GOOS
+
+// margemPenDrive é a folga, além do tamanho do stage, que o pen drive
+// precisa ter: o exFAT e a tabela de partição ocupam um pouco.
+const margemPenDrive = 64 << 20
+
+// cabe diz se um stage de total bytes cabe num pen drive de bytes, com a margem.
+func cabe(total, bytes int64) bool { return total+margemPenDrive <= bytes }
+
+// caminhoDoInstalador devolve o executável em uso, sem links simbólicos, ou
+// "" se não souber. O teste troca.
+var caminhoDoInstalador = func() string {
+	p, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	if r, err := filepath.EvalSymlinks(p); err == nil {
+		p = r
+	}
+	return p
+}
+
+// errProprio: o disco escolhido é o pen drive de onde o instalador roda.
+var errProprio = errors.New("o instalador roda deste disco")
 
 // Evento é o andamento da gravação, como a tela recebe.
 type Evento struct {
@@ -71,15 +95,22 @@ func PastaCache() (string, error) {
 }
 
 // Discos lista os discos que a tela pode mostrar: Listar, Filtrar, Descrever.
-// Sem disco, devolve lista vazia (nunca nil), para o JSON sair [].
+// O disco de onde o instalador está rodando aparece como Proprio, que não
+// pode ser escolhido. Sem disco, devolve lista vazia (nunca nil), para o JSON
+// sair [].
 func Discos(ctx context.Context, s discos.Sistema) ([]discos.Disco, error) {
 	brutos, err := s.Listar(ctx)
 	if err != nil {
 		return nil, err
 	}
+	exe := caminhoDoInstalador()
 	saida := []discos.Disco{}
 	for _, b := range discos.Filtrar(brutos) {
-		saida = append(saida, discos.Descrever(b, discos.ContarArquivos))
+		d := discos.Descrever(b, discos.ContarArquivos)
+		if discos.NasMontagens(b.Montagens, exe) {
+			d.Situacao = discos.Proprio
+		}
+		saida = append(saida, d)
 	}
 	return saida, nil
 }
@@ -164,6 +195,15 @@ func (a *andamento) restante(agora time.Time, feitos, total int64) int {
 	return int(float64(falta)/(float64(db)/dt) + 0.5)
 }
 
+// parado emite uma frase sem a fração andar, para uma fase que não mede
+// bytes (o Apagar). A etapa seguinte recomeça a medir a vazão do zero.
+func (a *andamento) parado(etapa, frase string) {
+	a.etapa, a.amostras = "", nil
+	a.etapaEmitida, a.ultimaFrase = etapa, frase
+	a.emitiu, a.emitida = true, a.ultima
+	a.ev(Evento{Etapa: etapa, Frase: frase, Fracao: a.ultima, Restante: -1})
+}
+
 func (a *andamento) pronto(frase string) {
 	a.ev(Evento{Etapa: "pronto", Frase: frase, Fracao: 1, Restante: 0})
 }
@@ -209,7 +249,9 @@ func Gravar(ctx context.Context, o Opcoes, ev func(Evento)) error {
 
 	itens := map[string]int64{}
 	stage, err := preparo.Montar(ctx, o.HTTP, m, o.Cache, daCache, func(e preparo.Evento) {
-		itens[e.Item] = e.Feitos
+		if !e.Conferindo {
+			itens[e.Item] = e.Feitos
+		}
 		var baixados int64
 		for _, v := range itens {
 			baixados += v
@@ -217,7 +259,11 @@ func Gravar(ctx context.Context, o Opcoes, ev func(Evento)) error {
 		if baixados > a.baixar {
 			baixados = a.baixar
 		}
-		a.publicar("baixando", fraseBaixando(e.Item, e.Feitos, e.Total), baixados, a.baixar, 0, false)
+		frase := fraseConferindoArquivos
+		if !e.Conferindo {
+			frase = fraseBaixando(e.Item, e.Feitos, e.Total)
+		}
+		a.publicar("baixando", frase, baixados, a.baixar, 0, false)
 	})
 	if err != nil {
 		return falha(frasePreparo(err), err)
@@ -226,7 +272,9 @@ func Gravar(ctx context.Context, o Opcoes, ev func(Evento)) error {
 	if sistemaOperacional == "windows" {
 		exe := filepath.Join(stage, "bin", "llamafile.exe")
 		if st, err := os.Stat(exe); err != nil || st.Size() == 0 {
-			return falha(fmt.Sprintf(fraseAntivirus, o.Cache), fmt.Errorf("llamafile.exe sumiu ou zerou: %v", err))
+			// A tela não mostra caminho de arquivo; a pasta vai só para o log.
+			log.Printf("gravar: %s sumiu ou zerou (antivírus?), pasta para liberar: %s", exe, o.Cache)
+			return falha(fraseAntivirus, fmt.Errorf("llamafile.exe sumiu ou zerou: %v", err))
 		}
 	}
 
@@ -235,12 +283,18 @@ func Gravar(ctx context.Context, o Opcoes, ev func(Evento)) error {
 		return falha(fraseGenerica, err)
 	}
 	a.copiar = total
+	if !cabe(total, o.Disco.Bytes) {
+		return falha(fraseNaoCabe, fmt.Errorf("o stage tem %d bytes e o pen drive %d", total, o.Disco.Bytes))
+	}
 
 	// Reconfere o disco escolhido imediatamente antes de apagar.
 	if err := ctx.Err(); err != nil {
 		return falha("", err)
 	}
 	if err := reconferir(ctx, o); err != nil {
+		if errors.Is(err, errProprio) {
+			return falha(fraseProprio, err)
+		}
 		return falha(fraseDiscoMudou, err)
 	}
 	// Cancelar nesta janela ainda não apagou nada.
@@ -251,6 +305,7 @@ func Gravar(ctx context.Context, o Opcoes, ev func(Evento)) error {
 	// Daqui em diante o disco pode estar apagado, mesmo se Apagar falhar ou
 	// for cancelado no meio.
 	apagou = true
+	a.parado("copiando", fraseApagando)
 	montagem, err := o.Sistema.Apagar(ctx, o.Disco.ID, rotuloDisco)
 	if err != nil {
 		return falha(fraseFormatar, err)
@@ -276,7 +331,8 @@ func Gravar(ctx context.Context, o Opcoes, ev func(Evento)) error {
 	return nil
 }
 
-// reconferir lista os discos de novo e exige o mesmo disco, ainda escolhível.
+// reconferir lista os discos de novo e exige o mesmo disco, ainda escolhível
+// e sem ser o pen drive de onde o instalador roda.
 func reconferir(ctx context.Context, o Opcoes) error {
 	lista, err := Discos(ctx, o.Sistema)
 	if err != nil {
@@ -291,6 +347,9 @@ func reconferir(ctx context.Context, o Opcoes) error {
 		}
 		if d.Situacao == discos.Pequeno {
 			return fmt.Errorf("disco %s pequeno demais", d.ID)
+		}
+		if d.Situacao == discos.Proprio {
+			return fmt.Errorf("disco %s: %w", d.ID, errProprio)
 		}
 		return nil
 	}

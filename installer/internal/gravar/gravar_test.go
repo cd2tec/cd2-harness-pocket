@@ -330,7 +330,7 @@ func TestRemovidoNoMeio(t *testing.T) {
 	fora := filepath.Dir(a.sis.pasta)
 	tirado, copiando := false, 0
 	err := Gravar(context.Background(), a.opcoes(), func(e Evento) {
-		if e.Etapa == "copiando" {
+		if e.Frase == fraseCopiando {
 			copiando++
 		}
 		// Segundo evento de cópia: já houve bytes copiados.
@@ -370,7 +370,7 @@ func TestCancelarAntesEDepois(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		err := Gravar(ctx, a.opcoes(), func(e Evento) {
-			if e.Etapa == "copiando" {
+			if e.Frase == fraseCopiando {
 				cancel()
 			}
 		})
@@ -390,7 +390,7 @@ func TestCancelarEntreReconferenciaEApagar(t *testing.T) {
 	a.sis.aoListar = cancel
 	var copiou bool
 	err := Gravar(ctx, a.opcoes(), func(e Evento) {
-		if e.Etapa == "copiando" {
+		if e.Frase == fraseCopiando {
 			copiou = true
 		}
 	})
@@ -409,7 +409,7 @@ func TestCancelarDuranteApagar(t *testing.T) {
 	a.sis.aoApagar = cancel
 	var copiou bool
 	err := Gravar(ctx, a.opcoes(), func(e Evento) {
-		if e.Etapa == "copiando" {
+		if e.Frase == fraseCopiando {
 			copiou = true
 		}
 	})
@@ -548,8 +548,7 @@ func TestAntivirus(t *testing.T) {
 			os.Truncate(exe, 0)
 		}
 	})
-	want := fmt.Sprintf(fraseAntivirus, a.cache)
-	if got := fraseDe(t, err); got != want {
+	if got := fraseDe(t, err); got != fraseAntivirus || strings.Contains(got, a.cache) {
 		t.Fatalf("frase = %q", got)
 	}
 	if a.sis.contem("Apagar") || a.sis.contem("Listar") {
@@ -569,7 +568,11 @@ func TestFrases(t *testing.T) {
 		{"corte no corpo", frasePreparo(fmt.Errorf("modelo: %w", io.ErrUnexpectedEOF)), "Não consegui baixar o que falta. Confira a internet e tente de novo. Nada foi apagado."},
 		{"texto parecido não é rede", frasePreparo(errors.New("download de algo")), "Não deu certo. Tente de novo."},
 		{"conferência", frasePreparo(fmt.Errorf("modelo: %w", baixar.ErrConferencia)), "Um arquivo chegou com defeito duas vezes. Tente de novo daqui a pouco. Nada foi apagado."},
-		{"antivírus", fmt.Sprintf(fraseAntivirus, `C:\cache`), `O antivírus removeu o motor da IA. Libere a pasta C:\cache no antivírus e tente de novo. Nada foi apagado.`},
+		{"antivírus", fraseAntivirus, "O antivírus removeu o motor da IA. Libere a pasta da IA de Bolso no antivírus e tente de novo. Nada foi apagado."},
+		{"conferindo os arquivos", fraseConferindoArquivos, "Conferindo os arquivos"},
+		{"apagando", fraseApagando, "Apagando o pen drive"},
+		{"não cabe", fraseNaoCabe, "Esse pen drive é pequeno demais para a IA de Bolso. Nada foi apagado."},
+		{"próprio", fraseProprio, "O instalador está rodando deste pen drive. Copie o instalador para o computador e abra de lá."},
 		{"disco mudou", fraseDiscoMudou, "O pen drive mudou desde que você escolheu. Escolha de novo. Nada foi apagado."},
 		{"formatar", fraseFormatar, "Não consegui formatar o pen drive. Tire, plugue de novo e tente outra vez."},
 		{"removido", fraseGravacao(fmt.Errorf("x: %w", pendrive.ErrRemovido)), "O pen drive foi removido no meio da gravação. Plugue de novo e grave outra vez."},
@@ -639,5 +642,110 @@ func TestRestante(t *testing.T) {
 	// 400 bytes em 4 s = 100 B/s; faltam 600.
 	if ult.Restante != 6 {
 		t.Fatalf("restante = %d, esperava 6", ult.Restante)
+	}
+}
+
+// No segundo pen drive a cache já está completa: nada é baixado, então
+// nenhuma frase pode dizer "Baixando". A conferência e o Apagar falam.
+func TestSegundaGravacaoNaoDizBaixando(t *testing.T) {
+	a := novoAmbiente(t)
+	if err := Gravar(context.Background(), a.opcoes(), nil); err != nil {
+		t.Fatal(err)
+	}
+	a.sis.pasta = t.TempDir()
+	var frases []string
+	if err := Gravar(context.Background(), a.opcoes(), func(e Evento) { frases = append(frases, e.Etapa+": "+e.Frase) }); err != nil {
+		t.Fatal(err)
+	}
+	vistas := map[string]bool{}
+	for _, f := range frases {
+		if strings.Contains(f, "Baixando") {
+			t.Fatalf("frase de download com a cache completa: %q (todas: %v)", f, frases)
+		}
+		vistas[f] = true
+	}
+	for _, f := range []string{"baixando: " + fraseConferindoArquivos, "copiando: " + fraseApagando} {
+		if !vistas[f] {
+			t.Errorf("faltou %q em %v", f, frases)
+		}
+	}
+}
+
+// "Apagando o pen drive" sai antes do Apagar, na etapa copiando, sem a
+// fração andar; e a conferência da cache sai na etapa baixando.
+func TestApagandoAntesDoApagarSemAndar(t *testing.T) {
+	a := novoAmbiente(t)
+	var eventos []Evento
+	err := Gravar(context.Background(), a.opcoes(), func(e Evento) {
+		if e.Frase == fraseApagando {
+			a.sis.registrar("evento Apagando")
+		}
+		eventos = append(eventos, e)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ev, ap := a.sis.indice("evento Apagando", false), a.sis.indice("Apagar", false)
+	if ev < 0 || ap < 0 || ev > ap {
+		t.Fatalf("Apagando (%d) deveria vir antes do Apagar (%d): %v", ev, ap, a.sis.copia())
+	}
+	for i, e := range eventos {
+		if e.Frase == fraseApagando {
+			if e.Etapa != "copiando" || i == 0 || e.Fracao != eventos[i-1].Fracao {
+				t.Fatalf("Apagando = %+v, anterior %+v", e, eventos[i-1])
+			}
+		}
+		if e.Frase == fraseConferindoArquivos && e.Etapa != "baixando" {
+			t.Fatalf("Conferindo os arquivos fora da etapa baixando: %+v", e)
+		}
+	}
+}
+
+func TestNaoCabeNaoApaga(t *testing.T) {
+	a := novoAmbiente(t)
+	// Tudo cabe em bytes, mas sem a margem de 64 MB.
+	a.disco.Bytes = margemPenDrive
+	a.sis.listas = [][]discos.Bruto{{{ID: "disk9", Nome: "Teste", Bytes: margemPenDrive}}}
+	err := Gravar(context.Background(), a.opcoes(), nil)
+	if got := fraseDe(t, err); got != fraseNaoCabe {
+		t.Fatalf("frase = %q", got)
+	}
+	if a.sis.contem("Apagar") {
+		t.Fatalf("apagou: %v", a.sis.copia())
+	}
+	if !cabe(100, 100+margemPenDrive) || cabe(101, 100+margemPenDrive) {
+		t.Fatal("limite do cabe errado")
+	}
+}
+
+// Se o instalador roda de dentro do pen drive, apagar o mata no meio.
+func TestProprioPenDrive(t *testing.T) {
+	a := novoAmbiente(t)
+	montagem := t.TempDir()
+	antigo := caminhoDoInstalador
+	caminhoDoInstalador = func() string { return filepath.Join(montagem, "CD2-IA-de-Bolso-Windows.exe") }
+	t.Cleanup(func() { caminhoDoInstalador = antigo })
+	bruto := discos.Bruto{ID: "disk9", Nome: "Teste", Bytes: 32_000_000_000, Montagens: []string{montagem}}
+	outro := discos.Bruto{ID: "disk8", Nome: "Outro", Bytes: 32_000_000_000, Montagens: []string{t.TempDir()}}
+	a.sis.listas = [][]discos.Bruto{{bruto, outro}}
+
+	l, err := Discos(context.Background(), a.sis)
+	if err != nil {
+		t.Fatal(err)
+	}
+	por := map[string]discos.Disco{}
+	for _, d := range l {
+		por[d.ID] = d
+	}
+	if por["disk9"].Situacao != discos.Proprio || por["disk8"].Situacao != discos.Ok {
+		t.Fatalf("situações: %+v", l)
+	}
+	// Mesmo escolhido antes, a reconferência recusa sem apagar.
+	err = Gravar(context.Background(), a.opcoes(), nil)
+	if got := fraseDe(t, err); got != fraseProprio {
+		t.Fatalf("frase = %q", got)
+	}
+	if a.sis.contem("Apagar") {
+		t.Fatalf("apagou: %v", a.sis.copia())
 	}
 }

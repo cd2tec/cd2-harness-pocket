@@ -20,10 +20,13 @@ import (
 
 // Evento descreve o andamento de um item. Item: "zip", "motor", "modelo",
 // "toolbox windows-amd64", "cd2-ctl darwin-arm64"... Total é 0 quando o
-// tamanho não é conhecido pelo manifesto.
+// tamanho não é conhecido pelo manifesto. Com Conferindo, nada está sendo
+// baixado: o item (ou a cópia local, no Item "stage") está sendo conferido,
+// extraído ou somado, e Feitos e Total não valem.
 type Evento struct {
 	Item          string
 	Feitos, Total int64
+	Conferindo    bool
 }
 
 // ErrFaltaInternet indica que algo falta (ou não confere) na cache e o modo é sem rede.
@@ -52,15 +55,29 @@ func Montar(ctx context.Context, c *http.Client, m *manifesto.Manifesto, cache s
 	if err := os.MkdirAll(stage, 0o755); err != nil {
 		return "", err
 	}
+	conferindo := func(item string) {
+		if ev != nil {
+			ev(Evento{Item: item, Conferindo: true})
+		}
+	}
 	emitir := func(item string, total int64) baixar.Progresso {
-		return func(feitos, _ int64) {
-			if ev != nil {
-				ev(Evento{Item: item, Feitos: feitos, Total: total})
+		// fim é o total que o download conhece (o do manifesto ou o do servidor).
+		return func(feitos, fim int64) {
+			if ev == nil {
+				return
+			}
+			ev(Evento{Item: item, Feitos: feitos, Total: total})
+			// O último pedaço chegou: o que vem é a conferência do SHA.
+			if fim > 0 && feitos >= fim {
+				conferindo(item)
 			}
 		}
 	}
-	// obter baixa (ou só confere, sem rede) um arquivo.
+	// obter baixa (ou só confere, sem rede) um arquivo. Antes, avisa que está
+	// conferindo: se o arquivo já estiver completo na cache, a conferência do
+	// SHA é tudo o que acontece.
 	obter := func(item, url, destino string, esperado manifesto.Arquivo) error {
+		conferindo(item)
 		if semRede {
 			if err := baixar.Conferir(destino, esperado); err != nil {
 				return fmt.Errorf("%w: %s (%v)", ErrFaltaInternet, item, err)
@@ -81,6 +98,7 @@ func Montar(ctx context.Context, c *http.Client, m *manifesto.Manifesto, cache s
 	if err := obter("zip", m.Zip.URL, zipPath, m.Zip); err != nil {
 		return "", err
 	}
+	conferindo("stage")
 	if err := limparStage(stage); err != nil {
 		return "", err
 	}
@@ -157,6 +175,7 @@ func Montar(ctx context.Context, c *http.Client, m *manifesto.Manifesto, cache s
 		}
 	}
 
+	conferindo("stage")
 	if err := GerarChecksums(stage, m.ModeloNome); err != nil {
 		return "", err
 	}

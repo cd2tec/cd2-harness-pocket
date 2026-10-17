@@ -16,14 +16,18 @@ import (
 
 // Frases mostradas na tela. O texto é fixo.
 const (
-	fraseCopiando   = "Copiando para o pen drive"
-	fraseConferindo = "Conferindo o que foi gravado"
-	fraseProntoOk   = "Pronto."
-	fraseProntoSem  = "Pronto. Ejete o pen drive pelo sistema antes de tirar."
+	fraseConferindoArquivos = "Conferindo os arquivos"
+	fraseApagando           = "Apagando o pen drive"
+	fraseCopiando           = "Copiando para o pen drive"
+	fraseConferindo         = "Conferindo o que foi gravado"
+	fraseProntoOk           = "Pronto."
+	fraseProntoSem          = "Pronto. Ejete o pen drive pelo sistema antes de tirar."
 
 	fraseInternet      = "Não consegui baixar o que falta. Confira a internet e tente de novo. Nada foi apagado."
 	fraseDefeito       = "Um arquivo chegou com defeito duas vezes. Tente de novo daqui a pouco. Nada foi apagado."
-	fraseAntivirus     = "O antivírus removeu o motor da IA. Libere a pasta %s no antivírus e tente de novo. Nada foi apagado."
+	fraseAntivirus     = "O antivírus removeu o motor da IA. Libere a pasta da IA de Bolso no antivírus e tente de novo. Nada foi apagado."
+	fraseNaoCabe       = "Esse pen drive é pequeno demais para a IA de Bolso. Nada foi apagado."
+	fraseProprio       = "O instalador está rodando deste pen drive. Copie o instalador para o computador e abra de lá."
 	fraseDiscoMudou    = "O pen drive mudou desde que você escolheu. Escolha de novo. Nada foi apagado."
 	fraseFormatar      = "Não consegui formatar o pen drive. Tire, plugue de novo e tente outra vez."
 	fraseRemovido      = "O pen drive foi removido no meio da gravação. Plugue de novo e grave outra vez."

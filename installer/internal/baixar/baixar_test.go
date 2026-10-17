@@ -103,13 +103,18 @@ func TestPulaSeCompleto(t *testing.T) {
 	s := novoServidor(t, corpo)
 	destino := filepath.Join(t.TempDir(), "a.bin")
 	escrever(t, destino, corpo)
+	chamadas := 0
 	err := Arquivo(context.Background(), s.Client(), s.URL, destino,
-		manifesto.Arquivo{SHA256: shaDe(corpo), Bytes: int64(len(corpo))}, nil)
+		manifesto.Arquivo{SHA256: shaDe(corpo), Bytes: int64(len(corpo))}, func(int64, int64) { chamadas++ })
 	if err != nil {
 		t.Fatal(err)
 	}
 	if n := s.gets.Load(); n != 0 {
 		t.Errorf("GETs = %d, esperado 0", n)
+	}
+	// Nada foi baixado: sem progresso, para a tela não mostrar "Baixando" à toa.
+	if chamadas != 0 {
+		t.Errorf("progresso chamado %d vezes num arquivo já completo", chamadas)
 	}
 }
 

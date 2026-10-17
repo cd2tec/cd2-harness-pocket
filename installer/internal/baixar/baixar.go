@@ -25,7 +25,7 @@ var ErrConferencia = errors.New("arquivo baixado não confere")
 var ErrHTTP = errors.New("status HTTP inesperado")
 
 // Arquivo baixa url em destino. Pula se já estiver completo (SHA confere, ou
-// Bytes bate quando não há SHA). Retoma pela metade com Range; se o servidor
+// Bytes bate quando não há SHA), sem chamar p. Retoma pela metade com Range; se o servidor
 // ignorar o Range (200), recomeça do zero. Se a conferência falhar no fim,
 // apaga e tenta UMA vez do zero; se falhar de novo, devolve ErrConferencia.
 // O parâmetro url prevalece sobre esperado.URL.
@@ -49,9 +49,7 @@ func Arquivo(ctx context.Context, c *http.Client, url, destino string, esperado 
 			// Sem como saber se está completo: baixa ou retoma.
 		case esperado.Bytes == 0 || st.Size() == esperado.Bytes:
 			if Conferir(destino, esperado) == nil {
-				if p != nil {
-					p(st.Size(), st.Size())
-				}
+				// Já completo: nada foi baixado, então não há progresso a dar.
 				return nil
 			}
 			if esperado.Bytes > 0 {
